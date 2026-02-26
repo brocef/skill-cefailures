@@ -1,84 +1,109 @@
-## Value.Create throws CreateError for ambiguous constraints
+# Troubleshooting and Gotchas
 
-If you create a string with a `format` but no `default`, `Value.Create` cannot infer a valid value.
+## `Value.Check` is `false` but you need to know why
 
-```typescript
-import { Type, Value } from '@sinclair/typebox'
-
-const T = Type.String({
-  format: 'email'
-})
-
-const A = Value.Create(T)                            // throws CreateError
-```
-
-Fix by providing a default:
+Use `Value.Errors(schema, data)` to get detailed error information.
 
 ```typescript
-const T = Type.String({
-  format: 'email',
-  default: 'user@domain.com'
-})
+import Value from 'typebox/value'
+import Type from 'typebox'
 
-const A = Value.Create(T)                            // const A: string = 'user@domain.com'
-```
-
-## Value.Repair does not remove extra properties unless you opt in
-
-By default, Repair retains excess properties to avoid data loss. To remove excess properties, set `additionalProperties: false` on the object schema.
-
-```typescript
-const T = Type.Object({
-  x: Type.Number(),
-  y: Type.Number()
-}, { additionalProperties: false })
-
-const C = Value.Repair(T, { x: 1, y: 2, z: 3 })     // const C = { x: 1, y: 2 }
-```
-
-## Value.Clean returns `unknown`
-
-The docs note the output type is `unknown`, so it should be checked.
-
-```typescript
 const T = Type.Object({
   x: Type.Number(),
   y: Type.Number()
 })
 
-const R = Value.Clean(T, { x: 1, y: 2, z: 3 })        // const R = { x: 1, y: 2 }
+if (!Value.Check(T, data)) {
+  const errors = Value.Errors(T, data)
+  for (const error of errors) {
+    console.log(error.path, error.message)
+  }
+}
 ```
 
-## Diff/Patch require correctly formatted edit commands
+## `Value.Parse` throws
 
-`Value.Patch` expects the edits in the same format produced by `Value.Diff`.
+`Value.Parse` throws a `ParseError` if validation fails.
 
 ```typescript
-const L = { x: 1, y: 2, z: 3 }
-const R = { y: 4, z: 5, w: 6 }
+import Value from 'typebox/value'
+import Type from 'typebox'
 
-const E = Value.Diff(L, R)
-const A = Value.Patch(L, E)                          // const A = { y: 4, z: 5, w: 6 }
+const T = Type.Object({
+  x: Type.Number(),
+  y: Type.Number({ default: 10 }),
+  z: Type.Optional(Type.Number())
+})
+
+try {
+  const result = Value.Parse(T, { x: '5', extra: 'field' })
+} catch (error) {
+  console.error(error.message)
+}
 ```
 
-## Script scaling: avoid TypeScript depth limits with deep structures
+Also note Parse applies a transformation pipeline:
 
-Break deep schemas into smaller scripts and compose them.
+- Clone -> Default -> Convert -> Clean -> Assert
+
+That means input like `{ x: '5' }` can become `{ x: 5 }`, defaults may be applied, and extra fields may be removed.
+
+## Extra properties “disappear” after parsing/cleaning
+
+`Value.Clean` removes additional properties.
 
 ```typescript
-const D = Type.Script(`{ e: 1 }`)                   // depth + 1
-const C = Type.Script({ D }, `{ d: D }`)            // depth + 1
-const B = Type.Script({ C }, `{ c: C }`)            // depth + 1
-const A = Type.Script({ B }, `{ b: B }`)            // depth + 1
+import Value from 'typebox/value'
+import Type from 'typebox'
 
-const T = Type.Script({ A }, `{ a: A }`)            // ok
+const T2 = Type.Object({ x: Type.Number() })
+const cleaned = Value.Clean(T2, { x: 1, y: 2, z: 3 })  // { x: 1 }
 ```
 
-## Value.Hash is for fast comparisons, not persistent storage
+## Confusion over error fields (`path` vs `instancePath`)
 
-The docs note hashing is intended for fast comparisons and should not be relied upon for persistent storage.
+The docs show both styles in examples:
 
-```javascript
-const A = Value.Hash({ x: 1, y: 2, z: 3 });
-const B = Value.Hash({ x: 1, y: 4, z: 3 });
+- `error.path` / `error.message` (used in one snippet)
+- `error.instancePath`, `error.schemaPath`, `error.message` (used in another snippet)
+
+When iterating errors, inspect the returned error object shape in your environment and use the appropriate properties.
+
+## Formats not validating as expected
+
+To test formats directly, use `Format.Test(formatName, value)`.
+
+```typescript
+import { Format } from 'typebox/format'
+
+const validEmail = Format.Test('email', 'user@domain.com')  // true
+const invalidEmail = Format.Test('email', 'not-an-email')  // false
+```
+
+If using a custom format, ensure it is registered and available.
+
+```typescript
+import { Format } from 'typebox/format'
+
+Format.Has('credit-card')  // true
+const validator = Format.Get('credit-card')
+validator('4532015112830366')  // true
+```
+
+## Compiled validators: how to inspect optimization
+
+`Compile(schema)` returns a validator that can expose the generated code and whether it was evaluated.
+
+```typescript
+import { Compile } from 'typebox/compile'
+import Type from 'typebox'
+
+const T = Type.Object({
+  x: Type.Number(),
+  y: Type.Number()
+})
+
+const validator = Compile(T)
+const code = validator.Code()              // Generated validation code
+const isOptimized = validator.IsEvaluated()  // true if using eval
 ```

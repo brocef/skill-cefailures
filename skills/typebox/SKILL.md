@@ -1,36 +1,37 @@
 ---
 name: typebox
-description: Use when working with TypeBox schemas or TypeBox Value/Format/System/Script utilities for schema construction, transformation, validation, or data manipulation in TypeScript/JavaScript.
+description: Use when you need JSON Schema definitions that infer TypeScript types, or you need to validate/parse/transform external data at runtime in a TypeScript codebase.
 ---
 
 # typebox
 
-TypeBox is a TypeScript-first library for building JSON Schema definitions and performing value operations like creation, validation, repair, diff/patch, hashing, cloning, and mutation.
+TypeBox is a runtime type system for building in-memory JSON Schema that statically infers to TypeScript types and supports runtime validation and transformation.
 
 ## When to Use
 
-- You need to define JSON Schema using TypeBox (Type.Object, Type.Number, Type.String, etc.)
-- You need to transform existing TypeBox schemas (Required/Partial/Pick/KeyOf/Mapped/Intersect/Refine)
-- You need to repair, clean, create, diff/patch, hash, clone, equal-check, or mutate runtime values using TypeBox Value utilities
-- You need to generate schemas via Type.Script (including mapped type transformations or scaling patterns)
-- You need to register or use custom string formats with TypeBox Format
-- You need to adjust TypeBox system settings (e.g., make compositor properties enumerable)
+- Defining API/request/response schemas with TypeScript static inference
+- Runtime validation of unknown/external data (e.g., network, config, user input)
+- High-performance validation by compiling schemas into JIT validators
+- Generating defaults, cleaning extra fields, or coercing types during parsing
+- Creating schemas from TypeScript-like syntax strings (Script) or using formats/custom formats
+- Building complex schemas via composition (unions, intersections, recursive types, transforms)
 
 ## Reference
 
 Read the relevant doc based on your task:
 
-- **Getting Started and Core Type Construction** — `docs/getting-started-and-core-types.md` — Install TypeBox and build core schemas with constraints/metadata and TypeScript static inference.
-- **Schema Transforms and Type Utilities** — `docs/schema-transforms-and-utilities.md` — Transform and derive schemas with Required/Partial/Pick/KeyOf/Mapped/Intersect/Refine and related options.
-- **Type.Script: Constructing and Mapping Schemas** — `docs/type-script-schemas.md` — Use Type.Script to construct JSON Schema from TS-like strings and apply mapped-type transformations, including advanced patterns and options.
-- **Value Operations: Create, Repair, Clean, Diff/Patch, Hash, Clone/Equal, Mutate, Codec** — `docs/value-operations.md` — Runtime utilities for creating and transforming values to match schemas, synchronizing structures, hashing, cloning, and preserving references during updates.
-- **Formats, Record Types, and System Settings** — `docs/formats-records-and-settings.md` — Define dynamic-key dictionaries with Type.Record, register custom formats, and adjust global TypeBox settings.
-- **Troubleshooting and Gotchas** — `docs/troubleshooting.md` — Common TypeBox errors and behavioral gotchas shown in the docs.
+- **Type Builder (Type) — Core Schema Construction** — `docs/type-builder-core.md` — Build JSON Schema objects that infer TypeScript types; includes object, arrays/tuples, unions/intersections, literals/enums, records, and recursive types.
+- **Type Transformations and Operations** — `docs/type-transformations.md` — Transform and query schemas: Pick/Omit/Partial/Required/KeyOf/Index and union filtering with Exclude/Extract.
+- **Value Module — Runtime Validation and Transformation** — `docs/value-runtime.md` — Validate, parse (transform), create defaults, clone/equal, and perform Convert/Clean/Default/Assert/Errors operations.
+- **Compile Module — High-Performance Validators** — `docs/compile-validators.md` — Compile schemas into optimized validators; includes references/context and nested validator composition.
+- **Script — TypeScript Syntax to Schema** — `docs/script-module.md` — Create schemas from TypeScript-like syntax strings, with context, mapped types, utility types, and Script modules.
+- **Formats, Refine, and Codec** — `docs/formats-refine-codec.md` — String format validation (built-in and custom), custom refinements with error messages, and bidirectional codecs for encode/decode.
+- **Troubleshooting and Gotchas** — `docs/troubleshooting.md` — Common pitfalls around Parse behavior, errors reporting, formats, and compiled validator expectations.
 
 ## Key Patterns
 
-- Value.Repair + additionalProperties: false: Repair removes excess properties only when the object schema sets { additionalProperties: false }; otherwise excess properties are retained to avoid data loss.
-- Value.Diff -> Value.Patch: Generate edit commands with Value.Diff(left, right) and apply them to a value with Value.Patch(left, edits) to produce the right shape.
-- Value.Create ambiguous constraints: Value.Create(Type.String({ format: 'email' })) throws CreateError unless a default is provided to resolve the constraint.
-- Type.Script for mapping/scaling: Use Type.Script with a context object ({ T }) to reference existing schemas and apply mapped-type transformations; break deep structures into smaller scripts to avoid TypeScript depth limits.
-- Custom formats via Format.Set/Get: Register custom validators with Format.Set(name, fn) and then use Type.String({ format: name }) with Value.Check, or call the validator from Format.Get.
+- Static inference with Type.Static<typeof Schema>: derive TypeScript types from schemas to keep runtime and compile-time in sync
+- Prefer Value.Parse for full validation + transformation: Parse runs Clone -> Default -> Convert -> Clean -> Assert
+- Use Compile(...) to compile once and reuse: compiled validators expose the same operations (Check/Parse/Create/Clean/Errors) with better performance
+- Use schema transformations (Pick/Omit/Partial/Required/KeyOf/Index/Exclude/Extract) to keep object and union variants consistent without duplicating definitions
+- Extend validation via Format.Set (custom string formats) and Type.Refine/Type.Codec for domain-specific checks and encode/decode transformations
