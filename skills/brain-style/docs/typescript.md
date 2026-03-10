@@ -12,8 +12,8 @@ const MAX_RETRIES = 3
 const DEFAULT_TIMEOUT_MS = 5000
 const API_BASE_URL = 'https://api.example.com'
 
-// Correct: enum members
-enum Status {
+// Correct: enum members (enum name is PascalCase, members are SCREAMING_SNAKE_CASE)
+enum TaskStatus {
   NOT_STARTED = 'NOT_STARTED',
   IN_PROGRESS = 'IN_PROGRESS',
   COMPLETED = 'COMPLETED',
@@ -30,11 +30,53 @@ const FILTERED_ITEMS = items.filter(i => i.active)
 const filteredItems = items.filter(i => i.active)
 ```
 
-### `PascalCase` — Schema Objects, Class-Like Constructors, and React Components
+### `kebab-case` — File Names
 
-Allowed for `const` variables that are TypeBox schema objects, similar class-like/constructor-like values, or React functional components.
+All TypeScript/JavaScript file names use `kebab-case`.
+
+```
+// Correct
+user-profile.ts
+api-client.tsx
+get-user-by-id.test.ts
+
+// Wrong
+userProfile.ts
+ApiClient.tsx
+GetUserById.test.ts
+```
+
+### `T`-Prefixed `PascalCase` — Type Aliases and Interfaces
+
+All type aliases and interfaces use `T`-prefixed `PascalCase`.
 
 ```typescript
+// Correct
+type TCoreArgument = { name: string; value: unknown }
+type TFormulaAST = { op: string; children: TFormulaAST[] }
+type TUUID = string
+interface TUserProfile { name: string; age: number }
+
+// Wrong: missing T prefix
+type CoreArgument = { name: string; value: unknown }
+interface UserProfile { name: string; age: number }
+```
+
+### `PascalCase` — Enums, Type Parameters, Schema Objects, Class-Like Constructors, and React Components
+
+Allowed for enum names, type parameters, `const` variables that are TypeBox schema objects, similar class-like/constructor-like values, or React functional components.
+
+```typescript
+// Correct: enum names are PascalCase (members stay SCREAMING_SNAKE_CASE)
+enum TaskStatus {
+  NOT_STARTED = 'NOT_STARTED',
+  IN_PROGRESS = 'IN_PROGRESS',
+}
+
+// Correct: type parameters
+function merge<TSource, TTarget>(source: TSource, target: TTarget): TSource & TTarget
+type Result<TValue, TError = Error> = { ok: true; value: TValue } | { ok: false; error: TError }
+
 // Correct: TypeBox schema objects
 const UserSchema = Type.Object({
   name: Type.String(),
@@ -67,8 +109,10 @@ When you encounter a naming style that looks wrong, check whether it falls into 
 
 | Style | Use For |
 |-------|---------|
+| `kebab-case` | File names |
 | `SCREAMING_SNAKE_CASE` | Hard-coded values, enum members |
-| `PascalCase` | Types, interfaces, classes, schema objects, class-like constructors, React components |
+| `TPascalCase` | Type aliases, interfaces |
+| `PascalCase` | Classes, enums, type parameters, schema objects, class-like constructors, React components |
 | `camelCase` | Variables, functions, methods, properties |
 | Exempt | Destructured variables, imports, override methods |
 
