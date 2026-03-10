@@ -1,0 +1,8 @@
+{
+  "description": "Logs every tool call that triggers a permission prompt to ~/.claude/permission-requests.log",
+  "hooks": {
+    "PermissionRequest": {
+      "matcher": ".*"
+    }
+  }
+}
