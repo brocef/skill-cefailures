@@ -49,6 +49,12 @@ For information about [topic keywords] see [section name] in [file path].
 
 Include topic keywords so the agent can match the route to its current task without reading the target file.
 
+## Recommended Directives
+
+Certain directives provide enough value that they should appear in every project's CLAUDE.md:
+
+- **Bug workflow** — Include a directive like: *"When I report a bug, don't start by trying to fix it. Instead, start by writing a test that reproduces the bug. Then, use subagents to attempt fixes and prove them with a passing test."* This ensures bugs are understood before they are "fixed," prevents regressions, and leverages parallel subagents to explore solutions efficiently.
+
 ## Common Mistakes
 
 | Mistake | Fix |
