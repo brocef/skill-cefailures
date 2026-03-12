@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 from collections import defaultdict
+from pathlib import Path
 
 # Shell operators that separate independent sub-commands
 _SHELL_SPLIT_RE = re.compile(r"\s*(?:&&|\|\||\||;)\s*")
@@ -201,5 +203,91 @@ def filter_groups(
     return [g for g in groups if not _is_subsumed(g["pattern"], existing_rules)]
 
 
+AUDITOR_DIR = Path.home() / ".claude" / "permissions-auditor"
+LOG_PATH = AUDITOR_DIR / "permission-requests.log"
+CURSOR_PATH = AUDITOR_DIR / "cursor.txt"
+MANUAL_PATH = AUDITOR_DIR / "manual-review-commands.txt"
+SETTINGS_PATH = Path.home() / ".claude" / "settings.json"
+
+
+def _load_cursor(cursor_path: Path) -> int:
+    """Load cursor (line offset) from file. Returns 0 if missing."""
+    if cursor_path.exists():
+        text = cursor_path.read_text().strip()
+        if text.isdigit():
+            return int(text)
+    return 0
+
+
+def _load_existing_rules(settings: dict, manual_path: Path) -> list[str]:
+    """Collect all existing allow + deny + manual-review patterns."""
+    perms = settings.get("permissions", {})
+    rules = list(perms.get("allow", []))
+    rules.extend(perms.get("deny", []))
+    if manual_path.exists():
+        for line in manual_path.read_text().splitlines():
+            line = line.strip()
+            if line:
+                rules.append(line)
+    return rules
+
+
+def analyze(
+    log_path: Path,
+    cursor_path: Path,
+    settings: dict,
+    manual_path: Path,
+) -> dict:
+    """Analyze permission request log and return grouped patterns as a dict.
+
+    Reads from cursor position, parses lines, groups commands,
+    filters against existing rules, and returns JSON-serializable result.
+    """
+    if not log_path.exists():
+        return {"groups": [], "total_new_lines": 0, "cursor": 0}
+
+    lines = log_path.read_text().splitlines()
+    total_lines = len(lines)
+    cursor = _load_cursor(cursor_path)
+    new_lines = lines[cursor:]
+
+    entries: list[tuple[str, str]] = []
+    for line in new_lines:
+        parsed = parse_log_line(line)
+        if parsed is None:
+            print(f"Warning: skipping malformed line: {line!r}", file=sys.stderr)
+            continue
+        entries.append(parsed)
+
+    groups = group_commands(entries)
+
+    existing_rules = _load_existing_rules(settings, manual_path)
+    groups = filter_groups(groups, existing_rules)
+
+    groups.sort(key=lambda g: g["count"], reverse=True)
+
+    return {
+        "groups": groups,
+        "total_new_lines": len(new_lines),
+        "cursor": total_lines,
+    }
+
+
+def main() -> None:
+    """CLI entry point: analyze log and print JSON to stdout."""
+    if not SETTINGS_PATH.exists():
+        settings: dict = {}
+    else:
+        settings = json.loads(SETTINGS_PATH.read_text())
+
+    result = analyze(
+        log_path=LOG_PATH,
+        cursor_path=CURSOR_PATH,
+        settings=settings,
+        manual_path=MANUAL_PATH,
+    )
+    print(json.dumps(result, indent=2))
+
+
 if __name__ == "__main__":
-    pass
+    main()

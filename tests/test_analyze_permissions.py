@@ -246,3 +246,203 @@ def test_filter_combines_allow_deny_manual():
     result = filter_groups(groups, existing)
     assert len(result) == 1
     assert result[0]["pattern"] == "Bash(npm run *)"
+
+
+import json
+
+
+def test_analyze_full_pipeline(tmp_path):
+    """End-to-end: log file -> JSON output with groups, cursor."""
+    from analyze_permissions import analyze
+
+    log_file = tmp_path / "permission-requests.log"
+    log_file.write_text(
+        "[2026-03-11T00:13:20Z] Bash | git add src/foo.ts | CWD: /path\n"
+        "[2026-03-11T00:13:21Z] Bash | git add src/bar.ts | CWD: /path\n"
+        "[2026-03-11T00:13:22Z] Edit | {\"file_path\":\"/a.ts\"} | CWD: /path\n"
+    )
+    cursor_file = tmp_path / "cursor.txt"
+    settings = {"permissions": {"allow": [], "deny": []}}
+    manual_file = tmp_path / "manual-review-commands.txt"
+
+    result = analyze(
+        log_path=log_file,
+        cursor_path=cursor_file,
+        settings=settings,
+        manual_path=manual_file,
+    )
+
+    assert result["total_new_lines"] == 3
+    assert result["cursor"] == 3
+    patterns = {g["pattern"] for g in result["groups"]}
+    assert "Bash(git add *)" in patterns
+    assert "Edit(*)" in patterns
+
+
+def test_analyze_respects_cursor(tmp_path):
+    """Only lines after the cursor are processed."""
+    from analyze_permissions import analyze
+
+    log_file = tmp_path / "permission-requests.log"
+    log_file.write_text(
+        "[2026-03-11T00:13:20Z] Bash | git add old.ts | CWD: /path\n"
+        "[2026-03-11T00:13:21Z] Bash | git add new.ts | CWD: /path\n"
+        "[2026-03-11T00:13:22Z] Bash | npm run build | CWD: /path\n"
+    )
+    cursor_file = tmp_path / "cursor.txt"
+    cursor_file.write_text("1")
+    settings = {"permissions": {"allow": [], "deny": []}}
+    manual_file = tmp_path / "manual-review-commands.txt"
+
+    result = analyze(
+        log_path=log_file,
+        cursor_path=cursor_file,
+        settings=settings,
+        manual_path=manual_file,
+    )
+
+    assert result["total_new_lines"] == 2
+    assert result["cursor"] == 3
+    patterns = {g["pattern"] for g in result["groups"]}
+    assert "Bash(git add new.ts)" in patterns
+    assert "Bash(npm run build)" in patterns
+    assert "Bash(git add old.ts)" not in patterns  # was before cursor
+
+
+def test_analyze_sorted_by_frequency(tmp_path):
+    """Output groups are sorted by count descending."""
+    from analyze_permissions import analyze
+
+    log_file = tmp_path / "permission-requests.log"
+    log_file.write_text(
+        "[2026-03-11T00:13:20Z] Bash | npm run build | CWD: /path\n"
+        "[2026-03-11T00:13:21Z] Bash | git add foo.ts | CWD: /path\n"
+        "[2026-03-11T00:13:22Z] Bash | git add bar.ts | CWD: /path\n"
+        "[2026-03-11T00:13:23Z] Bash | git add baz.ts | CWD: /path\n"
+    )
+    cursor_file = tmp_path / "cursor.txt"
+    settings = {"permissions": {"allow": [], "deny": []}}
+    manual_file = tmp_path / "manual-review-commands.txt"
+
+    result = analyze(
+        log_path=log_file,
+        cursor_path=cursor_file,
+        settings=settings,
+        manual_path=manual_file,
+    )
+
+    assert len(result["groups"]) == 2
+    assert result["groups"][0]["count"] >= result["groups"][1]["count"]
+    assert result["groups"][0]["pattern"] == "Bash(git add *)"
+
+
+def test_analyze_missing_permissions_key(tmp_path):
+    """Settings dict without a permissions key should not crash."""
+    from analyze_permissions import analyze
+
+    log_file = tmp_path / "permission-requests.log"
+    log_file.write_text(
+        "[2026-03-11T00:13:20Z] Bash | git add foo.ts | CWD: /path\n"
+    )
+    cursor_file = tmp_path / "cursor.txt"
+    manual_file = tmp_path / "manual-review-commands.txt"
+
+    result = analyze(
+        log_path=log_file,
+        cursor_path=cursor_file,
+        settings={},
+        manual_path=manual_file,
+    )
+
+    assert len(result["groups"]) == 1
+
+
+def test_analyze_filters_existing_rules(tmp_path):
+    """Groups matching existing allow/deny rules are excluded."""
+    from analyze_permissions import analyze
+
+    log_file = tmp_path / "permission-requests.log"
+    log_file.write_text(
+        "[2026-03-11T00:13:20Z] Bash | git add foo.ts | CWD: /path\n"
+        "[2026-03-11T00:13:21Z] Bash | git add bar.ts | CWD: /path\n"
+        "[2026-03-11T00:13:22Z] Bash | npm run build | CWD: /path\n"
+    )
+    cursor_file = tmp_path / "cursor.txt"
+    settings = {"permissions": {"allow": ["Bash(git add *)"], "deny": []}}
+    manual_file = tmp_path / "manual-review-commands.txt"
+
+    result = analyze(
+        log_path=log_file,
+        cursor_path=cursor_file,
+        settings=settings,
+        manual_path=manual_file,
+    )
+
+    patterns = {g["pattern"] for g in result["groups"]}
+    assert "Bash(git add *)" not in patterns
+    assert "Bash(npm run build)" in patterns
+
+
+def test_analyze_filters_manual_review(tmp_path):
+    """Groups matching manual-review entries are excluded."""
+    from analyze_permissions import analyze
+
+    log_file = tmp_path / "permission-requests.log"
+    log_file.write_text(
+        "[2026-03-11T00:13:20Z] Bash | git push origin main | CWD: /path\n"
+        "[2026-03-11T00:13:21Z] Bash | git push origin dev | CWD: /path\n"
+    )
+    cursor_file = tmp_path / "cursor.txt"
+    settings = {"permissions": {"allow": [], "deny": []}}
+    manual_file = tmp_path / "manual-review-commands.txt"
+    manual_file.write_text("Bash(git push *)\n")
+
+    result = analyze(
+        log_path=log_file,
+        cursor_path=cursor_file,
+        settings=settings,
+        manual_path=manual_file,
+    )
+
+    assert result["groups"] == []
+
+
+def test_analyze_no_log_file(tmp_path):
+    """Missing log file returns empty results."""
+    from analyze_permissions import analyze
+
+    result = analyze(
+        log_path=tmp_path / "nonexistent.log",
+        cursor_path=tmp_path / "cursor.txt",
+        settings={"permissions": {"allow": [], "deny": []}},
+        manual_path=tmp_path / "manual-review-commands.txt",
+    )
+
+    assert result["groups"] == []
+    assert result["total_new_lines"] == 0
+    assert result["cursor"] == 0
+
+
+def test_analyze_skips_malformed_lines(tmp_path):
+    """Malformed lines are skipped, valid lines still processed."""
+    from analyze_permissions import analyze
+
+    log_file = tmp_path / "permission-requests.log"
+    log_file.write_text(
+        "this is garbage\n"
+        "[2026-03-11T00:13:20Z] Bash | git add foo.ts | CWD: /path\n"
+        "\n"
+    )
+    cursor_file = tmp_path / "cursor.txt"
+    settings = {"permissions": {"allow": [], "deny": []}}
+    manual_file = tmp_path / "manual-review-commands.txt"
+
+    result = analyze(
+        log_path=log_file,
+        cursor_path=cursor_file,
+        settings=settings,
+        manual_path=manual_file,
+    )
+
+    assert len(result["groups"]) == 1
+    assert result["cursor"] == 3
