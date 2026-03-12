@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import re
 import sys
+
+# Shell operators that separate independent sub-commands
+_SHELL_SPLIT_RE = re.compile(r"\s*(?:&&|\|\||\||;)\s*")
 
 
 def parse_log_line(line: str) -> tuple[str, str] | None:
@@ -36,6 +40,24 @@ def parse_log_line(line: str) -> tuple[str, str] | None:
         return None
 
     return (tool, detail)
+
+
+def split_compound_command(command: str) -> list[str]:
+    """Split a compound Bash command into individual sub-commands.
+
+    Splits on &&, ||, |, and ; operators. Strips whitespace, filters
+    empty results and comment lines. Also splits on newlines since
+    multi-line commands appear in logs.
+    """
+    # First split on newlines, then on shell operators
+    parts: list[str] = []
+    for line in command.split("\n"):
+        parts.extend(_SHELL_SPLIT_RE.split(line))
+
+    return [
+        p.strip() for p in parts
+        if p.strip() and not p.strip().startswith("#")
+    ]
 
 
 if __name__ == "__main__":
