@@ -19,16 +19,19 @@ A repository of Claude Code skills for specific libraries, plus tooling to gener
 
 ```
 scripts/
-  create_skill.py     # Generate a skill from a documentation URL
-  install_skill.py    # Symlink skills into ~/.claude/skills/
+  create_skill.py           # Generate a skill from a documentation URL
+  install_skill.py          # Symlink skills into ~/.claude/skills/
+  analyze_permissions.py    # Analyze permission request logs
+  log-permission-requests.sh # Permission logging hook script
 skills/
   <library>/
-    SKILL.md           # Routing layer (loaded on invocation)
-    docs/<topic>.md    # Detailed reference (read on demand)
+    SKILL.md                # Routing layer (loaded on invocation)
+    docs/<topic>.md         # Detailed reference (read on demand)
 tests/
   test_create_skill.py
   test_install_skill.py
-docs/plans/            # Design and implementation documents
+  test_analyze_permissions.py
+docs/plans/                 # Design and implementation documents
 ```
 
 ## Common Commands
