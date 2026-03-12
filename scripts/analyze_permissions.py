@@ -165,5 +165,41 @@ def group_commands(entries: list[tuple[str, str]]) -> list[dict]:
     return groups
 
 
+def _is_subsumed(pattern: str, existing_rules: list[str]) -> bool:
+    """Check if pattern is subsumed by any existing rule using glob matching.
+
+    Extracts the inner content from ToolName(...) format and compares.
+    Bash(git add *) is subsumed by Bash(git *) because fnmatch("git add *", "git *") is True.
+    """
+    from fnmatch import fnmatch
+
+    for rule in existing_rules:
+        if pattern == rule:
+            return True
+        # Extract tool and inner pattern from both
+        if "(" not in pattern or "(" not in rule:
+            continue
+        p_tool = pattern[:pattern.index("(")]
+        r_tool = rule[:rule.index("(")]
+        if p_tool != r_tool:
+            continue
+        p_inner = pattern[pattern.index("(") + 1 : pattern.rindex(")")]
+        r_inner = rule[rule.index("(") + 1 : rule.rindex(")")]
+        if fnmatch(p_inner, r_inner):
+            return True
+    return False
+
+
+def filter_groups(
+    groups: list[dict], existing_rules: list[str]
+) -> list[dict]:
+    """Remove groups whose patterns are subsumed by existing rules.
+
+    Uses fnmatch glob matching for subsumption: e.g., Bash(git *) subsumes
+    Bash(git add *) because fnmatch("git add *", "git *") is True.
+    """
+    return [g for g in groups if not _is_subsumed(g["pattern"], existing_rules)]
+
+
 if __name__ == "__main__":
     pass

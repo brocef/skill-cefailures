@@ -5,7 +5,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
-from analyze_permissions import parse_log_line, split_compound_command, group_commands
+from analyze_permissions import (
+    parse_log_line,
+    split_compound_command,
+    group_commands,
+    filter_groups,
+)
 
 
 def test_parse_bash_line():
@@ -196,3 +201,48 @@ def test_group_samples_capped_at_three():
     entries = [("Bash", f"git add file{i}.ts") for i in range(10)]
     groups = group_commands(entries)
     assert len(groups[0]["samples"]) == 3
+
+
+def test_filter_exact_match():
+    """Group matching an existing rule exactly is filtered out."""
+    groups = [{"pattern": "Bash(git add *)", "count": 5, "samples": []}]
+    existing = ["Bash(git add *)"]
+    result = filter_groups(groups, existing)
+    assert result == []
+
+
+def test_filter_subsumed_by_broader_rule():
+    """Bash(git add *) is subsumed by Bash(git *)."""
+    groups = [{"pattern": "Bash(git add *)", "count": 5, "samples": []}]
+    existing = ["Bash(git *)"]
+    result = filter_groups(groups, existing)
+    assert result == []
+
+
+def test_filter_not_subsumed():
+    """Bash(npm run *) is NOT subsumed by Bash(git *)."""
+    groups = [{"pattern": "Bash(npm run *)", "count": 5, "samples": []}]
+    existing = ["Bash(git *)"]
+    result = filter_groups(groups, existing)
+    assert len(result) == 1
+
+
+def test_filter_non_bash_subsumed():
+    """Edit(*) in existing rules filters out Edit(*) group."""
+    groups = [{"pattern": "Edit(*)", "count": 3, "samples": []}]
+    existing = ["Edit(*)"]
+    result = filter_groups(groups, existing)
+    assert result == []
+
+
+def test_filter_combines_allow_deny_manual():
+    """Filtering checks allow, deny, and manual-review lists together."""
+    groups = [
+        {"pattern": "Bash(git add *)", "count": 5, "samples": []},
+        {"pattern": "Bash(git push *)", "count": 2, "samples": []},
+        {"pattern": "Bash(npm run *)", "count": 3, "samples": []},
+    ]
+    existing = ["Bash(git add *)", "Bash(git push *)"]
+    result = filter_groups(groups, existing)
+    assert len(result) == 1
+    assert result[0]["pattern"] == "Bash(npm run *)"
