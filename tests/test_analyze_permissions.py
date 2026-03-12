@@ -248,9 +248,6 @@ def test_filter_combines_allow_deny_manual():
     assert result[0]["pattern"] == "Bash(npm run *)"
 
 
-import json
-
-
 def test_analyze_full_pipeline(tmp_path):
     """End-to-end: log file -> JSON output with groups, cursor."""
     from analyze_permissions import analyze

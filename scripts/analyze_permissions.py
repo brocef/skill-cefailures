@@ -6,6 +6,7 @@ import json
 import re
 import sys
 from collections import defaultdict
+from fnmatch import fnmatch
 from pathlib import Path
 
 # Shell operators that separate independent sub-commands
@@ -173,8 +174,6 @@ def _is_subsumed(pattern: str, existing_rules: list[str]) -> bool:
     Extracts the inner content from ToolName(...) format and compares.
     Bash(git add *) is subsumed by Bash(git *) because fnmatch("git add *", "git *") is True.
     """
-    from fnmatch import fnmatch
-
     for rule in existing_rules:
         if pattern == rule:
             return True
