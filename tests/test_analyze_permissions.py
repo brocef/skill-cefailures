@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
-from analyze_permissions import parse_log_line, split_compound_command
+from analyze_permissions import parse_log_line, split_compound_command, group_commands
 
 
 def test_parse_bash_line():
@@ -87,3 +87,112 @@ def test_split_comment_lines_skipped():
     result = split_compound_command("# this is a comment\ngit add foo.ts")
     assert "git add foo.ts" in result
     assert not any(r.startswith("#") for r in result)
+
+
+def test_group_bash_commands_shared_prefix():
+    """Commands sharing a prefix get grouped with wildcard."""
+    entries = [
+        ("Bash", "git add src/foo.ts"),
+        ("Bash", "git add src/bar.ts"),
+        ("Bash", "git add src/baz.ts"),
+    ]
+    groups = group_commands(entries)
+    assert len(groups) == 1
+    assert groups[0]["pattern"] == "Bash(git add *)"
+    assert groups[0]["count"] == 3
+    assert len(groups[0]["samples"]) <= 3
+
+
+def test_group_bash_commands_deeper_prefix():
+    """LCP should find the longest shared prefix, not just first token."""
+    entries = [
+        ("Bash", "python -m pytest tests/ -v"),
+        ("Bash", "python -m pytest tests/test_foo.py"),
+    ]
+    groups = group_commands(entries)
+    assert len(groups) == 1
+    assert groups[0]["pattern"] == "Bash(python -m pytest *)"
+
+
+def test_group_bash_singleton():
+    """A command seen only once uses full command, no wildcard."""
+    entries = [
+        ("Bash", "brew install jq"),
+    ]
+    groups = group_commands(entries)
+    assert len(groups) == 1
+    assert groups[0]["pattern"] == "Bash(brew install jq)"
+    assert groups[0]["count"] == 1
+
+
+def test_group_bash_different_first_tokens():
+    """Commands with different first tokens form separate groups."""
+    entries = [
+        ("Bash", "git add file.ts"),
+        ("Bash", "git add other.ts"),
+        ("Bash", "npm run build"),
+        ("Bash", "npm run test"),
+    ]
+    groups = group_commands(entries)
+    patterns = {g["pattern"] for g in groups}
+    assert "Bash(git add *)" in patterns
+    assert "Bash(npm run *)" in patterns
+
+
+def test_group_splits_compound_commands():
+    """Compound commands are split before grouping."""
+    entries = [
+        ("Bash", "git add foo.ts && git commit -m 'fix'"),
+        ("Bash", "git add bar.ts && git status"),
+    ]
+    groups = group_commands(entries)
+    patterns = {g["pattern"] for g in groups}
+    assert "Bash(git add *)" in patterns
+    assert "Bash(git commit -m 'fix')" in patterns  # singleton
+    assert "Bash(git status)" in patterns  # singleton
+
+
+def test_group_non_bash_by_tool():
+    """Non-Bash entries are grouped by tool name as ToolName(*)."""
+    entries = [
+        ("Edit", '{"file_path":"a.ts"}'),
+        ("Edit", '{"file_path":"b.ts"}'),
+        ("Read", '{"file_path":"c.ts"}'),
+    ]
+    groups = group_commands(entries)
+    patterns = {g["pattern"] for g in groups}
+    assert "Edit(*)" in patterns
+    assert "Read(*)" in patterns
+
+
+def test_group_mixed_bash_and_non_bash():
+    """Bash and non-Bash entries are grouped independently."""
+    entries = [
+        ("Bash", "git add file.ts"),
+        ("Bash", "git add other.ts"),
+        ("Edit", '{"file_path":"a.ts"}'),
+    ]
+    groups = group_commands(entries)
+    patterns = {g["pattern"] for g in groups}
+    assert "Bash(git add *)" in patterns
+    assert "Edit(*)" in patterns
+
+
+def test_group_repeated_identical_commands():
+    """Identical commands repeated should use exact pattern, no trailing *."""
+    entries = [
+        ("Bash", "python -m pytest tests/ -v"),
+        ("Bash", "python -m pytest tests/ -v"),
+        ("Bash", "python -m pytest tests/ -v"),
+    ]
+    groups = group_commands(entries)
+    assert len(groups) == 1
+    assert groups[0]["pattern"] == "Bash(python -m pytest tests/ -v)"
+    assert groups[0]["count"] == 3
+
+
+def test_group_samples_capped_at_three():
+    """Samples should contain at most 3 entries."""
+    entries = [("Bash", f"git add file{i}.ts") for i in range(10)]
+    groups = group_commands(entries)
+    assert len(groups[0]["samples"]) == 3
