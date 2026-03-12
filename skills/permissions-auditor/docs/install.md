@@ -8,7 +8,7 @@
    - If it writes to the old path, replace it with the new version
 
 2. **Copy the hook script:**
-   - Source: `scripts/log-permission-requests.sh` (relative to this repo's root — two directories up from this skill's `docs/` folder)
+   - Source: `scripts/log-permission-requests.sh` (relative to this repo's root — three directories up from this file)
    - Destination: `~/.claude/hooks/log-permission-requests.sh`
    - Make it executable: `chmod +x ~/.claude/hooks/log-permission-requests.sh`
 

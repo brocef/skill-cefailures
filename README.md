@@ -1,8 +1,8 @@
 # skill-cefailures
 
-A repository of Claude Code skills and hook plugins, plus tooling to create new skills from online documentation.
+A repository of Claude Code skills, plus tooling to create new skills from online documentation.
 
-Each library gets a skill that provides API/pattern knowledge and debugging/troubleshooting guidance to Claude Code. Plugins provide reusable hook scripts for Claude Code.
+Each library gets a skill that provides API/pattern knowledge and debugging/troubleshooting guidance to Claude Code.
 
 ## Quick Start
 
@@ -44,39 +44,23 @@ python scripts/install_skill.py --remove knex
 
 This creates a symlink from `~/.claude/skills/<name>` to the skill in this repo.
 
-### Install a plugin
-
-```bash
-# Install a single plugin
-python scripts/install_plugin.py log-permission-requests
-
-# Install all plugins
-python scripts/install_plugin.py --all
-
-# List available plugins
-python scripts/install_plugin.py --list
-
-# Uninstall a plugin
-python scripts/install_plugin.py --remove log-permission-requests
-```
-
-This creates a symlink from `~/.claude/hooks/<script>` to the plugin script in this repo.
-
 ## Repo Structure
 
 ```
-skills/                     # Generated skills
+skills/                       # Skills
   <library>/
-    SKILL.md                # Routing layer (loaded on invocation)
+    SKILL.md                  # Routing layer (loaded on invocation)
     docs/
-      <topic>.md            # Detailed reference (read on demand)
-plugins/                    # Hook plugins
-  <name>/
-    <name>.sh               # Hook script
+      <topic>.md              # Detailed reference (read on demand)
 scripts/
-  create_skill.py           # Generate skill from URL
-  install_skill.py          # Symlink skills to ~/.claude/skills/
-  install_plugin.py         # Symlink plugins to ~/.claude/hooks/
+  create_skill.py             # Generate skill from URL
+  install_skill.py            # Symlink skills to ~/.claude/skills/
+  analyze_permissions.py      # Analyze permission request logs
+  log-permission-requests.sh  # Permission logging hook script
+tests/
+  test_create_skill.py
+  test_install_skill.py
+  test_analyze_permissions.py
 ```
 
 ## How Skills Work

@@ -254,7 +254,8 @@ def analyze(
     for line in new_lines:
         parsed = parse_log_line(line)
         if parsed is None:
-            print(f"Warning: skipping malformed line: {line!r}", file=sys.stderr)
+            if line.strip():
+                print(f"Warning: skipping malformed line: {line!r}", file=sys.stderr)
             continue
         entries.append(parsed)
 
