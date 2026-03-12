@@ -62,17 +62,15 @@ type CoreArgument = { name: string; value: unknown }
 interface UserProfile { name: string; age: number }
 ```
 
+### `camelCase` — Default
+
+All variables, functions, methods, and properties use `camelCase` unless another rule applies.
+
 ### `PascalCase` — Enums, Type Parameters, Schema Objects, Class-Like Constructors, and React Components
 
-Allowed for enum names, type parameters, `const` variables that are TypeBox schema objects, similar class-like/constructor-like values, or React functional components.
+Allowed for enum names (members stay `SCREAMING_SNAKE_CASE` — see above), type parameters, `const` variables that are TypeBox schema objects, similar class-like/constructor-like values, or React functional components.
 
 ```typescript
-// Correct: enum names are PascalCase (members stay SCREAMING_SNAKE_CASE)
-enum TaskStatus {
-  NOT_STARTED = 'NOT_STARTED',
-  IN_PROGRESS = 'IN_PROGRESS',
-}
-
 // Correct: type parameters
 function merge<TSource, TTarget>(source: TSource, target: TTarget): TSource & TTarget
 type Result<TValue, TError = Error> = { ok: true; value: TValue } | { ok: false; error: TError }
@@ -121,7 +119,4 @@ When you encounter a naming style that looks wrong, check whether it falls into 
 | Mistake | Fix |
 |---------|-----|
 | Using `SCREAMING_SNAKE_CASE` for every `const` | Only use for true constants (hard-coded values). A `const` binding to a function call result is `camelCase`. |
-| Renaming a destructured variable to match conventions | Leave it — the source determines the name. If you need a different name, use aliasing: `const { user_name: userName } = obj` |
-| Flagging an import's naming style | Imports are exempt. The external package chose the name. |
-| Flagging an override method's naming style | Override methods are exempt. The parent class chose the name. |
 | Using `camelCase` for a TypeBox schema `const` | `PascalCase` is correct for schema objects and class-like constructors. |

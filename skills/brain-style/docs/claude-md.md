@@ -4,50 +4,85 @@
 
 A CLAUDE.md file should be **minimal** — a routing file first, a reference file second. Only inline information that is generally useful for the average task performed in the project. Everything else should point to where the information already lives.
 
-## What to Inline
+## Required Sections
 
-Content that provides clear, generalized value for most tasks:
+Every project with a `CLAUDE.md` should include the following sections. When reviewing or updating a `CLAUDE.md`, check for each of these. If any are missing, offer to create them for the user — briefly explain what the section is for and ask if they'd like you to add it.
 
-- **Common commands** — installing dependencies, linting, running tests, building
-- **Code conventions** — naming rules, patterns, idioms specific to the project
-- **Documentation Sync section** — trigger-based doc update rules
-- **Architecture notes** — brief structural overview (tech stack, key directories)
-- **Generic instructions** — behavioral preferences (e.g., commit message style)
+### Generic Instructions
 
-## What to Route
-
-Content that is only relevant to specific tasks or already exists elsewhere:
+General instructions that apply to most tasks in the project — behavioral preferences, commit message style, workflow rules, etc.
 
 ```markdown
-# Instead of re-declaring project terms:
-For information about the Widget Pipeline, see "Architecture" in README.md.
+## Generic Instructions
 
-# Instead of duplicating API docs:
-For API endpoint details, see docs/api.md.
-
-# Instead of copying onboarding steps:
-For environment setup, see "Getting Started" in README.md.
+- Git commit messages should not include any co-authoring content
+- Always run tests before committing
 ```
 
-**Route when:**
-- The information is defined in another file (README, docs, etc.)
-- It only matters for a narrow subset of tasks
-- It would duplicate content that has a canonical source
+### Commands
+
+Commonly used project-specific commands. Omit this section only if the project has no meaningful commands to document.
+
+```markdown
+## Commands
+
+- `pnpm dev` — start development server
+- `python -m pytest tests/ -v` — run all tests
+- `./scripts/deploy.sh staging` — deploy to staging
+```
+
+### Coding Conventions
+
+Naming rules, patterns, and idioms specific to the project. If the project uses a language covered by this skill's sub-styles (e.g. TypeScript — see `docs/typescript.md`), auto-populate this section with the relevant conventions from that sub-style.
+
+```markdown
+## Coding Conventions
+
+- kebab-case for file names
+- PascalCase for enum members
+- Prefix type parameters with `T`
+```
+
+### Documentation Sync
+
+Trigger-based documentation update rules used by the `documentation-sync` skill. See that skill's `docs/setup.md` for how to create this section from scratch.
+
+```markdown
+## Documentation Sync
+
+- `README.md` — update when: public API surface changes, new scripts are added
+- `CHANGELOG.md` — update when: any user-facing change
+```
+
+### Project Terminology
+
+Project-specific terms that appear in the codebase or prompts and what they mean. This helps the agent understand domain language without guessing.
+
+```markdown
+## Project Terminology
+
+- **EUsr** — end user
+- **pvar** — propositional variable
+- **CRD** — custom resource definition
+```
+
+## Inline vs. Route
 
 **Inline when:**
 - It applies to most tasks (commands, conventions, structure)
 - There is no canonical source elsewhere
 - It's short enough that routing would add more overhead than value
 
-## Routing Format
+**Route when:**
+- The information is defined in another file (README, docs, etc.)
+- It only matters for a narrow subset of tasks
+- It would duplicate content that has a canonical source
 
-Use a concise pointer with enough context for the agent to decide whether to follow it:
+Route format — include topic keywords so the agent can match the route without reading the target:
 
 ```markdown
 For information about [topic keywords] see [section name] in [file path].
 ```
-
-Include topic keywords so the agent can match the route to its current task without reading the target file.
 
 ## Recommended Directives
 
@@ -59,8 +94,6 @@ Certain directives provide enough value that they should appear in every project
 
 | Mistake | Fix |
 |---------|-----|
-| Duplicating README content into CLAUDE.md | Route to the README section instead |
-| Including setup instructions that live in a guide | Point to the guide |
 | Omitting common commands | Inline these — they're needed for nearly every task |
 | Making the file a comprehensive project wiki | Keep it minimal; route to existing docs |
 | Routing to a section without topic keywords | Add keywords so the agent knows when to follow the route |

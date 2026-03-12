@@ -5,22 +5,11 @@ description: Use when writing or reviewing code in any project. Use when making 
 
 # brain-style
 
-Consistent code style and conventions across all projects. When a linter or reviewer questions a naming choice, this skill determines whether the name is correct. When creating or editing a CLAUDE.md, this skill determines what belongs there.
-
-## When to Use
-
-- Writing new code (variables, constants, functions, classes)
-- Reviewing code for style compliance
-- Deciding whether to rename something flagged by a linter
-- Resolving ambiguity about naming conventions
-- Creating or updating a CLAUDE.md file
-
-When NOT to use:
-- Formatting decisions handled by automated tools (Prettier, etc.)
-
-## Sub-Styles
-
 Read the relevant doc based on your task:
 
-- **TypeScript** — `docs/typescript.md` — Naming conventions, casing rules, and exemptions for TypeScript and JavaScript projects.
-- **CLAUDE.md** — `docs/claude-md.md` — How to structure CLAUDE.md files: what to inline, what to route to other files, and how to keep them minimal.
+| Sub-Style | Doc | Scope |
+|-----------|-----|-------|
+| TypeScript | `docs/typescript.md` | Naming conventions, casing rules, and exemptions |
+| CLAUDE.md | `docs/claude-md.md` | Structure, inline vs. route decisions, required sections |
+
+Does not cover formatting decisions handled by automated tools (Prettier, etc.).
