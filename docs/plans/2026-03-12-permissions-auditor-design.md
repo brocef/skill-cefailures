@@ -78,7 +78,8 @@ Installed as `~/.claude/hooks/log-permission-requests.sh` (copy from `scripts/`)
 1. Capture cursor value (line count) at read time, before processing, so lines appended during analysis don't cause inconsistency
 2. Read log from cursor position to end of file
 3. Parse each line into `(tool, detail)` tuples; skip malformed lines (missing `|` delimiter, empty lines) with a warning to stderr
-4. For Bash entries: compute longest common prefix groups across commands, producing patterns like `git add *`, `python -m pytest *`
+4. For Bash entries: split compound commands on shell operators (`&&`, `||`, `;`, `|`) into individual sub-commands before grouping — Claude Code evaluates permissions per sub-command, not per full command string
+5. For Bash entries: compute longest common prefix groups across sub-commands, producing patterns like `git add *`, `python -m pytest *`
 5. For non-Bash entries (Edit, Read, etc.): group by tool name — `Edit(*)`, `Read(*)`
 6. Wrap each group in the `ToolName(pattern)` format to match settings.json conventions
 7. Filter out groups that are subsumed by an existing allow rule, deny rule, or manual-review entry (using glob matching, not exact string comparison)

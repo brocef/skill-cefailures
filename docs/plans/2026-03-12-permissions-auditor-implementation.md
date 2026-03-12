@@ -16,7 +16,7 @@
 
 | Action | Path | Responsibility |
 |--------|------|----------------|
-| Create | `scripts/analyze_permissions.py` | Parse log, group by LCP, filter, output JSON |
+| Create | `scripts/analyze_permissions.py` | Parse log, split compound commands, group by LCP, filter, output JSON |
 | Create | `scripts/log-permission-requests.sh` | Hook script — logs permission requests |
 | Create | `skills/permissions-auditor/SKILL.md` | Routing layer |
 | Create | `skills/permissions-auditor/docs/install.md` | Hook installation instructions |
@@ -139,7 +139,121 @@ git commit -m "Add log line parser for permissions auditor"
 
 ---
 
-### Task 2: Longest common prefix grouping
+### Task 2: Split compound Bash commands
+
+**Files:**
+- Modify: `scripts/analyze_permissions.py`
+- Modify: `tests/test_analyze_permissions.py`
+
+- [ ] **Step 1: Write failing tests for split_compound_command**
+
+```python
+# append to tests/test_analyze_permissions.py
+from analyze_permissions import split_compound_command
+
+
+def test_split_simple_command():
+    """A single command returns as-is."""
+    assert split_compound_command("git add foo.ts") == ["git add foo.ts"]
+
+
+def test_split_and_operator():
+    """Commands joined by && are split."""
+    result = split_compound_command("git add foo.ts && git commit -m 'fix'")
+    assert result == ["git add foo.ts", "git commit -m 'fix'"]
+
+
+def test_split_or_operator():
+    """Commands joined by || are split."""
+    result = split_compound_command("git rm old.ts || true")
+    assert result == ["git rm old.ts", "true"]
+
+
+def test_split_semicolon():
+    """Commands joined by ; are split."""
+    result = split_compound_command("echo hello; echo world")
+    assert result == ["echo hello", "echo world"]
+
+
+def test_split_pipe():
+    """Commands joined by | are split."""
+    result = split_compound_command("cat file.txt | grep pattern")
+    assert result == ["cat file.txt", "grep pattern"]
+
+
+def test_split_mixed_operators():
+    """Multiple different operators in one command."""
+    result = split_compound_command("git add . && git status | grep modified")
+    assert result == ["git add .", "git status", "grep modified"]
+
+
+def test_split_strips_whitespace():
+    """Sub-commands are trimmed."""
+    result = split_compound_command("  git add foo.ts  &&  git commit -m 'fix'  ")
+    assert result == ["git add foo.ts", "git commit -m 'fix'"]
+
+
+def test_split_skips_empty_subcommands():
+    """Empty sub-commands from leading/trailing operators are skipped."""
+    result = split_compound_command("&& git add foo.ts &&")
+    assert result == ["git add foo.ts"]
+
+
+def test_split_comment_lines_skipped():
+    """Lines starting with # after splitting are filtered out."""
+    result = split_compound_command("# this is a comment\ngit add foo.ts")
+    assert "git add foo.ts" in result
+    assert not any(r.startswith("#") for r in result)
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `python -m pytest tests/test_analyze_permissions.py::test_split_simple_command -v`
+Expected: FAIL — `ImportError: cannot import name 'split_compound_command'`
+
+- [ ] **Step 3: Implement split_compound_command**
+
+```python
+# add to scripts/analyze_permissions.py
+import re
+
+# Shell operators that separate independent sub-commands
+_SHELL_SPLIT_RE = re.compile(r"\s*(?:&&|\|\||\||;)\s*")
+
+
+def split_compound_command(command: str) -> list[str]:
+    """Split a compound Bash command into individual sub-commands.
+
+    Splits on &&, ||, |, and ; operators. Strips whitespace, filters
+    empty results and comment lines. Also splits on newlines since
+    multi-line commands appear in logs.
+    """
+    # First split on newlines, then on shell operators
+    parts = []
+    for line in command.split("\n"):
+        parts.extend(_SHELL_SPLIT_RE.split(line))
+
+    return [
+        p.strip() for p in parts
+        if p.strip() and not p.strip().startswith("#")
+    ]
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `python -m pytest tests/test_analyze_permissions.py -v`
+Expected: All passed
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add scripts/analyze_permissions.py tests/test_analyze_permissions.py
+git commit -m "Add compound command splitter for permissions auditor"
+```
+
+---
+
+### Task 3: Longest common prefix grouping (continued)
 
 **Files:**
 - Modify: `scripts/analyze_permissions.py`
@@ -200,6 +314,19 @@ def test_group_bash_different_first_tokens():
     patterns = {g["pattern"] for g in groups}
     assert "Bash(git add *)" in patterns
     assert "Bash(npm run *)" in patterns
+
+
+def test_group_splits_compound_commands():
+    """Compound commands are split before grouping."""
+    entries = [
+        ("Bash", "git add foo.ts && git commit -m 'fix'"),
+        ("Bash", "git add bar.ts && git status"),
+    ]
+    groups = group_commands(entries)
+    patterns = {g["pattern"] for g in groups}
+    assert "Bash(git add *)" in patterns
+    assert "Bash(git commit -m 'fix')" in patterns  # singleton
+    assert "Bash(git status)" in patterns  # singleton
 
 
 def test_group_non_bash_by_tool():
@@ -284,9 +411,9 @@ def _longest_common_prefix(token_lists: list[list[str]]) -> list[str]:
 def group_commands(entries: list[tuple[str, str]]) -> list[dict]:
     """Group parsed log entries into wildcard patterns.
 
-    For Bash: group by first token, find longest common prefix. If the prefix
-    covers all tokens in every command, use the exact command; otherwise append *.
-    For non-Bash: group by tool name as ToolName(*).
+    For Bash: splits compound commands, groups by first token, finds longest
+    common prefix. If the prefix covers all tokens, uses exact pattern;
+    otherwise appends *. For non-Bash: groups by tool name as ToolName(*).
     Returns list of dicts with pattern, count, and samples (max 3).
     """
     bash_by_first_token: dict[str, list[str]] = defaultdict(list)
@@ -294,9 +421,11 @@ def group_commands(entries: list[tuple[str, str]]) -> list[dict]:
 
     for tool, detail in entries:
         if tool == "Bash":
-            tokens = detail.split()
-            if tokens:
-                bash_by_first_token[tokens[0]].append(detail)
+            sub_commands = split_compound_command(detail)
+            for sub in sub_commands:
+                tokens = sub.split()
+                if tokens:
+                    bash_by_first_token[tokens[0]].append(sub)
         else:
             non_bash_by_tool[tool].append(detail)
 
@@ -344,7 +473,7 @@ git commit -m "Add LCP grouping logic for permissions auditor"
 
 ---
 
-### Task 3: Glob-based filtering
+### Task 4: Glob-based filtering
 
 **Files:**
 - Modify: `scripts/analyze_permissions.py`
@@ -462,7 +591,7 @@ git commit -m "Add glob-based filtering for permissions auditor"
 
 ---
 
-### Task 4: Main entry point (cursor, file I/O, JSON output)
+### Task 5: Main entry point (cursor, file I/O, JSON output)
 
 **Files:**
 - Modify: `scripts/analyze_permissions.py`
@@ -790,7 +919,7 @@ git commit -m "Add main entry point with cursor and file I/O for permissions aud
 
 ## Chunk 2: Hook Script, Skill Files, and Cleanup
 
-### Task 5: Hook script
+### Task 6: Hook script
 
 **Files:**
 - Create: `scripts/log-permission-requests.sh`
@@ -833,7 +962,7 @@ git commit -m "Add permission request logging hook script"
 
 ---
 
-### Task 6: Skill SKILL.md
+### Task 7: Skill SKILL.md
 
 **Files:**
 - Create: `skills/permissions-auditor/SKILL.md`
@@ -874,7 +1003,7 @@ git commit -m "Add permissions-auditor skill routing layer"
 
 ---
 
-### Task 7: Skill docs/install.md
+### Task 8: Skill docs/install.md
 
 **Files:**
 - Create: `skills/permissions-auditor/docs/install.md`
@@ -941,7 +1070,7 @@ git commit -m "Add hook installation instructions for permissions auditor"
 
 ---
 
-### Task 8: Skill docs/analyze.md
+### Task 9: Skill docs/analyze.md
 
 **Files:**
 - Create: `skills/permissions-auditor/docs/analyze.md`
@@ -1009,7 +1138,7 @@ git commit -m "Add analysis and triage workflow for permissions auditor"
 
 ---
 
-### Task 9: Remove old plugin infrastructure
+### Task 10: Remove old plugin infrastructure
 
 **Files:**
 - Delete: `plugins/log-permission-requests/log-permission-requests.sh`
@@ -1069,7 +1198,7 @@ git commit -m "Remove old plugin infrastructure, replaced by permissions-auditor
 
 ---
 
-### Task 10: Final integration test
+### Task 11: Final integration test
 
 - [ ] **Step 1: Run full test suite**
 
