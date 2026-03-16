@@ -32,8 +32,12 @@ def load_plugin_config(name: str) -> dict:
     config_path = PLUGINS_DIR / name / "plugin.json"
     if not config_path.exists():
         return {}
-    with open(config_path) as f:
-        return json.load(f)
+    try:
+        with open(config_path) as f:
+            return json.load(f)
+    except json.JSONDecodeError as e:
+        print(f"Error: Invalid plugin.json in plugins/{name}/: {e}", file=sys.stderr)
+        sys.exit(1)
 
 
 def load_settings() -> dict:
