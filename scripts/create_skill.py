@@ -10,6 +10,7 @@ import sys
 from abc import ABC, abstractmethod
 from pathlib import Path
 
+import html2text
 import httpx
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -17,9 +18,16 @@ SKILLS_DIR = REPO_ROOT / "skills"
 
 
 def fetch_document(url: str) -> str:
-    """Download text content from a URL."""
+    """Download text content from a URL, converting HTML to markdown if needed."""
     response = httpx.get(url, follow_redirects=True, timeout=30.0)
     response.raise_for_status()
+    content_type = response.headers.get("content-type", "")
+    if content_type.startswith("text/html"):
+        converter = html2text.HTML2Text()
+        converter.ignore_links = False
+        converter.ignore_images = True
+        converter.body_width = 0
+        return converter.handle(response.text)
     return response.text
 
 
@@ -201,7 +209,7 @@ class AnthropicBackend(Backend):
         except ImportError:
             print(
                 "Error: anthropic package not installed. Run: pip install anthropic\n"
-                "Or use --backend cli (default) which requires no extra packages.",
+                "Or use --backend cli which requires no extra packages.",
                 file=sys.stderr,
             )
             sys.exit(1)
@@ -235,7 +243,7 @@ class OpenAIBackend(Backend):
         except ImportError:
             print(
                 "Error: openai package not installed. Run: pip install openai\n"
-                "Or use --backend cli (default) which requires no extra packages.",
+                "Or use --backend cli which requires no extra packages.",
                 file=sys.stderr,
             )
             sys.exit(1)
@@ -327,7 +335,7 @@ def main():
         "--backend",
         choices=["cli", "sdk", "openai"],
         default="openai",
-        help="LLM backend: 'cli' uses claude CLI (default), 'sdk' uses Anthropic API, 'openai' uses OpenAI API",
+        help="LLM backend: 'cli' uses claude CLI, 'sdk' uses Anthropic API, 'openai' uses OpenAI API (default)",
     )
     parser.add_argument("--api-key", default=None, help="API key (used by openai backend, overrides env var)")
 
