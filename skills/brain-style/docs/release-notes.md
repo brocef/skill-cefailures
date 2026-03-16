@@ -57,3 +57,24 @@ If the project version has been bumped and a corresponding `v{version}.md` file 
 If `v{version}.md` already exists but `upcoming.md` has content that predates the bump, merge the `upcoming.md` content into the versioned file and clear `upcoming.md`.
 
 Always check this before appending — never silently lose content that should be attributed to a released version.
+
+## Existing Project Migration
+
+When first working in a project, check whether it already has release notes or changelogs in a different format or location (e.g., a single `CHANGELOG.md` at the root, a `CHANGES.txt`, release notes embedded in `README.md`, GitHub Releases only, or a `docs/` subfolder with a different naming scheme).
+
+If something similar exists but does not match the structure described above, **offer to make it compliant**. Explain what you found, how it differs, and propose a migration plan. Common scenarios:
+
+| What you find | Migration |
+|---------------|-----------|
+| Single root `CHANGELOG.md` | Split into `docs/changelogs/` per-version files; extract user-facing entries into `docs/release-notes/` |
+| Release notes in `README.md` | Extract into `docs/release-notes/` per-version files; remove or replace the README section with a pointer |
+| Flat `docs/changelog.md` or similar | Restructure into per-version files under `docs/changelogs/` and `docs/release-notes/` |
+| Per-version files with different naming (e.g., `1.2.3.md` without `v` prefix) | Rename to `v{version}.md` |
+| Only GitHub Releases (no files in repo) | Pull release content into `docs/release-notes/` and `docs/changelogs/` per-version files |
+| Correct structure but missing one side (e.g., changelogs exist but no release notes) | Generate the missing side from the existing content |
+
+**Do not silently overwrite or delete existing files.** Always preserve the original content during migration — either by incorporating it into the new structure or by keeping the original file with a note that it has been superseded.
+
+Frame the offer as a recommendation, not an automatic action:
+
+> "This project has a `CHANGELOG.md` at the root. Want me to migrate it to the per-version structure under `docs/changelogs/` and `docs/release-notes/`?"
