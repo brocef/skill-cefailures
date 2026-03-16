@@ -1,6 +1,6 @@
 ---
 name: documentation-sync
-description: Use when completing a coding task and deciding whether documentation needs updating. Use when code changes have been made and you need to check if README, changelog, guides, or other docs should reflect those changes. Use when a project's CLAUDE.md has a Documentation Sync section listing files and triggers.
+description: Use when completing a coding task and deciding whether documentation needs updating. Use when code changes have been made and you need to check if README, changelog, guides, or other docs should reflect those changes. Use when a project's CLAUDE.md has a Documentation Sync section listing files and triggers. Use after completing any development work to update release notes and changelogs.
 ---
 
 # Documentation Sync
@@ -23,5 +23,5 @@ Read the relevant doc based on your task:
 
 - **Section Format** — `docs/section-format.md` — What the Documentation Sync section looks like in a CLAUDE.md and how entries are structured.
 - **Evaluating Triggers** — `docs/evaluating-triggers.md` — Trigger definitions, how to assess code changes against triggers, and when to update or skip a file.
-- **Changelog Format** — `docs/changelog-format.md` — Commit hash ranges, the `<changes>` wrapper, and git commands for getting hashes.
+- **Release Notes & Changelogs** — `docs/release-notes.md` — Per-version file structure, `upcoming.md` working files, changelog entry format (commit hash ranges), version cross-checks, recommended Documentation Sync entries, and migrating existing projects.
 - **Setup** — `docs/setup.md` — Creating a Documentation Sync section from scratch when a project doesn't have one.

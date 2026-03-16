@@ -6,7 +6,7 @@ Project owners add this section to their `CLAUDE.md`:
 ## Documentation Sync
 
 - `README.md` [Public-API] — Public consumption, high-level, written for maximum human readability
-- `changelogs/next.md` [Any-Code-Change] — Gist of changes with commit hash range
+- `docs/changelogs/upcoming.md` [Any-Code-Change] — Developer changelog with commit hash ranges
 - `CLI_GUIDE.md` [Public-CLI-API] — Updated when CLI behavior changes
 - `docs/api.md` [Only-Breaking] — Only updated for breaking changes
 ```

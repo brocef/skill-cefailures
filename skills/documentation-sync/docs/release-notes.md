@@ -1,4 +1,4 @@
-# Release Notes & Changelog Style
+# Release Notes & Changelogs
 
 ## Directory Structure
 
@@ -37,13 +37,39 @@ File names follow the pattern `v{version}.md`. The `upcoming.md` files hold cont
 - Group by category (e.g., "Added", "Changed", "Fixed", "Removed", "Internal")
 - Be specific enough that a developer can understand the scope without reading the diff
 
-## Post-Work Behavior
+## Changelog Entry Format
 
-After completing any development work, **offer to update the release notes and changelog**. This is the default — you are asking the user whether they want to *skip* the update, not whether they want to *do* it. Frame it as:
+Wrap changelog entries with commit hash ranges so readers can trace changes back to source:
 
-> "I'll update the release notes and changelog to reflect these changes. Want me to skip that?"
+```markdown
+<changes starting-hash="abc1234" ending-hash="def5678">
+- Renamed `host` parameter to `hostname` in `createClient`
+- Added optional `timeout` parameter to `createClient`
+</changes>
+```
 
-If the user does not object, update both `docs/release-notes/upcoming.md` and `docs/changelogs/upcoming.md` with the changes just completed.
+Where `abc1234` is the first commit and `def5678` is the last commit of the changes being documented.
+
+```bash
+# Get the most recent commit hash
+git rev-parse --short HEAD
+
+# Get a range if multiple commits were made
+git log --oneline -n <number_of_commits>
+```
+
+**Skip hash wrappers** if git is unavailable, the directory is not a repo, or the user has asked not to include them. In those cases, write entries without the `<changes>` wrappers.
+
+## Recommended Documentation Sync Entries
+
+Projects using this structure should include these entries in their CLAUDE.md `## Documentation Sync` section:
+
+```markdown
+- `docs/release-notes/upcoming.md` [Public-API] — User-facing release notes; plain language, no jargon
+- `docs/changelogs/upcoming.md` [Any-Code-Change] — Developer changelog with commit hash ranges
+```
+
+The trigger system (see `docs/evaluating-triggers.md`) determines when these files get updated — release notes fire on public-facing changes, changelogs fire on any code change.
 
 ## Version Cross-Check
 
@@ -78,3 +104,12 @@ If something similar exists but does not match the structure described above, **
 Frame the offer as a recommendation, not an automatic action:
 
 > "This project has a `CHANGELOG.md` at the root. Want me to migrate it to the per-version structure under `docs/changelogs/` and `docs/release-notes/`?"
+
+## Common Mistakes
+
+| Mistake | Fix |
+|---------|-----|
+| Forgetting commit hashes in changelog entries | Run `git rev-parse --short HEAD` after committing |
+| Using `next.md` or other names for the working file | Always use `upcoming.md` |
+| Updating release notes for internal-only changes | Release notes are user-facing only; internal changes go in the changelog |
+| Silently replacing an existing CHANGELOG.md | Offer migration; preserve original content |
