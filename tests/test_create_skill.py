@@ -254,3 +254,45 @@ def test_fetch_document_plain_text_passthrough():
         result = fetch_document("http://example.com")
 
     assert result == plain_content
+
+
+def _make_anthropic_mock_client(response_text: str) -> MagicMock:
+    """Build a mock Anthropic client that returns response_text from messages.create."""
+    mock_content_block = MagicMock()
+    mock_content_block.text = response_text
+    mock_response = MagicMock()
+    mock_response.content = [mock_content_block]
+    mock_client = MagicMock()
+    mock_client.messages.create.return_value = mock_response
+    return mock_client
+
+
+def test_anthropic_backend_success():
+    """Verify AnthropicBackend calls Anthropic API and parses response."""
+    from create_skill import AnthropicBackend
+
+    mock_client = _make_anthropic_mock_client(json.dumps(VALID_SKILL_DATA))
+    mock_anthropic = MagicMock()
+    mock_anthropic.Anthropic.return_value = mock_client
+
+    with patch.dict("sys.modules", {"anthropic": mock_anthropic}):
+        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}):
+            result = AnthropicBackend().generate("claude-sonnet-4-6", "testlib", "doc content")
+
+    assert result["library_description"] == "A lib."
+    mock_client.messages.create.assert_called_once()
+    call_kwargs = mock_client.messages.create.call_args[1]
+    assert call_kwargs["model"] == "claude-sonnet-4-6"
+    assert call_kwargs["max_tokens"] == 16000
+
+
+def test_anthropic_backend_missing_api_key():
+    """Verify AnthropicBackend exits when ANTHROPIC_API_KEY is not set."""
+    from create_skill import AnthropicBackend
+
+    mock_anthropic = MagicMock()
+
+    with patch.dict("sys.modules", {"anthropic": mock_anthropic}):
+        with patch.dict("os.environ", {}, clear=True):
+            with pytest.raises(SystemExit):
+                AnthropicBackend().generate("claude-sonnet-4-6", "testlib", "doc content")
