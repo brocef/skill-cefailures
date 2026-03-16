@@ -10,6 +10,7 @@ import sys
 from abc import ABC, abstractmethod
 from pathlib import Path
 
+import html2text
 import httpx
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -17,9 +18,16 @@ SKILLS_DIR = REPO_ROOT / "skills"
 
 
 def fetch_document(url: str) -> str:
-    """Download text content from a URL."""
+    """Download text content from a URL, converting HTML to markdown if needed."""
     response = httpx.get(url, follow_redirects=True, timeout=30.0)
     response.raise_for_status()
+    content_type = response.headers.get("content-type", "")
+    if content_type.startswith("text/html"):
+        converter = html2text.HTML2Text()
+        converter.ignore_links = False
+        converter.ignore_images = True
+        converter.body_width = 0
+        return converter.handle(response.text)
     return response.text
 
 

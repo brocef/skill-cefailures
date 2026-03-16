@@ -220,3 +220,37 @@ def test_openai_backend_api_key_override():
 
     assert result["library_description"] == "A lib."
     mock_openai_cls.assert_called_once_with(api_key="flag-key")
+
+
+def test_fetch_document_html_conversion():
+    """Verify fetch_document converts HTML responses to markdown."""
+    from create_skill import fetch_document
+
+    html_content = "<html><body><h1>Hello</h1><p>World</p></body></html>"
+    mock_response = MagicMock()
+    mock_response.text = html_content
+    mock_response.headers = {"content-type": "text/html; charset=utf-8"}
+    mock_response.raise_for_status = MagicMock()
+
+    with patch("httpx.get", return_value=mock_response):
+        result = fetch_document("http://example.com")
+
+    # Should contain markdown heading, not raw HTML tags
+    assert "<h1>" not in result
+    assert "Hello" in result
+
+
+def test_fetch_document_plain_text_passthrough():
+    """Verify fetch_document returns plain text unchanged."""
+    from create_skill import fetch_document
+
+    plain_content = "# Hello\n\nThis is markdown already."
+    mock_response = MagicMock()
+    mock_response.text = plain_content
+    mock_response.headers = {"content-type": "text/plain"}
+    mock_response.raise_for_status = MagicMock()
+
+    with patch("httpx.get", return_value=mock_response):
+        result = fetch_document("http://example.com")
+
+    assert result == plain_content
