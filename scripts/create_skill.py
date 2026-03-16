@@ -201,7 +201,7 @@ class AnthropicBackend(Backend):
         except ImportError:
             print(
                 "Error: anthropic package not installed. Run: pip install anthropic\n"
-                "Or use --backend cli (default) which requires no extra packages.",
+                "Or use --backend cli which requires no extra packages.",
                 file=sys.stderr,
             )
             sys.exit(1)
@@ -235,7 +235,7 @@ class OpenAIBackend(Backend):
         except ImportError:
             print(
                 "Error: openai package not installed. Run: pip install openai\n"
-                "Or use --backend cli (default) which requires no extra packages.",
+                "Or use --backend cli which requires no extra packages.",
                 file=sys.stderr,
             )
             sys.exit(1)
@@ -327,7 +327,7 @@ def main():
         "--backend",
         choices=["cli", "sdk", "openai"],
         default="openai",
-        help="LLM backend: 'cli' uses claude CLI (default), 'sdk' uses Anthropic API, 'openai' uses OpenAI API",
+        help="LLM backend: 'cli' uses claude CLI, 'sdk' uses Anthropic API, 'openai' uses OpenAI API (default)",
     )
     parser.add_argument("--api-key", default=None, help="API key (used by openai backend, overrides env var)")
 

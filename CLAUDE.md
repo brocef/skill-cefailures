@@ -11,7 +11,7 @@ A repository of Claude Code skills for specific libraries, plus tooling to gener
 ## Tech Stack
 
 - **Language:** Python 3 (type hints throughout)
-- **Dependencies:** `httpx` (required), `anthropic` and `openai` (optional, per backend)
+- **Dependencies:** `httpx` and `html2text` (required), `anthropic` and `openai` (optional, per backend)
 - **Tests:** pytest
 - **Package manager:** pip
 
@@ -21,13 +21,19 @@ A repository of Claude Code skills for specific libraries, plus tooling to gener
 scripts/
   create_skill.py     # Generate a skill from a documentation URL
   install_skill.py    # Symlink skills into ~/.claude/skills/
+  install_plugin.py   # Symlink plugins into ~/.claude/hooks/
 skills/
   <library>/
     SKILL.md           # Routing layer (loaded on invocation)
     docs/<topic>.md    # Detailed reference (read on demand)
+plugins/
+  <plugin>/
+    plugin.json        # Plugin metadata and hook definitions
+    *.sh               # Hook scripts
 tests/
   test_create_skill.py
   test_install_skill.py
+  test_install_plugin.py
 docs/plans/            # Design and implementation documents
 ```
 
@@ -40,7 +46,7 @@ pip install -r requirements.txt
 # Run all tests
 python -m pytest tests/ -v
 
-# Create a new skill (default: claude CLI backend)
+# Create a new skill (default: openai backend)
 python scripts/create_skill.py --name <lib> --url "<docs-url>"
 
 # Create a skill with a specific backend
