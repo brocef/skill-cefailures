@@ -114,6 +114,47 @@ When you encounter a naming style that looks wrong, check whether it falls into 
 | `camelCase` | Variables, functions, methods, properties |
 | Exempt | Destructured variables, imports, override methods |
 
+## Fixing Type Lint Errors
+
+When fixing lint errors or warnings related to types, **never use type casts to silence them** unless there is genuinely no alternative. Casting to `any`, `unknown`, or using `as` to force a type is forbidden as a first resort.
+
+### Required approach
+
+1. **Trace both sides.** Identify the expected type and the provided type. Read the type definitions — don't guess.
+2. **Understand why inference fails.** The mismatch is a signal. Common root causes:
+   - A function returns a broader type than intended (fix the return type or narrow with a type guard).
+   - A variable was initialized with the wrong shape (fix the initialization).
+   - A generic parameter wasn't constrained or inferred correctly (add or fix the constraint).
+   - An API contract changed upstream (update the consuming code to match).
+3. **Fix the actual issue.** If the mismatch reveals a logical bug — wrong field name, missing null check, incorrect function call — fix the logic, not the types.
+4. **Narrow, don't cast.** When runtime narrowing is needed, use type guards, discriminated unions, or conditional checks — not `as`.
+
+### What's forbidden
+
+```typescript
+// Forbidden: casting to silence the error
+const user = getResponse() as TUser
+const data = result as any
+const id = value as unknown as string
+
+// Acceptable only as last resort with explanation:
+// e.g., third-party library with incorrect/missing type definitions
+// where a PR or @ts-expect-error with a tracking issue is not viable
+```
+
+### When casting is acceptable
+
+A cast is acceptable **only** when all of the following are true:
+
+- You have traced both sides and understand the mismatch.
+- The mismatch is caused by something outside your control (e.g., incorrect third-party types).
+- There is no type guard, generic constraint, or code fix that resolves it.
+- You add a comment explaining why the cast is necessary.
+
+### Database migrations
+
+In DB migrations, the ORM/adapter types reflect the **current** table schema, but the migration operates on a **previous** structure. Type mismatches here are expected and unavoidable — casts or `@ts-expect-error` are acceptable without further investigation.
+
 ## Common Mistakes
 
 | Mistake | Fix |
