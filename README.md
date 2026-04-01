@@ -8,11 +8,22 @@ Each library gets a skill that provides API/pattern knowledge and debugging/trou
 
 ### As a plugin (recommended)
 
-```bash
-claude --plugin-dir /path/to/skill-cefailures
+In Claude Code, run:
+
+```
+/plugin marketplace add brocef/skill-cefailures
+/plugin install skill-cefailures
 ```
 
 Skills are available as `/skill-cefailures:<skill-name>` (e.g. `/skill-cefailures:ieee`).
+
+### Local development
+
+If you've cloned the repo, you can load it directly:
+
+```bash
+claude --plugin-dir /path/to/skill-cefailures
+```
 
 ### Via symlinks (legacy)
 
