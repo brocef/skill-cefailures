@@ -61,6 +61,7 @@ def main():
     parser.add_argument("name", nargs="?", help="Skill name to install")
     parser.add_argument("--all", action="store_true", help="Install all available skills")
     parser.add_argument("--remove", action="store_true", help="Remove (uninstall) the skill")
+    parser.add_argument("--remove-all", action="store_true", help="Remove all installed skills")
     parser.add_argument("--force", action="store_true", help="Overwrite existing symlinks")
     parser.add_argument("--list", action="store_true", help="List available skills")
 
@@ -76,6 +77,10 @@ def main():
         else:
             print("No skills found in skills/ directory.")
         return
+
+    if args.remove_all:
+        args.all = True
+        args.remove = True
 
     if args.all:
         skills = get_available_skills()

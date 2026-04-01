@@ -1,0 +1,10 @@
+{
+  "name": "skill-cefailures",
+  "version": "1.0.0",
+  "description": "Claude Code skills for specific libraries and patterns",
+  "author": {
+    "name": "Brian Cefali"
+  },
+  "keywords": ["brain-style", "documentation-sync", "elkjs", "ieee", "knex", "permissions-auditor", "typebox"],
+  "skills": "./skills/"
+}

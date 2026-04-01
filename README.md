@@ -1,34 +1,24 @@
 # skill-cefailures
 
-A repository of Claude Code skills, plus tooling to create new skills from online documentation.
+A Claude Code plugin providing skills for specific libraries, plus tooling to create new skills from online documentation.
 
 Each library gets a skill that provides API/pattern knowledge and debugging/troubleshooting guidance to Claude Code.
 
-## Quick Start
+## Installation
 
-### Install dependencies
+### As a plugin (recommended)
+
+```bash
+claude --plugin-dir /path/to/skill-cefailures
+```
+
+Skills are available as `/skill-cefailures:<skill-name>` (e.g. `/skill-cefailures:ieee`).
+
+### Via symlinks (legacy)
 
 ```bash
 pip install -r requirements.txt
-```
 
-### Create a new skill
-
-```bash
-# Using Claude CLI (default — no API key needed)
-python scripts/create_skill.py --name knex --url "https://example.com/knex-docs.md"
-
-# Using Anthropic SDK (requires ANTHROPIC_API_KEY)
-python scripts/create_skill.py --name knex --url "https://example.com/knex-docs.md" --backend sdk
-```
-
-This fetches the documentation, uses Claude to analyze and split it into a SKILL.md routing layer plus topical reference docs, and writes everything to `skills/<name>/`.
-
-By default, uses the `claude` CLI (requires [Claude Code](https://claude.com/claude-code)). Use `--backend sdk` for the Anthropic API directly (requires `pip install anthropic` and `ANTHROPIC_API_KEY`).
-
-### Install a skill
-
-```bash
 # Install a single skill
 python scripts/install_skill.py knex
 
@@ -40,9 +30,28 @@ python scripts/install_skill.py --list
 
 # Uninstall a skill
 python scripts/install_skill.py --remove knex
+
+# Uninstall all skills
+python scripts/install_skill.py --remove-all
 ```
 
-This creates a symlink from `~/.claude/skills/<name>` to the skill in this repo.
+This creates symlinks from `~/.claude/skills/<name>` to the skills in this repo.
+
+## Creating a new skill
+
+```bash
+pip install -r requirements.txt
+
+# Using Claude CLI (default — no API key needed)
+python scripts/create_skill.py --name knex --url "https://example.com/knex-docs.md"
+
+# Using Anthropic SDK (requires ANTHROPIC_API_KEY)
+python scripts/create_skill.py --name knex --url "https://example.com/knex-docs.md" --backend sdk
+```
+
+This fetches the documentation, uses Claude to analyze and split it into a SKILL.md routing layer plus topical reference docs, and writes everything to `skills/<name>/`.
+
+By default, uses the `claude` CLI (requires [Claude Code](https://claude.com/claude-code)). Use `--backend sdk` for the Anthropic API directly (requires `pip install anthropic` and `ANTHROPIC_API_KEY`).
 
 ## Repo Structure
 
