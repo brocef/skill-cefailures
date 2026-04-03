@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "skill-cefailures",
-      "source": ".",
+      "source": "./",
       "description": "Claude Code skills for specific libraries and patterns",
       "version": "1.0.0"
     }
