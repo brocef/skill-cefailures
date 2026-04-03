@@ -1,0 +1,14 @@
+{
+  "name": "skill-cefailures",
+  "owner": {
+    "name": "Brian Cefali"
+  },
+  "plugins": [
+    {
+      "name": "skill-cefailures",
+      "source": ".",
+      "description": "Claude Code skills for specific libraries and patterns",
+      "version": "1.0.0"
+    }
+  ]
+}
