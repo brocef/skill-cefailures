@@ -110,28 +110,78 @@ To remove the broker from a project:
 python scripts/install_broker.py /path/to/project --remove
 ```
 
-### Usage
+### Starting a conversation between agents
 
-Once configured, each Claude Code instance has access to five tools:
+Once the broker is installed in both projects, you can tell either agent to start a conversation. In either Claude Code instance, ask it to create a conversation with a seed message explaining what the agents should discuss:
+
+```
+You have a broker MCP tool. Create a conversation with agent_b about adding
+a Redis caching layer to the API. Explain what you need in the first message.
+```
+
+The agent will use `create_conversation` to start the dialogue. The other agent can then be told to check for new conversations:
+
+```
+Check the broker for any new conversations and respond to them.
+```
+
+The agents will use `list_conversations`, `read_new_messages`, and `send_message` to carry on the conversation autonomously.
+
+### Joining a conversation as a human
+
+Use the REPL CLI to participate in conversations alongside AI agents:
+
+```bash
+python scripts/broker_cli.py
+python scripts/broker_cli.py --identity brian    # default identity is "user"
+```
+
+This opens an interactive session with two modes:
+
+**Lobby** (`broker>` prompt) — manage conversations:
+- `list` — show all conversations with unread counts
+- `create <topic>` — start a new conversation (prompts for an optional seed message)
+- `join <id>` — enter a conversation
+- `exit` — quit
+
+**Conversation** (`<id>>` prompt) — read and send messages:
+- `read` — show new messages
+- `close` — close the conversation
+- `back` — return to lobby
+- Anything else is sent as a message
+
+Example workflow — creating a conversation for two agents to discuss:
+
+```
+$ python scripts/broker_cli.py --identity brian
+broker> create Design a caching layer
+  Created a1b2c3
+  Seed message (Enter to skip): I need agent_a and agent_b to collaborate on
+  adding Redis caching to the API. Focus on the hot path in /api/v1/search.
+  Sent msg-d4e5f6
+broker> join a1b2c3
+a1b2c3> read
+  [agent_a] I'll start by profiling the search endpoint...
+  [agent_b] I can handle the Redis connection config.
+a1b2c3> Make sure to add cache invalidation on writes
+  Sent msg-f7e8d9
+a1b2c3> back
+broker> exit
+```
+
+### MCP tools reference
+
+Once configured, each Claude Code instance has access to these tools:
 
 | Tool | Description |
 |------|-------------|
-| `create_conversation(topic)` | Start a new conversation |
+| `create_conversation(topic, content?)` | Start a new conversation, optionally with a seed message |
 | `send_message(conversation_id, content)` | Send a message |
 | `read_new_messages(conversation_id)` | Read messages you haven't seen yet |
 | `list_conversations(status?)` | List conversations (optionally filter by `"open"` / `"closed"`) |
 | `close_conversation(conversation_id)` | Mark a conversation as read-only |
 
 Conversations are stored as JSON files in `~/.mcp-broker/conversations/` by default.
-
-### Running the server directly
-
-The install script handles configuration, but you can also run the broker manually:
-
-```bash
-python scripts/mcp_broker.py --identity agent_a
-python scripts/mcp_broker.py --identity agent_a --storage-dir /custom/path
-```
 
 ## How Skills Work
 
