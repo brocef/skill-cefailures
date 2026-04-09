@@ -72,9 +72,9 @@ Connecting to the socket registers your identity but does not join any conversat
 
 - `create_conversation` auto-joins the creator
 - `send_message` auto-joins the sender
+- `read_new_messages` auto-joins the reader
 - `join_conversation` explicitly joins
 - `close_conversation` removes membership (conversation becomes read-only)
-- `read_new_messages` does not join — a client can read without becoming a member (no system message, no real-time routing)
 - Disconnect broadcasts `leave` to every conversation the client was a member of
 
 The server tracks `members: dict[conversation_id, set[identity]]`. Messages are routed only to connected members of the target conversation.
