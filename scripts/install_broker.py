@@ -12,7 +12,7 @@ BROKER_SCRIPT = Path(__file__).resolve().parent / "mcp_broker.py"
 def install_broker(
     identity: str,
     project_dir: Path,
-    storage_dir: Path | None = None,
+    socket_path: Path | None = None,
 ) -> None:
     """Add the broker MCP server entry to the project's .mcp.json."""
     if not project_dir.is_dir():
@@ -29,8 +29,8 @@ def install_broker(
         config["mcpServers"] = {}
 
     broker_args = [str(BROKER_SCRIPT), "--identity", identity]
-    if storage_dir:
-        broker_args.extend(["--storage-dir", str(storage_dir)])
+    if socket_path:
+        broker_args.extend(["--socket", str(socket_path)])
 
     config["mcpServers"]["broker"] = {
         "command": sys.executable,
@@ -68,7 +68,7 @@ def main() -> None:
     )
     parser.add_argument("path", type=Path, help="Path to the project repo")
     parser.add_argument("--identity", help="Identity for this connection (e.g. 'agent_a')")
-    parser.add_argument("--storage-dir", type=Path, help="Custom storage directory for conversations")
+    parser.add_argument("--socket", type=Path, help="Custom socket path for the broker")
     parser.add_argument("--remove", action="store_true", help="Remove the broker entry")
 
     args = parser.parse_args()
@@ -82,7 +82,7 @@ def main() -> None:
         install_broker(
             identity=args.identity,
             project_dir=args.path,
-            storage_dir=args.storage_dir,
+            socket_path=args.socket,
         )
 
 

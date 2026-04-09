@@ -55,18 +55,18 @@ def test_install_overwrites_existing_broker(project_dir):
     assert "server" in data["mcpServers"]["broker"]["args"]
 
 
-def test_install_with_storage_dir(project_dir):
-    """--storage-dir is passed through to the broker args."""
+def test_install_with_socket_path(project_dir):
+    """--socket is passed through to the broker args."""
     install_broker.install_broker(
         identity="core",
         project_dir=project_dir,
-        storage_dir=Path("/custom/path"),
+        socket_path=Path("/custom/broker.sock"),
     )
     mcp_path = project_dir / ".mcp.json"
     data = json.loads(mcp_path.read_text())
     args = data["mcpServers"]["broker"]["args"]
-    assert "--storage-dir" in args
-    assert "/custom/path" in args
+    assert "--socket" in args
+    assert "/custom/broker.sock" in args
 
 
 def test_remove_broker(project_dir):
