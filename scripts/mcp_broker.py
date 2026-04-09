@@ -45,8 +45,8 @@ class ConversationStore:
         path = self._resolve_path(conversation["id"])
         path.write_text(json.dumps(conversation, indent=2))
 
-    def create_conversation(self, topic: str) -> dict:
-        """Start a new conversation."""
+    def create_conversation(self, topic: str, content: str | None = None) -> dict:
+        """Start a new conversation, optionally with a seed message."""
         conv_id = self._generate_id()
         conversation = {
             "id": conv_id,
@@ -57,6 +57,14 @@ class ConversationStore:
             "messages": [],
             "cursors": {self.identity: 0},
         }
+        if content:
+            msg_id = self._message_id()
+            conversation["messages"].append({
+                "id": msg_id,
+                "sender": self.identity,
+                "content": content,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            })
         self._save(conversation)
         return {
             "conversation_id": conv_id,
@@ -149,9 +157,9 @@ store: ConversationStore
 
 
 @mcp.tool()
-def create_conversation(topic: str) -> dict:
-    """Start a new conversation with the given topic."""
-    return store.create_conversation(topic)
+def create_conversation(topic: str, content: str | None = None) -> dict:
+    """Start a new conversation with the given topic, optionally with a seed message."""
+    return store.create_conversation(topic, content)
 
 
 @mcp.tool()

@@ -48,6 +48,36 @@ def test_create_conversation_creates_storage_dir():
         assert (nested / f"{result['conversation_id']}.json").exists()
 
 
+def test_create_conversation_with_seed_message(store, tmp_path):
+    """create_conversation with content adds a seed message."""
+    result = store.create_conversation("Topic", content="Please discuss caching")
+    cid = result["conversation_id"]
+    data = json.loads((tmp_path / f"{cid}.json").read_text())
+    assert len(data["messages"]) == 1
+    assert data["messages"][0]["sender"] == "alice"
+    assert data["messages"][0]["content"] == "Please discuss caching"
+    assert data["messages"][0]["id"].startswith("msg-")
+
+
+def test_create_conversation_without_seed_message(store, tmp_path):
+    """create_conversation without content creates no messages."""
+    result = store.create_conversation("Topic")
+    cid = result["conversation_id"]
+    data = json.loads((tmp_path / f"{cid}.json").read_text())
+    assert data["messages"] == []
+
+
+def test_seed_message_visible_to_other_identity(tmp_path):
+    """Seed message from creator is readable by another identity."""
+    alice = ConversationStore(identity="alice", storage_dir=tmp_path)
+    bob = ConversationStore(identity="bob", storage_dir=tmp_path)
+    created = alice.create_conversation("Topic", content="Discuss this")
+    cid = created["conversation_id"]
+    result = bob.read_new_messages(cid)
+    assert len(result["messages"]) == 1
+    assert result["messages"][0]["content"] == "Discuss this"
+
+
 def test_load_nonexistent_conversation(store):
     """Loading a nonexistent conversation raises ValueError."""
     with pytest.raises(ValueError, match="not found"):
