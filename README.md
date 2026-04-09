@@ -83,6 +83,59 @@ tests/
   test_analyze_permissions.py
 ```
 
+## MCP Message Broker
+
+A lightweight MCP server that lets two Claude Code instances on the same machine hold structured conversations. Messages are persisted as JSON files so conversations survive restarts.
+
+### Setup
+
+Install the broker into each project that needs it, giving each a unique identity:
+
+```bash
+# In project A
+python scripts/install_broker.py --identity core
+
+# In project B
+python scripts/install_broker.py --identity server
+```
+
+This adds a `broker` entry to each project's `.claude/settings.json`. Restart Claude Code for the new MCP server to take effect.
+
+To point both instances at a custom storage directory:
+
+```bash
+python scripts/install_broker.py --identity core --storage-dir /shared/conversations
+```
+
+To remove the broker from a project:
+
+```bash
+python scripts/install_broker.py --remove
+```
+
+### Usage
+
+Once configured, each Claude Code instance has access to five tools:
+
+| Tool | Description |
+|------|-------------|
+| `create_conversation(topic)` | Start a new conversation |
+| `send_message(conversation_id, content)` | Send a message |
+| `read_new_messages(conversation_id)` | Read messages you haven't seen yet |
+| `list_conversations(status?)` | List conversations (optionally filter by `"open"` / `"closed"`) |
+| `close_conversation(conversation_id)` | Mark a conversation as read-only |
+
+Conversations are stored as JSON files in `~/.mcp-broker/conversations/` by default.
+
+### Running the server directly
+
+The install script handles configuration, but you can also run the broker manually:
+
+```bash
+python scripts/mcp_broker.py --identity core
+python scripts/mcp_broker.py --identity core --storage-dir /custom/path
+```
+
 ## How Skills Work
 
 When Claude Code invokes a library skill:
