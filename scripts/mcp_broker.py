@@ -53,3 +53,35 @@ class ConversationStore:
             "topic": topic,
             "created_by": self.identity,
         }
+
+    def send_message(self, conversation_id: str, content: str) -> dict:
+        """Append a message to a conversation."""
+        conversation = self._load(conversation_id)
+        if conversation["status"] == "closed":
+            raise ValueError(f"Conversation '{conversation_id}' is closed")
+        msg_id = self._message_id()
+        message = {
+            "id": msg_id,
+            "sender": self.identity,
+            "content": content,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        conversation["messages"].append(message)
+        # Advance sender's cursor to include their own message
+        conversation["cursors"][self.identity] = len(conversation["messages"])
+        self._save(conversation)
+        return {
+            "message_id": msg_id,
+            "conversation_id": conversation_id,
+            "sender": self.identity,
+        }
+
+    def close_conversation(self, conversation_id: str) -> dict:
+        """Mark a conversation as closed (read-only)."""
+        conversation = self._load(conversation_id)
+        conversation["status"] = "closed"
+        self._save(conversation)
+        return {
+            "conversation_id": conversation_id,
+            "status": "closed",
+        }

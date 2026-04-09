@@ -52,3 +52,43 @@ def test_load_nonexistent_conversation(store):
     """Loading a nonexistent conversation raises ValueError."""
     with pytest.raises(ValueError, match="not found"):
         store._load("nonexistent")
+
+
+def test_send_message_returns_shape(store):
+    """send_message returns message_id, conversation_id, and sender."""
+    created = store.create_conversation("Topic")
+    cid = created["conversation_id"]
+    result = store.send_message(cid, "Hello world")
+    assert result["conversation_id"] == cid
+    assert result["sender"] == "alice"
+    assert result["message_id"].startswith("msg-")
+
+
+def test_send_message_appends_to_conversation(store, tmp_path):
+    """send_message appends the message to the conversation file."""
+    created = store.create_conversation("Topic")
+    cid = created["conversation_id"]
+    store.send_message(cid, "First message")
+    store.send_message(cid, "Second message")
+
+    data = json.loads((tmp_path / f"{cid}.json").read_text())
+    assert len(data["messages"]) == 2
+    assert data["messages"][0]["content"] == "First message"
+    assert data["messages"][0]["sender"] == "alice"
+    assert data["messages"][1]["content"] == "Second message"
+    assert "timestamp" in data["messages"][0]
+
+
+def test_send_message_not_found(store):
+    """send_message raises ValueError for nonexistent conversation."""
+    with pytest.raises(ValueError, match="not found"):
+        store.send_message("nonexistent", "Hello")
+
+
+def test_send_message_closed_conversation(store):
+    """send_message raises ValueError for a closed conversation."""
+    created = store.create_conversation("Topic")
+    cid = created["conversation_id"]
+    store.close_conversation(cid)
+    with pytest.raises(ValueError, match="closed"):
+        store.send_message(cid, "Should fail")
