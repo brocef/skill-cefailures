@@ -2,12 +2,14 @@
 """Interactive REPL CLI for the MCP message broker."""
 
 import argparse
+import asyncio
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from mcp_broker import ConversationStore
+from broker_server import BrokerServer, start_server
+from broker_client import BrokerClient
 
 
 def format_conversation_line(conv: dict) -> str:
@@ -48,165 +50,158 @@ Commands:
 
 CONVERSATION_HELP = """\
 Commands:
-  read    Show new messages
-  close   Close the conversation and return to lobby
-  back    Return to lobby
-  help    Show this help
-  <text>  Send a message"""
+  read     Show new messages
+  members  Show who's in this conversation
+  leave    Leave the conversation and return to lobby
+  close    Close the conversation (read-only for everyone)
+  back     Return to lobby (stay in conversation)
+  help     Show this help
+  <text>   Send a message"""
 
 
-def lobby_loop(store: ConversationStore) -> None:
-    """Run the lobby REPL loop.
+class ServerREPL:
+    """REPL that runs inside the server process, using BrokerServer directly."""
 
-    Args:
-        store: The ConversationStore instance to use for all operations.
-    """
-    while True:
-        try:
-            line = input("broker> ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print()
-            return
+    def __init__(self, server: BrokerServer, identity: str) -> None:
+        self.server = server
+        self.identity = identity
+        self._req_counter = 0
+        # Register as a client so we receive pushes
+        self.server.connect(identity, self._on_push)
+        self._current_conversation: str | None = None
 
-        if not line:
-            continue
+    def _next_id(self) -> str:
+        self._req_counter += 1
+        return f"repl-{self._req_counter}"
 
-        parts = line.split(None, 1)
-        command = parts[0].lower()
+    def _request(self, msg: dict) -> dict:
+        msg["id"] = self._next_id()
+        result = self.server.handle_request(self.identity, msg)
+        if result["type"] == "error":
+            raise ValueError(result["message"])
+        return result["data"]
 
-        if command == "exit":
-            return
-        elif command == "list":
-            _handle_list(store)
-        elif command == "create":
-            if len(parts) < 2:
-                print("Usage: create <topic>", file=sys.stderr)
-                continue
-            _handle_create(store, parts[1])
-        elif command == "join":
-            if len(parts) < 2:
-                print("Usage: join <id>", file=sys.stderr)
-                continue
-            _handle_join(store, parts[1].strip())
-        elif command == "help":
-            print(LOBBY_HELP)
-        else:
-            print(f"Unknown command: {command}. Type 'help' for options.", file=sys.stderr)
+    def _on_push(self, msg: dict) -> None:
+        """Handle pushed messages — print if in the right conversation."""
+        cid = msg.get("conversation_id")
+        if cid == self._current_conversation:
+            if msg["type"] == "message":
+                print(f"\n{format_message(msg['message'])}")
+            elif msg["type"] == "system":
+                print(f"\n  * {msg['identity']} {msg['event']}ed" if msg['event'] == 'join' else f"\n  * {msg['identity']} left")
 
-
-def _handle_list(store: ConversationStore) -> None:
-    """List all conversations."""
-    try:
-        result = store.list_conversations()
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        return
-    convs = result["conversations"]
-    if not convs:
-        print("  No conversations.")
-        return
-    for conv in convs:
-        print(format_conversation_line(conv))
-
-
-def _handle_create(store: ConversationStore, topic: str) -> None:
-    """Create a conversation with an optional seed message."""
-    try:
-        seed = input("  Seed message (Enter to skip): ").strip()
-    except (EOFError, KeyboardInterrupt):
-        print()
-        return
-
-    try:
-        if seed:
-            result = store.create_conversation(topic, content=seed)
-        else:
-            result = store.create_conversation(topic)
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        return
-
-    cid = result["conversation_id"]
-    print(f"  Created {cid}")
-
-    if seed:
-        # The seed message was already sent via create_conversation.
-        # Find its ID from the file to display it.
-        try:
-            conv_data = store._load(cid)
-            if conv_data["messages"]:
-                msg_id = conv_data["messages"][-1]["id"]
-                print(f"  Sent {msg_id}")
-        except Exception:
-            pass
-
-
-def _handle_join(store: ConversationStore, conversation_id: str) -> None:
-    """Enter a conversation and run the conversation loop."""
-    # Verify the conversation exists
-    try:
-        store._load(conversation_id)
-    except ValueError as e:
-        print(f"Error: {e}", file=sys.stderr)
-        return
-
-    # Show unread messages on join
-    _show_new_messages(store, conversation_id)
-
-    # Enter conversation loop
-    conversation_loop(store, conversation_id)
-
-
-def _show_new_messages(store: ConversationStore, conversation_id: str) -> None:
-    """Read and display new messages for a conversation."""
-    try:
-        result = store.read_new_messages(conversation_id)
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        return
-    for msg in result["messages"]:
-        print(format_message(msg))
-
-
-def conversation_loop(store: ConversationStore, conversation_id: str) -> None:
-    """Run the conversation REPL loop.
-
-    Args:
-        store: The ConversationStore instance.
-        conversation_id: The ID of the conversation to interact with.
-    """
-    while True:
-        try:
-            line = input(f"{conversation_id}> ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print()
-            return
-
-        if not line:
-            continue
-
-        command = line.lower()
-
-        if command == "read":
-            _show_new_messages(store, conversation_id)
-        elif command == "close":
+    def lobby_loop(self) -> None:
+        """Run the lobby REPL loop."""
+        while True:
             try:
-                store.close_conversation(conversation_id)
-                print(f"  Closed {conversation_id}")
-            except Exception as e:
-                print(f"Error: {e}", file=sys.stderr)
-            return
-        elif command == "back":
-            return
-        elif command == "help":
-            print(CONVERSATION_HELP)
-        else:
-            # Anything else is sent as a message
+                line = input("broker> ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print()
+                return
+            if not line:
+                continue
+            parts = line.split(None, 1)
+            command = parts[0].lower()
             try:
-                result = store.send_message(conversation_id, line)
-                print(f"  Sent {result['message_id']}")
-            except Exception as e:
+                if command == "exit":
+                    return
+                elif command == "list":
+                    result = self._request({"type": "list_conversations"})
+                    convs = result["conversations"]
+                    if not convs:
+                        print("  No conversations.")
+                    else:
+                        for conv in convs:
+                            print(format_conversation_line(conv))
+                elif command == "create":
+                    if len(parts) < 2:
+                        print("Usage: create <topic>", file=sys.stderr)
+                        continue
+                    try:
+                        seed = input("  Seed message (Enter to skip): ").strip()
+                    except (EOFError, KeyboardInterrupt):
+                        print()
+                        continue
+                    msg = {"type": "create_conversation", "topic": parts[1]}
+                    if seed:
+                        msg["content"] = seed
+                    result = self._request(msg)
+                    print(f"  Created {result['conversation_id']}")
+                elif command == "join":
+                    if len(parts) < 2:
+                        print("Usage: join <id>", file=sys.stderr)
+                        continue
+                    cid = parts[1].strip()
+                    self._request({"type": "join_conversation", "conversation_id": cid})
+                    self._current_conversation = cid
+                    # Show history on join
+                    result = self._request({"type": "history", "conversation_id": cid})
+                    for msg in result["messages"]:
+                        print(format_message(msg))
+                    self._conversation_loop(cid)
+                    self._current_conversation = None
+                elif command == "help":
+                    print(LOBBY_HELP)
+                else:
+                    print(f"Unknown command: {command}. Type 'help' for options.", file=sys.stderr)
+            except ValueError as e:
                 print(f"Error: {e}", file=sys.stderr)
+
+    def _conversation_loop(self, conversation_id: str) -> None:
+        """Run the conversation REPL loop."""
+        while True:
+            try:
+                line = input(f"{conversation_id}> ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print()
+                return
+            if not line:
+                continue
+            command = line.lower()
+            try:
+                if command == "back":
+                    return
+                elif command == "leave":
+                    self._request({"type": "leave_conversation", "conversation_id": conversation_id})
+                    print(f"  Left {conversation_id}")
+                    return
+                elif command == "read":
+                    result = self._request({"type": "history", "conversation_id": conversation_id})
+                    for msg in result["messages"]:
+                        print(format_message(msg))
+                elif command == "members":
+                    result = self._request({"type": "list_members", "conversation_id": conversation_id})
+                    for member in result["members"]:
+                        print(f"  {member}")
+                elif command == "close":
+                    self._request({"type": "close_conversation", "conversation_id": conversation_id})
+                    print(f"  Closed {conversation_id}")
+                    return
+                elif command == "help":
+                    print(CONVERSATION_HELP)
+                else:
+                    result = self._request({
+                        "type": "send_message", "conversation_id": conversation_id, "content": line,
+                    })
+                    print(f"  Sent {result['message_id']}")
+            except ValueError as e:
+                print(f"Error: {e}", file=sys.stderr)
+
+
+async def run_server_mode(identity: str, storage_dir: Path, sock_path: str) -> None:
+    """Start the socket server and run the REPL."""
+    server = BrokerServer(storage_dir=storage_dir)
+    srv = await start_server(server, sock_path)
+    print(f"Broker server listening on {sock_path}")
+
+    repl = ServerREPL(server, identity)
+    try:
+        # Run REPL in a thread so it doesn't block the event loop
+        await asyncio.get_event_loop().run_in_executor(None, repl.lobby_loop)
+    finally:
+        srv.close()
+        await srv.wait_closed()
+        Path(sock_path).unlink(missing_ok=True)
 
 
 def main() -> None:
@@ -215,20 +210,31 @@ def main() -> None:
         description="Interactive REPL for the MCP message broker"
     )
     parser.add_argument(
-        "--identity",
-        default="user",
+        "--identity", default="user",
         help="Identity for this session (default: user)",
     )
     parser.add_argument(
-        "--storage-dir",
-        type=Path,
+        "--server", action="store_true",
+        help="Run as the broker server (starts socket + REPL)",
+    )
+    parser.add_argument(
+        "--storage-dir", type=Path,
         default=Path.home() / ".mcp-broker" / "conversations",
         help="Directory for conversation files (default: ~/.mcp-broker/conversations)",
     )
+    parser.add_argument(
+        "--socket", type=str,
+        default=str(Path.home() / ".mcp-broker" / "broker.sock"),
+        help="Path to broker socket (default: ~/.mcp-broker/broker.sock)",
+    )
     args = parser.parse_args()
 
-    store = ConversationStore(identity=args.identity, storage_dir=args.storage_dir)
-    lobby_loop(store)
+    if args.server:
+        asyncio.run(run_server_mode(args.identity, args.storage_dir, args.socket))
+    else:
+        # Client mode — not implemented in this task
+        print("Client mode not yet implemented. Use --server to start the broker.", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

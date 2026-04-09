@@ -8,12 +8,11 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 from broker_cli import (
-    conversation_loop,
+    ServerREPL,
     format_conversation_line,
     format_message,
-    lobby_loop,
 )
-from mcp_broker import ConversationStore
+from broker_server import BrokerServer
 
 
 # ---------------------------------------------------------------------------
@@ -24,8 +23,7 @@ def test_module_imports() -> None:
     """broker_cli can be imported without errors."""
     import broker_cli  # noqa: F811
     assert hasattr(broker_cli, "main")
-    assert hasattr(broker_cli, "lobby_loop")
-    assert hasattr(broker_cli, "conversation_loop")
+    assert hasattr(broker_cli, "ServerREPL")
 
 
 # ---------------------------------------------------------------------------
@@ -109,98 +107,118 @@ def test_format_message_preserves_content() -> None:
 
 
 # ---------------------------------------------------------------------------
-# lobby_loop integration tests
+# Fixtures
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
-def store(tmp_path: Path) -> ConversationStore:
-    """Create a ConversationStore with a temp storage directory."""
-    return ConversationStore(identity="testuser", storage_dir=tmp_path)
+def server(tmp_path: Path) -> BrokerServer:
+    """Create a BrokerServer with a temp storage directory."""
+    return BrokerServer(storage_dir=tmp_path)
 
 
-def test_lobby_list_empty(store: ConversationStore, capsys: pytest.CaptureFixture) -> None:
+@pytest.fixture
+def repl(server: BrokerServer) -> ServerREPL:
+    """Create a ServerREPL using the test server."""
+    return ServerREPL(server, "testuser")
+
+
+def _create_conversation(server: BrokerServer, identity: str, topic: str, content: str | None = None) -> str:
+    """Helper to create a conversation and return its ID."""
+    msg: dict = {"type": "create_conversation", "topic": topic, "id": "setup"}
+    if content:
+        msg["content"] = content
+    result = server.handle_request(identity, msg)
+    return result["data"]["conversation_id"]
+
+
+# ---------------------------------------------------------------------------
+# lobby_loop integration tests
+# ---------------------------------------------------------------------------
+
+def test_lobby_list_empty(repl: ServerREPL, capsys: pytest.CaptureFixture) -> None:
     """Lobby 'list' command prints no-conversations message when empty."""
     with patch("builtins.input", side_effect=["list", "exit"]):
-        lobby_loop(store)
+        repl.lobby_loop()
     output = capsys.readouterr().out
     assert "No conversations" in output
 
 
-def test_lobby_list_shows_conversations(store: ConversationStore, capsys: pytest.CaptureFixture) -> None:
+def test_lobby_list_shows_conversations(repl: ServerREPL, server: BrokerServer, capsys: pytest.CaptureFixture) -> None:
     """Lobby 'list' command shows created conversations."""
-    store.create_conversation("My topic")
+    _create_conversation(server, "testuser", "My topic")
     with patch("builtins.input", side_effect=["list", "exit"]):
-        lobby_loop(store)
+        repl.lobby_loop()
     output = capsys.readouterr().out
     assert '"My topic"' in output
     assert "open" in output
 
 
-def test_lobby_create_without_seed(store: ConversationStore, capsys: pytest.CaptureFixture) -> None:
+def test_lobby_create_without_seed(repl: ServerREPL, server: BrokerServer, capsys: pytest.CaptureFixture) -> None:
     """Lobby 'create' with empty seed creates a conversation."""
     with patch("builtins.input", side_effect=["create Test topic", "", "exit"]):
-        lobby_loop(store)
+        repl.lobby_loop()
     output = capsys.readouterr().out
     assert "Created" in output
-    convs = store.list_conversations()["conversations"]
+    result = server.handle_request("testuser", {"type": "list_conversations", "id": "check"})
+    convs = result["data"]["conversations"]
     assert len(convs) == 1
     assert convs[0]["topic"] == "Test topic"
 
 
-def test_lobby_create_with_seed(store: ConversationStore, capsys: pytest.CaptureFixture) -> None:
+def test_lobby_create_with_seed(repl: ServerREPL, server: BrokerServer, capsys: pytest.CaptureFixture) -> None:
     """Lobby 'create' with a seed message sends the seed."""
     with patch("builtins.input", side_effect=["create Design caching", "Add Redis", "exit"]):
-        lobby_loop(store)
+        repl.lobby_loop()
     output = capsys.readouterr().out
     assert "Created" in output
-    assert "Sent msg-" in output
-    convs = store.list_conversations()["conversations"]
+    result = server.handle_request("testuser", {"type": "list_conversations", "id": "check"})
+    convs = result["data"]["conversations"]
     assert len(convs) == 1
     assert convs[0]["message_count"] == 1
 
 
-def test_lobby_create_missing_topic(store: ConversationStore, capsys: pytest.CaptureFixture) -> None:
+def test_lobby_create_missing_topic(repl: ServerREPL, capsys: pytest.CaptureFixture) -> None:
     """Lobby 'create' without a topic prints usage to stderr."""
     with patch("builtins.input", side_effect=["create", "exit"]):
-        lobby_loop(store)
+        repl.lobby_loop()
     err = capsys.readouterr().err
     assert "Usage" in err
 
 
-def test_lobby_help(store: ConversationStore, capsys: pytest.CaptureFixture) -> None:
+def test_lobby_help(repl: ServerREPL, capsys: pytest.CaptureFixture) -> None:
     """Lobby 'help' prints available commands."""
     with patch("builtins.input", side_effect=["help", "exit"]):
-        lobby_loop(store)
+        repl.lobby_loop()
     output = capsys.readouterr().out
     assert "list" in output
     assert "create" in output
     assert "join" in output
 
 
-def test_lobby_unknown_command(store: ConversationStore, capsys: pytest.CaptureFixture) -> None:
+def test_lobby_unknown_command(repl: ServerREPL, capsys: pytest.CaptureFixture) -> None:
     """Lobby prints error for unknown commands."""
     with patch("builtins.input", side_effect=["foobar", "exit"]):
-        lobby_loop(store)
+        repl.lobby_loop()
     err = capsys.readouterr().err
     assert "Unknown command" in err
 
 
-def test_lobby_eof_exits(store: ConversationStore) -> None:
+def test_lobby_eof_exits(repl: ServerREPL) -> None:
     """Lobby exits cleanly on EOFError."""
     with patch("builtins.input", side_effect=EOFError):
-        lobby_loop(store)  # Should not raise
+        repl.lobby_loop()  # Should not raise
 
 
-def test_lobby_keyboard_interrupt_exits(store: ConversationStore) -> None:
+def test_lobby_keyboard_interrupt_exits(repl: ServerREPL) -> None:
     """Lobby exits cleanly on KeyboardInterrupt."""
     with patch("builtins.input", side_effect=KeyboardInterrupt):
-        lobby_loop(store)  # Should not raise
+        repl.lobby_loop()  # Should not raise
 
 
-def test_lobby_join_nonexistent(store: ConversationStore, capsys: pytest.CaptureFixture) -> None:
+def test_lobby_join_nonexistent(repl: ServerREPL, capsys: pytest.CaptureFixture) -> None:
     """Lobby 'join' with bad ID prints error."""
     with patch("builtins.input", side_effect=["join badid", "exit"]):
-        lobby_loop(store)
+        repl.lobby_loop()
     err = capsys.readouterr().err
     assert "not found" in err
 
@@ -209,76 +227,71 @@ def test_lobby_join_nonexistent(store: ConversationStore, capsys: pytest.Capture
 # conversation_loop integration tests
 # ---------------------------------------------------------------------------
 
-def test_conversation_send_message(store: ConversationStore, capsys: pytest.CaptureFixture) -> None:
+def test_conversation_send_message(repl: ServerREPL, server: BrokerServer, capsys: pytest.CaptureFixture) -> None:
     """Typing text in conversation mode sends a message."""
-    created = store.create_conversation("Topic")
-    cid = created["conversation_id"]
-    with patch("builtins.input", side_effect=["Hello world", "back"]):
-        conversation_loop(store, cid)
+    cid = _create_conversation(server, "testuser", "Topic")
+    with patch("builtins.input", side_effect=[f"join {cid}", "Hello world", "back", "exit"]):
+        repl.lobby_loop()
     output = capsys.readouterr().out
     assert "Sent msg-" in output
 
 
-def test_conversation_read_messages(store: ConversationStore, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+def test_conversation_read_messages(repl: ServerREPL, server: BrokerServer, capsys: pytest.CaptureFixture) -> None:
     """'read' command in conversation shows new messages."""
-    created = store.create_conversation("Topic")
-    cid = created["conversation_id"]
-    other = ConversationStore(identity="other", storage_dir=tmp_path)
-    other.send_message(cid, "Hello from other")
-    with patch("builtins.input", side_effect=["read", "back"]):
-        conversation_loop(store, cid)
+    cid = _create_conversation(server, "testuser", "Topic")
+    # Send a message as another user
+    server.handle_request("other", {"type": "join_conversation", "conversation_id": cid, "id": "j"})
+    server.handle_request("other", {"type": "send_message", "conversation_id": cid, "content": "Hello from other", "id": "s"})
+    with patch("builtins.input", side_effect=[f"join {cid}", "read", "back", "exit"]):
+        repl.lobby_loop()
     output = capsys.readouterr().out
     assert "[other]" in output
     assert "Hello from other" in output
 
 
-def test_conversation_close(store: ConversationStore, capsys: pytest.CaptureFixture) -> None:
+def test_conversation_close(repl: ServerREPL, server: BrokerServer, capsys: pytest.CaptureFixture) -> None:
     """'close' command closes the conversation and returns."""
-    created = store.create_conversation("Topic")
-    cid = created["conversation_id"]
-    with patch("builtins.input", side_effect=["close"]):
-        conversation_loop(store, cid)
+    cid = _create_conversation(server, "testuser", "Topic")
+    with patch("builtins.input", side_effect=[f"join {cid}", "close", "exit"]):
+        repl.lobby_loop()
     output = capsys.readouterr().out
     assert f"Closed {cid}" in output
-    convs = store.list_conversations(status="closed")["conversations"]
+    result = server.handle_request("testuser", {"type": "list_conversations", "status": "closed", "id": "check"})
+    convs = result["data"]["conversations"]
     assert len(convs) == 1
 
 
-def test_conversation_help(store: ConversationStore, capsys: pytest.CaptureFixture) -> None:
+def test_conversation_help(repl: ServerREPL, server: BrokerServer, capsys: pytest.CaptureFixture) -> None:
     """'help' command in conversation shows available commands."""
-    created = store.create_conversation("Topic")
-    cid = created["conversation_id"]
-    with patch("builtins.input", side_effect=["help", "back"]):
-        conversation_loop(store, cid)
+    cid = _create_conversation(server, "testuser", "Topic")
+    with patch("builtins.input", side_effect=[f"join {cid}", "help", "back", "exit"]):
+        repl.lobby_loop()
     output = capsys.readouterr().out
     assert "read" in output
     assert "close" in output
     assert "back" in output
 
 
-def test_conversation_back(store: ConversationStore) -> None:
+def test_conversation_back(repl: ServerREPL, server: BrokerServer) -> None:
     """'back' command returns from conversation loop."""
-    created = store.create_conversation("Topic")
-    cid = created["conversation_id"]
-    with patch("builtins.input", side_effect=["back"]):
-        conversation_loop(store, cid)  # Should return without error
+    cid = _create_conversation(server, "testuser", "Topic")
+    with patch("builtins.input", side_effect=[f"join {cid}", "back", "exit"]):
+        repl.lobby_loop()  # Should return without error
 
 
-def test_conversation_eof_exits(store: ConversationStore) -> None:
+def test_conversation_eof_exits(repl: ServerREPL, server: BrokerServer) -> None:
     """Conversation loop exits cleanly on EOFError."""
-    created = store.create_conversation("Topic")
-    cid = created["conversation_id"]
-    with patch("builtins.input", side_effect=EOFError):
-        conversation_loop(store, cid)  # Should not raise
+    cid = _create_conversation(server, "testuser", "Topic")
+    with patch("builtins.input", side_effect=[f"join {cid}", EOFError, "exit"]):
+        repl.lobby_loop()  # Should not raise
 
 
-def test_conversation_send_to_closed_prints_error(store: ConversationStore, capsys: pytest.CaptureFixture) -> None:
+def test_conversation_send_to_closed_prints_error(repl: ServerREPL, server: BrokerServer, capsys: pytest.CaptureFixture) -> None:
     """Sending a message to a closed conversation prints an error."""
-    created = store.create_conversation("Topic")
-    cid = created["conversation_id"]
-    store.close_conversation(cid)
-    with patch("builtins.input", side_effect=["some message", "back"]):
-        conversation_loop(store, cid)
+    cid = _create_conversation(server, "testuser", "Topic")
+    server.handle_request("testuser", {"type": "close_conversation", "conversation_id": cid, "id": "close"})
+    with patch("builtins.input", side_effect=[f"join {cid}", "some message", "back", "exit"]):
+        repl.lobby_loop()
     err = capsys.readouterr().err
     assert "closed" in err
 
@@ -287,14 +300,14 @@ def test_conversation_send_to_closed_prints_error(store: ConversationStore, caps
 # Join shows unread on entry
 # ---------------------------------------------------------------------------
 
-def test_join_shows_unread(store: ConversationStore, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+def test_join_shows_unread(repl: ServerREPL, server: BrokerServer, capsys: pytest.CaptureFixture) -> None:
     """Joining a conversation automatically shows unread messages."""
-    created = store.create_conversation("Topic")
-    cid = created["conversation_id"]
-    other = ConversationStore(identity="other", storage_dir=tmp_path)
-    other.send_message(cid, "Unread message")
+    cid = _create_conversation(server, "testuser", "Topic")
+    # Send a message as another user
+    server.handle_request("other", {"type": "join_conversation", "conversation_id": cid, "id": "j"})
+    server.handle_request("other", {"type": "send_message", "conversation_id": cid, "content": "Unread message", "id": "s"})
     with patch("builtins.input", side_effect=[f"join {cid}", "back", "exit"]):
-        lobby_loop(store)
+        repl.lobby_loop()
     output = capsys.readouterr().out
     assert "[other]" in output
     assert "Unread message" in output
