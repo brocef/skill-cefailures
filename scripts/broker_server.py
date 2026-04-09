@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Broker server: in-memory conversation state, membership tracking, message routing."""
 
+import asyncio
 import json
 import secrets
 from datetime import datetime, timezone
@@ -233,3 +234,43 @@ class BrokerServer:
         self.conversations[cid]["status"] = "closed"
         self._save_conversation(cid)
         return {"conversation_id": cid, "status": "closed"}
+
+
+async def _handle_client(server: BrokerServer, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+    """Handle a single client connection."""
+    identity = None
+    try:
+        while True:
+            line = await reader.readline()
+            if not line:
+                break
+            msg = json.loads(line.decode())
+
+            if msg["type"] == "connect":
+                identity = msg["identity"]
+                def send(m, w=writer):
+                    w.write(json.dumps(m).encode() + b"\n")
+                server.connect(identity, send)
+                response = {"type": "response", "id": msg.get("id", ""), "data": {"status": "connected"}}
+                writer.write(json.dumps(response).encode() + b"\n")
+                await writer.drain()
+            else:
+                response = server.handle_request(identity, msg)
+                writer.write(json.dumps(response).encode() + b"\n")
+                await writer.drain()
+    except (ConnectionError, asyncio.IncompleteReadError):
+        pass
+    finally:
+        if identity:
+            server.disconnect(identity)
+        writer.close()
+
+
+async def start_server(server: BrokerServer, sock_path: str) -> asyncio.AbstractServer:
+    """Start the Unix domain socket server."""
+    Path(sock_path).unlink(missing_ok=True)
+    srv = await asyncio.start_unix_server(
+        lambda r, w: _handle_client(server, r, w),
+        path=sock_path,
+    )
+    return srv
