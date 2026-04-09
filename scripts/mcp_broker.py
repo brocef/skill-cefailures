@@ -25,9 +25,16 @@ class ConversationStore:
         """Generate a message ID."""
         return f"msg-{self._generate_id()}"
 
+    def _resolve_path(self, conversation_id: str) -> Path:
+        """Resolve a conversation file path, rejecting path traversal."""
+        path = (self.storage_dir / f"{conversation_id}.json").resolve()
+        if not path.is_relative_to(self.storage_dir.resolve()):
+            raise ValueError(f"Invalid conversation ID: '{conversation_id}'")
+        return path
+
     def _load(self, conversation_id: str) -> dict:
         """Load a conversation from disk."""
-        path = self.storage_dir / f"{conversation_id}.json"
+        path = self._resolve_path(conversation_id)
         if not path.exists():
             raise ValueError(f"Conversation '{conversation_id}' not found")
         return json.loads(path.read_text())
@@ -35,7 +42,7 @@ class ConversationStore:
     def _save(self, conversation: dict) -> None:
         """Write a conversation to disk."""
         self.storage_dir.mkdir(parents=True, exist_ok=True)
-        path = self.storage_dir / f"{conversation['id']}.json"
+        path = self._resolve_path(conversation["id"])
         path.write_text(json.dumps(conversation, indent=2))
 
     def create_conversation(self, topic: str) -> dict:
@@ -111,13 +118,17 @@ class ConversationStore:
             if status and data["status"] != status:
                 continue
             cursor = data["cursors"].get(self.identity, 0)
+            unread = [
+                m for m in data["messages"][cursor:]
+                if m["sender"] != self.identity
+            ]
             conversations.append({
                 "id": data["id"],
                 "topic": data["topic"],
                 "status": data["status"],
                 "created_by": data["createdBy"],
                 "message_count": len(data["messages"]),
-                "unread_count": len(data["messages"]) - cursor,
+                "unread_count": len(unread),
             })
         return {"conversations": conversations}
 

@@ -236,6 +236,39 @@ def test_list_conversations_empty(store):
     assert result["conversations"] == []
 
 
+def test_list_conversations_unread_excludes_own_messages(tmp_path):
+    """Sender's own messages don't count as unread in list_conversations."""
+    alice = ConversationStore(identity="alice", storage_dir=tmp_path)
+    bob = ConversationStore(identity="bob", storage_dir=tmp_path)
+
+    created = alice.create_conversation("Topic")
+    cid = created["conversation_id"]
+    alice.send_message(cid, "From alice 1")
+    alice.send_message(cid, "From alice 2")
+    bob.send_message(cid, "From bob")
+
+    # Alice should see 1 unread (bob's message), not 3
+    alice_list = alice.list_conversations()
+    conv = [c for c in alice_list["conversations"] if c["id"] == cid][0]
+    assert conv["unread_count"] == 1
+    assert conv["message_count"] == 3
+
+
+def test_close_conversation_not_found(store):
+    """close_conversation raises ValueError for nonexistent conversation."""
+    with pytest.raises(ValueError, match="not found"):
+        store.close_conversation("nonexistent")
+
+
+def test_read_new_messages_on_closed_conversation(store):
+    """read_new_messages works on a closed conversation."""
+    created = store.create_conversation("Topic")
+    cid = created["conversation_id"]
+    store.close_conversation(cid)
+    result = store.read_new_messages(cid)
+    assert result["messages"] == []
+
+
 def test_full_conversation_flow(tmp_path):
     """End-to-end: create, send, read, list, close."""
     alice = ConversationStore(identity="alice", storage_dir=tmp_path)
