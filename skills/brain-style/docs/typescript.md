@@ -155,6 +155,15 @@ A cast is acceptable **only** when all of the following are true:
 
 In DB migrations, the ORM/adapter types reflect the **current** table schema, but the migration operates on a **previous** structure. Type mismatches here are expected and unavoidable — casts or `@ts-expect-error` are acceptable without further investigation.
 
+## LSP Usage
+
+When navigating unfamiliar TypeScript code, prefer the LSP tool over grep for:
+- **Hover** — get the resolved type of a symbol without reading its definition file
+- **Go-to-definition** — jump to the actual declaration, even across packages
+- **Find references** — discover all call sites and usages
+
+Use grep for text-based searches (string literals, comments, patterns). Use LSP when you need type-aware navigation.
+
 ## Common Mistakes
 
 | Mistake | Fix |

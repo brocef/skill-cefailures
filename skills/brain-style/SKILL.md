@@ -9,7 +9,7 @@ Read the relevant doc based on your task:
 
 | Sub-Style | Doc | Scope |
 |-----------|-----|-------|
-| TypeScript | `docs/typescript.md` | Naming conventions, casing rules, exemptions, and type lint error fixing policy |
+| TypeScript | `docs/typescript.md` | Naming conventions, casing rules, exemptions, type lint error fixing policy, and LSP usage |
 | CLAUDE.md | `docs/claude-md.md` | Structure, inline vs. route decisions, required sections |
 | Brain Review | `docs/brain-review.md` | Design architecture review — decomposition, file size, redundancy |
 
