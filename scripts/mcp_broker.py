@@ -98,6 +98,26 @@ class ConversationStore:
             "remaining_unread": 0,
         }
 
+    def list_conversations(self, status: str | None = None) -> dict:
+        """List all conversations, optionally filtered by status."""
+        conversations = []
+        if not self.storage_dir.exists():
+            return {"conversations": []}
+        for path in self.storage_dir.glob("*.json"):
+            data = json.loads(path.read_text())
+            if status and data["status"] != status:
+                continue
+            cursor = data["cursors"].get(self.identity, 0)
+            conversations.append({
+                "id": data["id"],
+                "topic": data["topic"],
+                "status": data["status"],
+                "created_by": data["createdBy"],
+                "message_count": len(data["messages"]),
+                "unread_count": len(data["messages"]) - cursor,
+            })
+        return {"conversations": conversations}
+
     def close_conversation(self, conversation_id: str) -> dict:
         """Mark a conversation as closed (read-only)."""
         conversation = self._load(conversation_id)

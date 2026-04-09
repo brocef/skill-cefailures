@@ -167,3 +167,70 @@ def test_read_new_messages_not_found(store):
     """read_new_messages raises ValueError for nonexistent conversation."""
     with pytest.raises(ValueError, match="not found"):
         store.read_new_messages("nonexistent")
+
+
+def test_list_conversations_all(store):
+    """list_conversations returns all conversations."""
+    store.create_conversation("Topic A")
+    store.create_conversation("Topic B")
+    result = store.list_conversations()
+    assert len(result["conversations"]) == 2
+    topics = {c["topic"] for c in result["conversations"]}
+    assert topics == {"Topic A", "Topic B"}
+
+
+def test_list_conversations_shape(store):
+    """Each conversation in the list has the expected fields."""
+    store.create_conversation("Topic")
+    result = store.list_conversations()
+    conv = result["conversations"][0]
+    assert "id" in conv
+    assert "topic" in conv
+    assert "status" in conv
+    assert "created_by" in conv
+    assert "message_count" in conv
+    assert "unread_count" in conv
+
+
+def test_list_conversations_filter_by_status(store):
+    """list_conversations filters by status when provided."""
+    c1 = store.create_conversation("Open one")
+    store.create_conversation("Open two")
+    store.close_conversation(c1["conversation_id"])
+
+    open_result = store.list_conversations(status="open")
+    assert len(open_result["conversations"]) == 1
+    assert open_result["conversations"][0]["topic"] == "Open two"
+
+    closed_result = store.list_conversations(status="closed")
+    assert len(closed_result["conversations"]) == 1
+    assert closed_result["conversations"][0]["topic"] == "Open one"
+
+
+def test_list_conversations_unread_count(tmp_path):
+    """unread_count is relative to the calling identity's cursor."""
+    alice = ConversationStore(identity="alice", storage_dir=tmp_path)
+    bob = ConversationStore(identity="bob", storage_dir=tmp_path)
+
+    created = alice.create_conversation("Topic")
+    cid = created["conversation_id"]
+    alice.send_message(cid, "Msg 1")
+    alice.send_message(cid, "Msg 2")
+
+    # Bob hasn't read anything — should see 2 unread
+    bob_list = bob.list_conversations()
+    conv = [c for c in bob_list["conversations"] if c["id"] == cid][0]
+    assert conv["unread_count"] == 2
+    assert conv["message_count"] == 2
+
+    # Bob reads messages
+    bob.read_new_messages(cid)
+    bob_list = bob.list_conversations()
+    conv = [c for c in bob_list["conversations"] if c["id"] == cid][0]
+    assert conv["unread_count"] == 0
+
+
+def test_list_conversations_empty(store):
+    """list_conversations returns empty list when no conversations exist."""
+    result = store.list_conversations()
+    assert result["conversations"] == []
