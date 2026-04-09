@@ -67,27 +67,22 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Install or remove the MCP broker in a project's .claude/settings.json."
     )
+    parser.add_argument("path", type=Path, help="Path to the project repo")
     parser.add_argument("--identity", help="Identity for this connection (e.g. 'agent_a')")
-    parser.add_argument(
-        "--project-dir",
-        type=Path,
-        default=Path.cwd(),
-        help="Project directory (default: current directory)",
-    )
     parser.add_argument("--storage-dir", type=Path, help="Custom storage directory for conversations")
     parser.add_argument("--remove", action="store_true", help="Remove the broker entry")
 
     args = parser.parse_args()
 
     if args.remove:
-        remove_broker(project_dir=args.project_dir)
+        remove_broker(project_dir=args.path)
     else:
         if not args.identity:
             print("Error: --identity is required for installation", file=sys.stderr)
             sys.exit(1)
         install_broker(
             identity=args.identity,
-            project_dir=args.project_dir,
+            project_dir=args.path,
             storage_dir=args.storage_dir,
         )
 

@@ -92,11 +92,8 @@ A lightweight MCP server that lets two Claude Code instances on the same machine
 Install the broker into each project that needs it, giving each a unique identity:
 
 ```bash
-# In project A
-python scripts/install_broker.py --identity agent_a
-
-# In project B
-python scripts/install_broker.py --identity agent_b
+python scripts/install_broker.py /path/to/project-a --identity agent_a
+python scripts/install_broker.py /path/to/project-b --identity agent_b
 ```
 
 This adds a `broker` entry to each project's `.claude/settings.json`. Restart Claude Code for the new MCP server to take effect.
@@ -104,13 +101,13 @@ This adds a `broker` entry to each project's `.claude/settings.json`. Restart Cl
 To point both instances at a custom storage directory:
 
 ```bash
-python scripts/install_broker.py --identity agent_a --storage-dir /shared/conversations
+python scripts/install_broker.py /path/to/project --identity agent_a --storage-dir /shared/conversations
 ```
 
 To remove the broker from a project:
 
 ```bash
-python scripts/install_broker.py --remove
+python scripts/install_broker.py /path/to/project --remove
 ```
 
 ### Usage
