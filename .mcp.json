@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "broker": {
+      "command": "/Users/brian/.pyenv/versions/3.13.5/bin/python",
+      "args": [
+        "/Users/brian/Projects/skill-cefailures/scripts/mcp_broker.py",
+        "--identity",
+        "skill-cefailures"
+      ],
+      "type": "stdio"
+    }
+  }
+}

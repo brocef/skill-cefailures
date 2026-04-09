@@ -11,21 +11,19 @@ import install_broker
 
 @pytest.fixture
 def project_dir(tmp_path):
-    """Create a project directory with a .claude/ subdirectory."""
-    claude_dir = tmp_path / ".claude"
-    claude_dir.mkdir()
+    """Create a project directory."""
     return tmp_path
 
 
 def test_install_writes_broker_entry(project_dir):
-    """install_broker writes the mcpServers.broker entry to settings.json."""
+    """install_broker writes the mcpServers.broker entry to .mcp.json."""
     install_broker.install_broker(
         identity="core",
         project_dir=project_dir,
     )
-    settings_path = project_dir / ".claude" / "settings.json"
-    assert settings_path.exists()
-    data = json.loads(settings_path.read_text())
+    mcp_path = project_dir / ".mcp.json"
+    assert mcp_path.exists()
+    data = json.loads(mcp_path.read_text())
     broker = data["mcpServers"]["broker"]
     assert broker["type"] == "stdio"
     assert "--identity" in broker["args"]
@@ -34,17 +32,15 @@ def test_install_writes_broker_entry(project_dir):
 
 
 def test_install_preserves_existing_keys(project_dir):
-    """install_broker does not clobber other settings."""
-    settings_path = project_dir / ".claude" / "settings.json"
-    settings_path.write_text(json.dumps({
-        "otherKey": "preserved",
+    """install_broker does not clobber other entries in .mcp.json."""
+    mcp_path = project_dir / ".mcp.json"
+    mcp_path.write_text(json.dumps({
         "mcpServers": {"other-server": {"command": "node"}},
     }))
 
     install_broker.install_broker(identity="core", project_dir=project_dir)
 
-    data = json.loads(settings_path.read_text())
-    assert data["otherKey"] == "preserved"
+    data = json.loads(mcp_path.read_text())
     assert "other-server" in data["mcpServers"]
     assert "broker" in data["mcpServers"]
 
@@ -54,8 +50,8 @@ def test_install_overwrites_existing_broker(project_dir):
     install_broker.install_broker(identity="core", project_dir=project_dir)
     install_broker.install_broker(identity="server", project_dir=project_dir)
 
-    settings_path = project_dir / ".claude" / "settings.json"
-    data = json.loads(settings_path.read_text())
+    mcp_path = project_dir / ".mcp.json"
+    data = json.loads(mcp_path.read_text())
     assert "server" in data["mcpServers"]["broker"]["args"]
 
 
@@ -66,34 +62,34 @@ def test_install_with_storage_dir(project_dir):
         project_dir=project_dir,
         storage_dir=Path("/custom/path"),
     )
-    settings_path = project_dir / ".claude" / "settings.json"
-    data = json.loads(settings_path.read_text())
+    mcp_path = project_dir / ".mcp.json"
+    data = json.loads(mcp_path.read_text())
     args = data["mcpServers"]["broker"]["args"]
     assert "--storage-dir" in args
     assert "/custom/path" in args
 
 
 def test_remove_broker(project_dir):
-    """remove_broker removes the broker entry from settings.json."""
+    """remove_broker removes the broker entry from .mcp.json."""
     install_broker.install_broker(identity="core", project_dir=project_dir)
     install_broker.remove_broker(project_dir=project_dir)
 
-    settings_path = project_dir / ".claude" / "settings.json"
-    data = json.loads(settings_path.read_text())
+    mcp_path = project_dir / ".mcp.json"
+    data = json.loads(mcp_path.read_text())
     assert "broker" not in data["mcpServers"]
 
 
 def test_remove_broker_no_entry(project_dir, capsys):
     """remove_broker handles missing broker entry gracefully."""
-    settings_path = project_dir / ".claude" / "settings.json"
-    settings_path.write_text(json.dumps({"mcpServers": {}}))
+    mcp_path = project_dir / ".mcp.json"
+    mcp_path.write_text(json.dumps({"mcpServers": {}}))
 
     install_broker.remove_broker(project_dir=project_dir)
     captured = capsys.readouterr()
     assert "not configured" in captured.err
 
 
-def test_no_claude_dir(tmp_path):
-    """install_broker exits with error if .claude/ doesn't exist."""
+def test_nonexistent_project_dir(tmp_path):
+    """install_broker exits with error if project dir doesn't exist."""
     with pytest.raises(SystemExit):
-        install_broker.install_broker(identity="core", project_dir=tmp_path)
+        install_broker.install_broker(identity="core", project_dir=tmp_path / "nope")

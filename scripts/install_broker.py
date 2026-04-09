@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Wire the MCP broker into a project's .claude/settings.json."""
+"""Wire the MCP broker into a project's .mcp.json."""
 
 import argparse
 import json
@@ -14,58 +14,57 @@ def install_broker(
     project_dir: Path,
     storage_dir: Path | None = None,
 ) -> None:
-    """Add the broker MCP server entry to the project's settings.json."""
-    claude_dir = project_dir / ".claude"
-    if not claude_dir.is_dir():
-        print(f"Error: {claude_dir} does not exist", file=sys.stderr)
+    """Add the broker MCP server entry to the project's .mcp.json."""
+    if not project_dir.is_dir():
+        print(f"Error: {project_dir} does not exist", file=sys.stderr)
         sys.exit(1)
 
-    settings_path = claude_dir / "settings.json"
-    if settings_path.exists():
-        settings = json.loads(settings_path.read_text())
+    mcp_path = project_dir / ".mcp.json"
+    if mcp_path.exists():
+        config = json.loads(mcp_path.read_text())
     else:
-        settings = {}
+        config = {}
 
-    if "mcpServers" not in settings:
-        settings["mcpServers"] = {}
+    if "mcpServers" not in config:
+        config["mcpServers"] = {}
 
     broker_args = [str(BROKER_SCRIPT), "--identity", identity]
     if storage_dir:
         broker_args.extend(["--storage-dir", str(storage_dir)])
 
-    settings["mcpServers"]["broker"] = {
+    config["mcpServers"]["broker"] = {
         "command": sys.executable,
         "args": broker_args,
         "type": "stdio",
     }
 
-    settings_path.write_text(json.dumps(settings, indent=2) + "\n")
-    print(f"Installed broker (identity={identity}) in {settings_path}")
+    mcp_path.write_text(json.dumps(config, indent=2) + "\n")
+    print(f"Installed broker (identity={identity}) in {mcp_path}")
 
 
 def remove_broker(project_dir: Path) -> None:
-    """Remove the broker entry from the project's settings.json."""
-    settings_path = project_dir / ".claude" / "settings.json"
-    if not settings_path.exists():
-        print("Warning: settings.json not found", file=sys.stderr)
+    """Remove the broker entry from the project's .mcp.json."""
+    mcp_path = project_dir / ".mcp.json"
+    if not mcp_path.exists():
+        print("Warning: .mcp.json not found", file=sys.stderr)
         return
 
-    settings = json.loads(settings_path.read_text())
-    mcp_servers = settings.get("mcpServers", {})
+    config = json.loads(mcp_path.read_text())
+    mcp_servers = config.get("mcpServers", {})
 
     if "broker" not in mcp_servers:
-        print("Warning: broker is not configured in settings.json", file=sys.stderr)
+        print("Warning: broker is not configured in .mcp.json", file=sys.stderr)
         return
 
     del mcp_servers["broker"]
-    settings_path.write_text(json.dumps(settings, indent=2) + "\n")
-    print(f"Removed broker from {settings_path}")
+    mcp_path.write_text(json.dumps(config, indent=2) + "\n")
+    print(f"Removed broker from {mcp_path}")
 
 
 def main() -> None:
     """Parse CLI args and install or remove the broker."""
     parser = argparse.ArgumentParser(
-        description="Install or remove the MCP broker in a project's .claude/settings.json."
+        description="Install or remove the MCP broker in a project's .mcp.json."
     )
     parser.add_argument("path", type=Path, help="Path to the project repo")
     parser.add_argument("--identity", help="Identity for this connection (e.g. 'agent_a')")
