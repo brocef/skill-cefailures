@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """MCP server that enables two Claude Code instances to hold structured conversations."""
 
-import argparse
+import asyncio
 import json
 import secrets
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+from broker_client import BrokerClient
 
 from mcp.server.fastmcp import FastMCP
 
@@ -153,52 +157,85 @@ class ConversationStore:
 
 mcp = FastMCP("mcp-broker")
 
-store: ConversationStore
+client: BrokerClient
+loop: asyncio.AbstractEventLoop
+
+
+def _run(coro):
+    """Run an async coroutine from sync MCP tool handlers."""
+    return loop.run_until_complete(coro)
 
 
 @mcp.tool()
 def create_conversation(topic: str, content: str | None = None) -> dict:
     """Start a new conversation with the given topic, optionally with a seed message."""
-    return store.create_conversation(topic, content)
+    return _run(client.create_conversation(topic, content))
 
 
 @mcp.tool()
 def send_message(conversation_id: str, content: str) -> dict:
-    """Append a message to an existing conversation."""
-    return store.send_message(conversation_id, content)
+    """Append a message to an existing conversation (auto-joins)."""
+    return _run(client.send_message(conversation_id, content))
 
 
 @mcp.tool()
 def read_new_messages(conversation_id: str) -> dict:
-    """Read messages not yet seen by the calling identity."""
-    return store.read_new_messages(conversation_id)
+    """Read messages you haven't seen yet."""
+    return _run(client.history(conversation_id))
 
 
 @mcp.tool()
 def list_conversations(status: str | None = None) -> dict:
     """List all conversations, optionally filtered by status ('open' or 'closed')."""
-    return store.list_conversations(status)
+    return _run(client.list_conversations(status))
+
+
+@mcp.tool()
+def list_members(conversation_id: str) -> dict:
+    """List current members of a conversation."""
+    return _run(client.list_members(conversation_id))
+
+
+@mcp.tool()
+def join_conversation(conversation_id: str) -> dict:
+    """Explicitly join a conversation."""
+    return _run(client.join_conversation(conversation_id))
+
+
+@mcp.tool()
+def leave_conversation(conversation_id: str) -> dict:
+    """Leave a conversation."""
+    return _run(client.leave_conversation(conversation_id))
 
 
 @mcp.tool()
 def close_conversation(conversation_id: str) -> dict:
-    """Mark a conversation as closed. Closed conversations are read-only."""
-    return store.close_conversation(conversation_id)
+    """Mark a conversation as read-only."""
+    return _run(client.close_conversation(conversation_id))
 
 
 def main() -> None:
     """Parse CLI args and start the MCP server."""
-    global store
+    global client, loop
+    import argparse
+
     parser = argparse.ArgumentParser(description="MCP message broker server")
     parser.add_argument("--identity", required=True, help="Identity for this connection (e.g. 'agent_a')")
     parser.add_argument(
-        "--storage-dir",
-        type=Path,
-        default=Path.home() / ".mcp-broker" / "conversations",
-        help="Directory for conversation files (default: ~/.mcp-broker/conversations)",
+        "--socket",
+        default=str(Path.home() / ".mcp-broker" / "broker.sock"),
+        help="Path to broker socket (default: ~/.mcp-broker/broker.sock)",
     )
     args = parser.parse_args()
-    store = ConversationStore(identity=args.identity, storage_dir=args.storage_dir)
+
+    loop = asyncio.new_event_loop()
+    client = BrokerClient(identity=args.identity, sock_path=args.socket)
+    try:
+        loop.run_until_complete(client.connect())
+    except (ConnectionRefusedError, FileNotFoundError):
+        print(f"Error: Cannot connect to broker at {args.socket}. Is the broker server running?", file=sys.stderr)
+        sys.exit(1)
+
     mcp.run()
 
 
