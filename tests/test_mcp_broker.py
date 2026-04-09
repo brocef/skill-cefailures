@@ -234,3 +234,51 @@ def test_list_conversations_empty(store):
     """list_conversations returns empty list when no conversations exist."""
     result = store.list_conversations()
     assert result["conversations"] == []
+
+
+def test_full_conversation_flow(tmp_path):
+    """End-to-end: create, send, read, list, close."""
+    alice = ConversationStore(identity="alice", storage_dir=tmp_path)
+    bob = ConversationStore(identity="bob", storage_dir=tmp_path)
+
+    # Alice creates a conversation
+    created = alice.create_conversation("Design review")
+    cid = created["conversation_id"]
+    assert created["created_by"] == "alice"
+
+    # Alice sends a message
+    sent = alice.send_message(cid, "Please review the PR")
+    assert sent["sender"] == "alice"
+
+    # Bob reads it
+    bob_read = bob.read_new_messages(cid)
+    assert len(bob_read["messages"]) == 1
+    assert bob_read["messages"][0]["content"] == "Please review the PR"
+
+    # Bob replies
+    bob.send_message(cid, "LGTM, merging now")
+
+    # Alice reads the reply
+    alice_read = alice.read_new_messages(cid)
+    assert len(alice_read["messages"]) == 1
+    assert alice_read["messages"][0]["content"] == "LGTM, merging now"
+
+    # List shows 1 open conversation with 0 unread for both
+    alice_list = alice.list_conversations()
+    assert len(alice_list["conversations"]) == 1
+    assert alice_list["conversations"][0]["unread_count"] == 0
+    assert alice_list["conversations"][0]["message_count"] == 2
+
+    # Close it
+    closed = alice.close_conversation(cid)
+    assert closed["status"] == "closed"
+
+    # Sending to closed conversation fails
+    with pytest.raises(ValueError, match="closed"):
+        bob.send_message(cid, "Too late")
+
+    # List with status filter
+    open_list = alice.list_conversations(status="open")
+    assert len(open_list["conversations"]) == 0
+    closed_list = alice.list_conversations(status="closed")
+    assert len(closed_list["conversations"]) == 1
