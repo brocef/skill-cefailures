@@ -67,13 +67,35 @@ class ConversationStore:
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         conversation["messages"].append(message)
-        # Advance sender's cursor to include their own message
-        conversation["cursors"][self.identity] = len(conversation["messages"])
         self._save(conversation)
         return {
             "message_id": msg_id,
             "conversation_id": conversation_id,
             "sender": self.identity,
+        }
+
+    def read_new_messages(self, conversation_id: str) -> dict:
+        """Read messages not yet seen by the calling identity."""
+        conversation = self._load(conversation_id)
+        cursor = conversation["cursors"].get(self.identity, 0)
+        messages = conversation["messages"][cursor:]
+        # Advance cursor
+        conversation["cursors"][self.identity] = len(conversation["messages"])
+        self._save(conversation)
+        # Filter out the caller's own messages
+        other_messages = [m for m in messages if m["sender"] != self.identity]
+        return {
+            "conversation_id": conversation_id,
+            "messages": [
+                {
+                    "id": m["id"],
+                    "sender": m["sender"],
+                    "content": m["content"],
+                    "timestamp": m["timestamp"],
+                }
+                for m in other_messages
+            ],
+            "remaining_unread": 0,
         }
 
     def close_conversation(self, conversation_id: str) -> dict:

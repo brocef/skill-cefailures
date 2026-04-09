@@ -92,3 +92,78 @@ def test_send_message_closed_conversation(store):
     store.close_conversation(cid)
     with pytest.raises(ValueError, match="closed"):
         store.send_message(cid, "Should fail")
+
+
+def test_read_new_messages_returns_unread(store, tmp_path):
+    """read_new_messages returns only messages after the caller's cursor."""
+    created = store.create_conversation("Topic")
+    cid = created["conversation_id"]
+
+    # Simulate another identity sending messages
+    bob = ConversationStore(identity="bob", storage_dir=tmp_path)
+    bob.send_message(cid, "Message from bob")
+
+    result = store.read_new_messages(cid)
+    assert result["conversation_id"] == cid
+    assert len(result["messages"]) == 1
+    assert result["messages"][0]["sender"] == "bob"
+    assert result["messages"][0]["content"] == "Message from bob"
+    assert result["remaining_unread"] == 0
+
+
+def test_read_new_messages_advances_cursor(store, tmp_path):
+    """Reading messages advances the cursor so they aren't returned again."""
+    created = store.create_conversation("Topic")
+    cid = created["conversation_id"]
+
+    bob = ConversationStore(identity="bob", storage_dir=tmp_path)
+    bob.send_message(cid, "First")
+    bob.send_message(cid, "Second")
+
+    # First read gets both
+    result1 = store.read_new_messages(cid)
+    assert len(result1["messages"]) == 2
+
+    # Second read gets nothing
+    result2 = store.read_new_messages(cid)
+    assert len(result2["messages"]) == 0
+    assert result2["remaining_unread"] == 0
+
+
+def test_read_new_messages_empty_when_caught_up(store):
+    """read_new_messages returns empty array when there's nothing new."""
+    created = store.create_conversation("Topic")
+    cid = created["conversation_id"]
+    result = store.read_new_messages(cid)
+    assert result["messages"] == []
+    assert result["remaining_unread"] == 0
+
+
+def test_cursor_isolation(tmp_path):
+    """Two identities have independent cursors on the same conversation."""
+    alice = ConversationStore(identity="alice", storage_dir=tmp_path)
+    bob = ConversationStore(identity="bob", storage_dir=tmp_path)
+
+    created = alice.create_conversation("Topic")
+    cid = created["conversation_id"]
+
+    alice.send_message(cid, "From alice")
+    bob.send_message(cid, "From bob")
+
+    # Alice sent the first message so her cursor is at 1.
+    # Bob sent the second so his cursor is at 2.
+    # Alice should see bob's message (index 1).
+    alice_result = alice.read_new_messages(cid)
+    assert len(alice_result["messages"]) == 1
+    assert alice_result["messages"][0]["sender"] == "bob"
+
+    # Bob should see alice's message (index 0).
+    bob_result = bob.read_new_messages(cid)
+    assert len(bob_result["messages"]) == 1
+    assert bob_result["messages"][0]["sender"] == "alice"
+
+
+def test_read_new_messages_not_found(store):
+    """read_new_messages raises ValueError for nonexistent conversation."""
+    with pytest.raises(ValueError, match="not found"):
+        store.read_new_messages("nonexistent")
