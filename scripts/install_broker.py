@@ -67,7 +67,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Install or remove the MCP broker in a project's .claude/settings.json."
     )
-    parser.add_argument("--identity", help="Identity for this connection (e.g. 'core')")
+    parser.add_argument("--identity", help="Identity for this connection (e.g. 'agent_a')")
     parser.add_argument(
         "--project-dir",
         type=Path,

@@ -182,7 +182,7 @@ def main() -> None:
     """Parse CLI args and start the MCP server."""
     global store
     parser = argparse.ArgumentParser(description="MCP message broker server")
-    parser.add_argument("--identity", required=True, help="Identity for this connection (e.g. 'core')")
+    parser.add_argument("--identity", required=True, help="Identity for this connection (e.g. 'agent_a')")
     parser.add_argument(
         "--storage-dir",
         type=Path,

@@ -8,7 +8,7 @@ A lightweight MCP server that enables two Claude Code instances on the same mach
 ┌──────────────┐         ┌─────────────┐         ┌──────────────────┐
 │  Instance A  │◄──MCP──►│ mcp-broker  │◄──MCP──►│   Instance B     │
 │ (identity:   │  stdio  │ (file-backed│  stdio  │ (identity:       │
-│  "core")     │         │  storage)   │         │  "server")       │
+│  "agent_a")  │         │  storage)   │         │  "agent_b")      │
 └──────────────┘         └─────────────┘         └──────────────────┘
 ```
 
@@ -66,19 +66,19 @@ Stored in `<storage_dir>/<conversation_id>.json`:
   "id": "a1b2c3",
   "topic": "Add claimId validation to core",
   "status": "open",
-  "createdBy": "server",
+  "createdBy": "agent_b",
   "createdAt": "2026-04-09T14:30:00+00:00",
   "messages": [
     {
       "id": "msg-001",
-      "sender": "server",
+      "sender": "agent_b",
       "content": "I need core to expose a validateClaimId function...",
       "timestamp": "2026-04-09T14:30:05+00:00"
     }
   ],
   "cursors": {
-    "core": 0,
-    "server": 1
+    "agent_a": 0,
+    "agent_b": 1
   }
 }
 ```
@@ -89,12 +89,12 @@ The `cursors` object tracks the last message index each identity has read. `read
 
 **create_conversation(topic)**
 ```json
-{"conversation_id": "a1b2c3", "topic": "...", "created_by": "server"}
+{"conversation_id": "a1b2c3", "topic": "...", "created_by": "agent_b"}
 ```
 
 **send_message(conversation_id, content)**
 ```json
-{"message_id": "msg-003", "conversation_id": "a1b2c3", "sender": "core"}
+{"message_id": "msg-003", "conversation_id": "a1b2c3", "sender": "agent_a"}
 ```
 Errors: conversation not found, conversation closed.
 
@@ -102,7 +102,7 @@ Errors: conversation not found, conversation closed.
 ```json
 {
   "conversation_id": "a1b2c3",
-  "messages": [{"id": "msg-002", "sender": "server", "content": "...", "timestamp": "..."}],
+  "messages": [{"id": "msg-002", "sender": "agent_b", "content": "...", "timestamp": "..."}],
   "remaining_unread": 0
 }
 ```
@@ -112,7 +112,7 @@ Returns empty `messages` array if nothing new. Cursor advances automatically.
 ```json
 {
   "conversations": [
-    {"id": "a1b2c3", "topic": "...", "status": "open", "created_by": "server", "message_count": 4, "unread_count": 1}
+    {"id": "a1b2c3", "topic": "...", "status": "open", "created_by": "agent_b", "message_count": 4, "unread_count": 1}
   ]
 }
 ```
@@ -153,7 +153,7 @@ Each project's `.claude/settings.json`:
   "mcpServers": {
     "broker": {
       "command": "python",
-      "args": ["/absolute/path/to/scripts/mcp_broker.py", "--identity", "core"],
+      "args": ["/absolute/path/to/scripts/mcp_broker.py", "--identity", "agent_a"],
       "type": "stdio"
     }
   }
@@ -165,9 +165,9 @@ Each project's `.claude/settings.json`:
 `scripts/install_broker.py` wires the broker into a project's `.claude/settings.json`.
 
 ```
-python scripts/install_broker.py --identity core
-python scripts/install_broker.py --identity server --project-dir /path/to/other/project
-python scripts/install_broker.py --identity core --storage-dir /custom/path
+python scripts/install_broker.py --identity agent_a
+python scripts/install_broker.py --identity agent_b --project-dir /path/to/other/project
+python scripts/install_broker.py --identity agent_a --storage-dir /custom/path
 python scripts/install_broker.py --remove
 ```
 
