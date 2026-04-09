@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """MCP server that enables two Claude Code instances to hold structured conversations."""
 
+import argparse
 import json
 import secrets
 from datetime import datetime, timezone
 from pathlib import Path
+
+from mcp.server.fastmcp import FastMCP
 
 
 class ConversationStore:
@@ -127,3 +130,58 @@ class ConversationStore:
             "conversation_id": conversation_id,
             "status": "closed",
         }
+
+
+mcp = FastMCP("mcp-broker")
+
+store: ConversationStore
+
+
+@mcp.tool()
+def create_conversation(topic: str) -> dict:
+    """Start a new conversation with the given topic."""
+    return store.create_conversation(topic)
+
+
+@mcp.tool()
+def send_message(conversation_id: str, content: str) -> dict:
+    """Append a message to an existing conversation."""
+    return store.send_message(conversation_id, content)
+
+
+@mcp.tool()
+def read_new_messages(conversation_id: str) -> dict:
+    """Read messages not yet seen by the calling identity."""
+    return store.read_new_messages(conversation_id)
+
+
+@mcp.tool()
+def list_conversations(status: str | None = None) -> dict:
+    """List all conversations, optionally filtered by status ('open' or 'closed')."""
+    return store.list_conversations(status)
+
+
+@mcp.tool()
+def close_conversation(conversation_id: str) -> dict:
+    """Mark a conversation as closed. Closed conversations are read-only."""
+    return store.close_conversation(conversation_id)
+
+
+def main() -> None:
+    """Parse CLI args and start the MCP server."""
+    global store
+    parser = argparse.ArgumentParser(description="MCP message broker server")
+    parser.add_argument("--identity", required=True, help="Identity for this connection (e.g. 'core')")
+    parser.add_argument(
+        "--storage-dir",
+        type=Path,
+        default=Path.home() / ".mcp-broker" / "conversations",
+        help="Directory for conversation files (default: ~/.mcp-broker/conversations)",
+    )
+    args = parser.parse_args()
+    store = ConversationStore(identity=args.identity, storage_dir=args.storage_dir)
+    mcp.run()
+
+
+if __name__ == "__main__":
+    main()
