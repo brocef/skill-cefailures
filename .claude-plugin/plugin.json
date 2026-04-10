@@ -5,6 +5,6 @@
   "author": {
     "name": "Brian Cefali"
   },
-  "keywords": ["brain-style", "documentation-sync", "elkjs", "ieee", "knex", "permissions-auditor", "typebox"],
+  "keywords": ["brain-style", "broker", "documentation-sync", "elkjs", "ieee", "knex", "permissions-auditor", "typebox"],
   "skills": "./skills/"
 }
