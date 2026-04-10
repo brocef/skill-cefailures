@@ -3,6 +3,7 @@
 
 import argparse
 import asyncio
+import json
 import sys
 from pathlib import Path
 
@@ -344,7 +345,7 @@ async def run_client_mode(identity: str, sock_path: str) -> None:
     try:
         await client.connect()
     except (ConnectionRefusedError, FileNotFoundError):
-        print(f"Error: Cannot connect to broker at {sock_path}. Is the broker server running?", file=sys.stderr)
+        print(json.dumps({"error": f"Cannot connect to broker at {sock_path}. Is the broker server running?"}), file=sys.stderr)
         sys.exit(1)
 
     print(f"Connected to broker at {sock_path}")
@@ -372,35 +373,147 @@ async def run_server_mode(identity: str, storage_dir: Path, sock_path: str) -> N
         Path(sock_path).unlink(missing_ok=True)
 
 
+async def run_oneshot(sock_path: str, identity: str, request_type: str, params: dict) -> dict:
+    """Connect, send one request, return the response data, disconnect."""
+    client = BrokerClient(identity=identity, sock_path=sock_path)
+    try:
+        await client.connect()
+    except (ConnectionRefusedError, FileNotFoundError):
+        print(json.dumps({"error": f"Cannot connect to broker at {sock_path}. Is the broker server running?"}), file=sys.stderr)
+        sys.exit(1)
+    try:
+        msg = {"type": request_type, **params}
+        response = await client._request(msg)
+        return response
+    finally:
+        await client.close()
+
+
+def _run_and_print(sock_path: str, identity: str, request_type: str, params: dict) -> None:
+    """Run a one-shot request and print JSON result to stdout."""
+    try:
+        result = asyncio.run(run_oneshot(sock_path, identity, request_type, params))
+        print(json.dumps(result, indent=2))
+    except ValueError as e:
+        print(json.dumps({"error": str(e)}), file=sys.stderr)
+        sys.exit(1)
+
+
+DEFAULT_SOCKET = str(Path.home() / ".mcp-broker" / "broker.sock")
+DEFAULT_STORAGE = Path.home() / ".mcp-broker" / "conversations"
+
+
 def main() -> None:
-    """Parse CLI args and start the REPL."""
+    """Parse CLI args and dispatch to the appropriate mode."""
     parser = argparse.ArgumentParser(
-        description="Interactive REPL for the MCP message broker"
+        description="Message broker for multi-agent conversations"
     )
-    parser.add_argument(
-        "--identity", default="user",
-        help="Identity for this session (default: user)",
-    )
-    parser.add_argument(
-        "--server", action="store_true",
-        help="Run as the broker server (starts socket + REPL)",
-    )
-    parser.add_argument(
-        "--storage-dir", type=Path,
-        default=Path.home() / ".mcp-broker" / "conversations",
-        help="Directory for conversation files (default: ~/.mcp-broker/conversations)",
-    )
-    parser.add_argument(
-        "--socket", type=str,
-        default=str(Path.home() / ".mcp-broker" / "broker.sock"),
-        help="Path to broker socket (default: ~/.mcp-broker/broker.sock)",
-    )
+    subparsers = parser.add_subparsers(dest="command")
+
+    # --- server ---
+    p_server = subparsers.add_parser("server", help="Start the broker server and human REPL")
+    p_server.add_argument("--identity", default="user", help="Identity for this session (default: user)")
+    p_server.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
+    p_server.add_argument("--storage-dir", type=Path, default=DEFAULT_STORAGE, help="Conversation storage directory")
+
+    # --- repl ---
+    p_repl = subparsers.add_parser("repl", help="Connect to a running broker as a client REPL")
+    p_repl.add_argument("--identity", default="user", help="Identity for this session (default: user)")
+    p_repl.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
+
+    # --- create ---
+    p_create = subparsers.add_parser("create", help="Create a conversation")
+    p_create.add_argument("--identity", required=True, help="Your identity")
+    p_create.add_argument("topic", help="Conversation topic")
+    p_create.add_argument("--content", help="Optional seed message")
+    p_create.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
+
+    # --- send ---
+    p_send = subparsers.add_parser("send", help="Send a message")
+    p_send.add_argument("--identity", required=True, help="Your identity")
+    p_send.add_argument("conversation_id", help="Conversation ID")
+    p_send.add_argument("content", help="Message content")
+    p_send.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
+
+    # --- read ---
+    p_read = subparsers.add_parser("read", help="Read new messages")
+    p_read.add_argument("--identity", required=True, help="Your identity")
+    p_read.add_argument("conversation_id", help="Conversation ID")
+    p_read.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
+
+    # --- list ---
+    p_list = subparsers.add_parser("list", help="List conversations")
+    p_list.add_argument("--identity", required=True, help="Your identity")
+    p_list.add_argument("--status", choices=["open", "closed"], help="Filter by status")
+    p_list.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
+
+    # --- members ---
+    p_members = subparsers.add_parser("members", help="List conversation members")
+    p_members.add_argument("--identity", required=True, help="Your identity")
+    p_members.add_argument("conversation_id", help="Conversation ID")
+    p_members.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
+
+    # --- join ---
+    p_join = subparsers.add_parser("join", help="Join a conversation")
+    p_join.add_argument("--identity", required=True, help="Your identity")
+    p_join.add_argument("conversation_id", help="Conversation ID")
+    p_join.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
+
+    # --- leave ---
+    p_leave = subparsers.add_parser("leave", help="Leave a conversation")
+    p_leave.add_argument("--identity", required=True, help="Your identity")
+    p_leave.add_argument("conversation_id", help="Conversation ID")
+    p_leave.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
+
+    # --- close ---
+    p_close = subparsers.add_parser("close", help="Close a conversation")
+    p_close.add_argument("--identity", required=True, help="Your identity")
+    p_close.add_argument("conversation_id", help="Conversation ID")
+    p_close.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
+
     args = parser.parse_args()
 
-    if args.server:
+    if args.command is None:
+        parser.print_help()
+        sys.exit(1)
+    elif args.command == "server":
         asyncio.run(run_server_mode(args.identity, args.storage_dir, args.socket))
-    else:
+    elif args.command == "repl":
         asyncio.run(run_client_mode(args.identity, args.socket))
+    elif args.command == "create":
+        params = {"topic": args.topic}
+        if args.content:
+            params["content"] = args.content
+        _run_and_print(args.socket, args.identity, "create_conversation", params)
+    elif args.command == "send":
+        _run_and_print(args.socket, args.identity, "send_message", {
+            "conversation_id": args.conversation_id, "content": args.content,
+        })
+    elif args.command == "read":
+        _run_and_print(args.socket, args.identity, "history", {
+            "conversation_id": args.conversation_id,
+        })
+    elif args.command == "list":
+        params = {}
+        if args.status:
+            params["status"] = args.status
+        _run_and_print(args.socket, args.identity, "list_conversations", params)
+    elif args.command == "members":
+        _run_and_print(args.socket, args.identity, "list_members", {
+            "conversation_id": args.conversation_id,
+        })
+    elif args.command == "join":
+        _run_and_print(args.socket, args.identity, "join_conversation", {
+            "conversation_id": args.conversation_id,
+        })
+    elif args.command == "leave":
+        _run_and_print(args.socket, args.identity, "leave_conversation", {
+            "conversation_id": args.conversation_id,
+        })
+    elif args.command == "close":
+        _run_and_print(args.socket, args.identity, "close_conversation", {
+            "conversation_id": args.conversation_id,
+        })
 
 
 if __name__ == "__main__":

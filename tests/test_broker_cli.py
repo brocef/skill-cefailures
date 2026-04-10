@@ -1,5 +1,9 @@
+import asyncio
+import json
+import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -120,6 +124,31 @@ def server(tmp_path: Path) -> BrokerServer:
 def repl(server: BrokerServer) -> ServerREPL:
     """Create a ServerREPL using the test server."""
     return ServerREPL(server, "testuser")
+
+
+@pytest.fixture
+def sock_path():
+    """Create a short socket path to avoid macOS 104-char AF_UNIX limit."""
+    fd, path = tempfile.mkstemp(prefix="brk_", suffix=".sock", dir="/tmp")
+    os.close(fd)
+    os.unlink(path)
+    yield path
+    if os.path.exists(path):
+        os.unlink(path)
+
+
+@pytest.fixture
+def running_server(tmp_path, sock_path):
+    """Start a broker server in a background task, yield (server, sock_path, loop), then shut down."""
+    from broker_server import BrokerServer, start_server
+
+    server = BrokerServer(storage_dir=tmp_path)
+    loop = asyncio.new_event_loop()
+    srv = loop.run_until_complete(start_server(server, sock_path))
+    yield server, sock_path, loop
+    srv.close()
+    loop.run_until_complete(srv.wait_closed())
+    loop.close()
 
 
 def _create_conversation(server: BrokerServer, identity: str, topic: str, content: str | None = None) -> str:
@@ -311,3 +340,19 @@ def test_join_shows_unread(repl: ServerREPL, server: BrokerServer, capsys: pytes
     output = capsys.readouterr().out
     assert "[other]" in output
     assert "Unread message" in output
+
+
+# ---------------------------------------------------------------------------
+# One-shot subcommand tests
+# ---------------------------------------------------------------------------
+
+def test_create_subcommand(running_server):
+    """'broker create' creates a conversation and prints JSON."""
+    server, sock, loop = running_server
+    from broker_cli import run_oneshot
+
+    output = loop.run_until_complete(
+        run_oneshot(sock, "agent_a", "create_conversation", {"topic": "Test topic"})
+    )
+    assert "conversation_id" in output
+    assert output["topic"] == "Test topic"
