@@ -529,3 +529,41 @@ def test_create_with_seed(running_server):
     )
     non_system = [m for m in history["messages"] if m["sender"] != "system"]
     assert any(m["content"] == "Initial message" for m in non_system)
+
+
+# ---------------------------------------------------------------------------
+# _run_and_print output tests
+# ---------------------------------------------------------------------------
+
+def test_run_and_print_stdout(running_server, capsys):
+    """_run_and_print prints JSON to stdout."""
+    server, sock, loop = running_server
+    from broker_cli import _run_and_print
+
+    # _run_and_print calls asyncio.run() which creates a new event loop,
+    # but the server is running on the fixture's loop.  Patch asyncio.run
+    # to use the fixture's loop instead.
+    with patch("broker_cli.asyncio.run", side_effect=lambda coro: loop.run_until_complete(coro)):
+        _run_and_print(sock, "agent_a", "create_conversation", {"topic": "Test"})
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    assert "conversation_id" in data
+    assert data["topic"] == "Test"
+
+
+def test_run_and_print_error(running_server, capsys):
+    """_run_and_print prints error JSON to stderr and exits 1 on error."""
+    server, sock, loop = running_server
+    from broker_cli import _run_and_print
+
+    # Patch asyncio.run to use the fixture's event loop.
+    with patch("broker_cli.asyncio.run", side_effect=lambda coro: loop.run_until_complete(coro)):
+        with pytest.raises(SystemExit) as exc_info:
+            _run_and_print(sock, "agent_a", "send_message", {
+                "conversation_id": "nonexistent", "content": "Hello",
+            })
+    assert exc_info.value.code == 1
+    captured = capsys.readouterr()
+    err_data = json.loads(captured.err)
+    assert "error" in err_data
+    assert "not found" in err_data["error"]
