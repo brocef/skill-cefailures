@@ -72,6 +72,11 @@ skills/                       # Skills
     SKILL.md                  # Routing layer (loaded on invocation)
     docs/
       <topic>.md              # Detailed reference (read on demand)
+  broker/
+    SKILL.md                  # Broker skill routing layer
+    docs/
+      usage.md                # CLI reference
+      setup.md                # Installation instructions
 scripts/
   create_skill.py             # Generate skill from URL
   install_skill.py            # Symlink skills to ~/.claude/skills/
@@ -79,9 +84,7 @@ scripts/
   log-permission-requests.sh  # Permission logging hook script
   broker_server.py            # Broker server: state, routing, persistence
   broker_client.py            # Async socket client for the broker
-  broker_cli.py               # REPL CLI (server mode + client mode)
-  mcp_broker.py               # MCP server (connects to broker via socket)
-  install_broker.py           # Install broker into a project's .mcp.json
+  broker_cli.py               # Broker CLI: server, REPL, and one-shot subcommands
 tests/
   test_create_skill.py
   test_install_skill.py
@@ -91,25 +94,23 @@ tests/
   test_broker_client.py
   test_broker_cli.py
   test_broker_e2e.py
-  test_mcp_broker.py
-  test_install_broker.py
 ```
 
-## MCP Message Broker
+## Message Broker
 
-A chatroom-like MCP server that lets Claude Code agents and a human talk to each other in real time. Messages route through a Unix domain socket for instant delivery and are persisted to disk so conversations survive restarts.
+A chatroom-like tool that lets Claude Code agents and a human talk to each other in real time. Messages route through a Unix domain socket for instant delivery and are persisted to disk so conversations survive restarts.
 
 ### Architecture
 
-A central broker server runs as a socket hub. Each Claude Code agent connects to it via its MCP server process. A human can participate through the built-in REPL or a separate client terminal.
+A central broker server runs as a socket hub. Each Claude Code agent calls the broker CLI to send and receive messages. A human can participate through the built-in REPL or a separate client terminal.
 
 ```
-Claude A ◄─stdio─► mcp_broker.py ◄──┐
-                                     │ Unix domain
-Claude B ◄─stdio─► mcp_broker.py ◄──┤ socket
-                                     │
-        broker_cli.py --server  ◄────┘
-        (socket server + REPL)
+Claude A ──Bash──► broker send/read/list ◄──┐
+                                             │ Unix domain
+Claude B ──Bash──► broker send/read/list ◄──┤ socket
+                                             │
+                    broker server        ◄───┘
+                    (socket server + REPL)
 ```
 
 ### 1. Start the broker server
@@ -123,28 +124,16 @@ python scripts/broker_cli.py --server --identity brian    # default identity is 
 
 This starts the socket server at `~/.mcp-broker/broker.sock` and opens an interactive REPL where you can participate in conversations. Conversations are persisted to `~/.mcp-broker/conversations/`.
 
-### 2. Install the MCP broker into agent projects
+### 2. Install the broker CLI
 
-Install the broker into each project that needs it, giving each a unique identity:
-
-```bash
-python scripts/install_broker.py /path/to/project-a --identity agent_a
-python scripts/install_broker.py /path/to/project-b --identity agent_b
-```
-
-This adds a `broker` entry to each project's `.mcp.json`. Restart Claude Code for the new MCP server to take effect. The broker server must be running when agents start.
-
-To use a custom socket path:
+Create a symlink so `broker` is available in your `$PATH`:
 
 ```bash
-python scripts/install_broker.py /path/to/project --identity agent_a --socket /custom/broker.sock
+ln -s /path/to/skill-cefailures/scripts/broker_cli.py /usr/local/bin/broker
+chmod +x /path/to/skill-cefailures/scripts/broker_cli.py
 ```
 
-To remove the broker from a project:
-
-```bash
-python scripts/install_broker.py /path/to/project --remove
-```
+Add `Bash(broker:*)` to your Claude Code allowedTools so agents can call the broker without permission prompts.
 
 ### 3. Start a conversation
 
@@ -161,10 +150,10 @@ broker> create Design a caching layer
 Then tell each agent to check for conversations:
 
 ```
-You have a broker MCP tool. Check for new conversations and respond to them.
+You have a broker CLI. Check for conversations with `broker list --identity <agent-name>` and respond to any messages.
 ```
 
-Agents use `list_conversations`, `read_new_messages`, and `send_message` to participate. Messages from agents appear in your REPL in real time.
+Agents use `broker list`, `broker read`, and `broker send` to participate. Messages from agents appear in your REPL in real time.
 
 ### 4. Participate in conversations
 
@@ -205,20 +194,18 @@ The broker tracks conversation membership. When someone joins or leaves a conver
   * agent_b left
 ```
 
-### MCP tools reference
+### CLI reference
 
-Each Claude Code agent has access to these tools:
-
-| Tool | Description |
-|------|-------------|
-| `create_conversation(topic, content?)` | Start a new conversation, optionally with a seed message (auto-joins) |
-| `send_message(conversation_id, content)` | Send a message (auto-joins) |
-| `read_new_messages(conversation_id)` | Read messages you haven't seen yet |
-| `join_conversation(conversation_id)` | Explicitly join a conversation |
-| `leave_conversation(conversation_id)` | Leave a conversation |
-| `list_conversations(status?)` | List conversations (optionally filter by `"open"` / `"closed"`) |
-| `list_members(conversation_id)` | See who's currently in a conversation |
-| `close_conversation(conversation_id)` | Mark a conversation as read-only for everyone |
+| Command | Description |
+|---------|-------------|
+| `broker create --identity NAME TOPIC [--content MSG]` | Start a new conversation, optionally with a seed message (auto-joins) |
+| `broker send --identity NAME CONV_ID CONTENT` | Send a message (auto-joins) |
+| `broker read --identity NAME CONV_ID` | Read messages you haven't seen yet |
+| `broker join --identity NAME CONV_ID` | Explicitly join a conversation |
+| `broker leave --identity NAME CONV_ID` | Leave a conversation |
+| `broker list --identity NAME [--status open\|closed]` | List conversations |
+| `broker members --identity NAME CONV_ID` | See who's in a conversation |
+| `broker close --identity NAME CONV_ID` | Mark a conversation as read-only |
 
 ## How Skills Work
 
