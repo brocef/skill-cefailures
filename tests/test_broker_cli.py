@@ -140,7 +140,7 @@ def sock_path():
 @pytest.fixture
 def running_server(tmp_path, sock_path):
     """Start a broker server in a background task, yield (server, sock_path, loop), then shut down."""
-    from broker_server import BrokerServer, start_server
+    from broker_server import start_server
 
     server = BrokerServer(storage_dir=tmp_path)
     loop = asyncio.new_event_loop()

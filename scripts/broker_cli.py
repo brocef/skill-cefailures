@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Interactive REPL CLI for the MCP message broker."""
+"""CLI for the multi-agent message broker."""
 
 import argparse
 import asyncio
@@ -374,13 +374,16 @@ async def run_server_mode(identity: str, storage_dir: Path, sock_path: str) -> N
 
 
 async def run_oneshot(sock_path: str, identity: str, request_type: str, params: dict) -> dict:
-    """Connect, send one request, return the response data, disconnect."""
+    """Connect, send one request, return the response data, disconnect.
+
+    Raises ConnectionError if the broker server is unreachable.
+    Raises ValueError if the server returns an error response.
+    """
     client = BrokerClient(identity=identity, sock_path=sock_path)
     try:
         await client.connect()
     except (ConnectionRefusedError, FileNotFoundError):
-        print(json.dumps({"error": f"Cannot connect to broker at {sock_path}. Is the broker server running?"}), file=sys.stderr)
-        sys.exit(1)
+        raise ConnectionError(f"Cannot connect to broker at {sock_path}. Is the broker server running?")
     try:
         msg = {"type": request_type, **params}
         response = await client._request(msg)
@@ -394,7 +397,7 @@ def _run_and_print(sock_path: str, identity: str, request_type: str, params: dic
     try:
         result = asyncio.run(run_oneshot(sock_path, identity, request_type, params))
         print(json.dumps(result, indent=2))
-    except ValueError as e:
+    except (ValueError, ConnectionError) as e:
         print(json.dumps({"error": str(e)}), file=sys.stderr)
         sys.exit(1)
 
