@@ -356,3 +356,176 @@ def test_create_subcommand(running_server):
     )
     assert "conversation_id" in output
     assert output["topic"] == "Test topic"
+
+
+def test_send_subcommand(running_server):
+    """'broker send' sends a message and prints JSON."""
+    server, sock, loop = running_server
+    from broker_cli import run_oneshot
+
+    result = loop.run_until_complete(
+        run_oneshot(sock, "agent_a", "create_conversation", {"topic": "Test"})
+    )
+    cid = result["conversation_id"]
+
+    result = loop.run_until_complete(
+        run_oneshot(sock, "agent_a", "send_message", {
+            "conversation_id": cid, "content": "Hello",
+        })
+    )
+    assert result["message_id"].startswith("msg-")
+    assert result["conversation_id"] == cid
+    assert result["sender"] == "agent_a"
+
+
+def test_read_subcommand(running_server):
+    """'broker read' returns new messages."""
+    server, sock, loop = running_server
+    from broker_cli import run_oneshot
+
+    result = loop.run_until_complete(
+        run_oneshot(sock, "agent_a", "create_conversation", {"topic": "Test", "content": "Seed"})
+    )
+    cid = result["conversation_id"]
+
+    result = loop.run_until_complete(
+        run_oneshot(sock, "agent_b", "history", {"conversation_id": cid})
+    )
+    assert result["conversation_id"] == cid
+    non_system = [m for m in result["messages"] if m["sender"] != "system"]
+    assert len(non_system) >= 1
+    assert non_system[0]["content"] == "Seed"
+
+
+def test_list_subcommand(running_server):
+    """'broker list' returns conversations."""
+    server, sock, loop = running_server
+    from broker_cli import run_oneshot
+
+    loop.run_until_complete(
+        run_oneshot(sock, "agent_a", "create_conversation", {"topic": "Topic A"})
+    )
+    loop.run_until_complete(
+        run_oneshot(sock, "agent_a", "create_conversation", {"topic": "Topic B"})
+    )
+
+    result = loop.run_until_complete(
+        run_oneshot(sock, "agent_a", "list_conversations", {})
+    )
+    assert len(result["conversations"]) == 2
+
+
+def test_list_subcommand_status_filter(running_server):
+    """'broker list --status open' filters conversations."""
+    server, sock, loop = running_server
+    from broker_cli import run_oneshot
+
+    result = loop.run_until_complete(
+        run_oneshot(sock, "agent_a", "create_conversation", {"topic": "Open"})
+    )
+    cid = result["conversation_id"]
+    loop.run_until_complete(
+        run_oneshot(sock, "agent_a", "close_conversation", {"conversation_id": cid})
+    )
+    loop.run_until_complete(
+        run_oneshot(sock, "agent_a", "create_conversation", {"topic": "Still open"})
+    )
+
+    result = loop.run_until_complete(
+        run_oneshot(sock, "agent_a", "list_conversations", {"status": "open"})
+    )
+    assert len(result["conversations"]) == 1
+    assert result["conversations"][0]["topic"] == "Still open"
+
+
+def test_members_subcommand(running_server):
+    """'broker members' lists conversation members."""
+    server, sock, loop = running_server
+
+    # Use the server directly because run_oneshot disconnects after each
+    # call, which removes the identity from all member sets.
+    cid = _create_conversation(server, "agent_a", "Test")
+    server.handle_request("agent_b", {"type": "join_conversation", "conversation_id": cid, "id": "j"})
+
+    result = server.handle_request("agent_a", {"type": "list_members", "conversation_id": cid, "id": "m"})
+    assert sorted(result["data"]["members"]) == ["agent_a", "agent_b"]
+
+
+def test_join_subcommand(running_server):
+    """'broker join' joins a conversation."""
+    server, sock, loop = running_server
+    from broker_cli import run_oneshot
+
+    result = loop.run_until_complete(
+        run_oneshot(sock, "agent_a", "create_conversation", {"topic": "Test"})
+    )
+    cid = result["conversation_id"]
+
+    result = loop.run_until_complete(
+        run_oneshot(sock, "agent_b", "join_conversation", {"conversation_id": cid})
+    )
+    assert result["status"] == "joined"
+
+
+def test_leave_subcommand(running_server):
+    """'broker leave' leaves a conversation."""
+    server, sock, loop = running_server
+    from broker_cli import run_oneshot
+
+    result = loop.run_until_complete(
+        run_oneshot(sock, "agent_a", "create_conversation", {"topic": "Test"})
+    )
+    cid = result["conversation_id"]
+
+    result = loop.run_until_complete(
+        run_oneshot(sock, "agent_a", "leave_conversation", {"conversation_id": cid})
+    )
+    assert result["status"] == "left"
+
+
+def test_close_subcommand(running_server):
+    """'broker close' closes a conversation."""
+    server, sock, loop = running_server
+    from broker_cli import run_oneshot
+
+    result = loop.run_until_complete(
+        run_oneshot(sock, "agent_a", "create_conversation", {"topic": "Test"})
+    )
+    cid = result["conversation_id"]
+
+    result = loop.run_until_complete(
+        run_oneshot(sock, "agent_a", "close_conversation", {"conversation_id": cid})
+    )
+    assert result["status"] == "closed"
+
+
+def test_oneshot_error_returns_error(running_server):
+    """One-shot subcommand returns error for nonexistent conversation."""
+    server, sock, loop = running_server
+    from broker_cli import run_oneshot
+
+    with pytest.raises(ValueError, match="not found"):
+        loop.run_until_complete(
+            run_oneshot(sock, "agent_a", "send_message", {
+                "conversation_id": "nonexistent", "content": "Hello",
+            })
+        )
+
+
+def test_create_with_seed(running_server):
+    """'broker create --content' sends seed message."""
+    server, sock, loop = running_server
+    from broker_cli import run_oneshot
+
+    result = loop.run_until_complete(
+        run_oneshot(sock, "agent_a", "create_conversation", {
+            "topic": "Seeded", "content": "Initial message",
+        })
+    )
+    cid = result["conversation_id"]
+
+    history = loop.run_until_complete(
+        run_oneshot(sock, "agent_b", "history", {"conversation_id": cid})
+    )
+    non_system = [m for m in history["messages"] if m["sender"] != "system"]
+    assert any(m["content"] == "Initial message" for m in non_system)
