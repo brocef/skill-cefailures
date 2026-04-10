@@ -35,14 +35,16 @@ def test_module_imports() -> None:
 # ---------------------------------------------------------------------------
 
 def test_help_flag() -> None:
-    """Running broker_cli.py --help exits 0 and shows usage."""
+    """Running broker_cli.py --help exits 0 and shows subcommands."""
     result = subprocess.run(
         [sys.executable, str(Path(__file__).parent.parent / "scripts" / "broker_cli.py"), "--help"],
         capture_output=True,
         text=True,
     )
     assert result.returncode == 0
-    assert "Interactive REPL" in result.stdout
+    assert "server" in result.stdout
+    assert "create" in result.stdout
+    assert "send" in result.stdout
 
 
 # ---------------------------------------------------------------------------
