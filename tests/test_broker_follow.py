@@ -158,3 +158,71 @@ async def test_follow_count_exits_after_n_messages(sock_path, tmp_path):
     finally:
         srv.close()
         await srv.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_follow_include_system_renders_join_events(sock_path, tmp_path):
+    """--include-system causes [system] <identity> joined lines to appear."""
+    server = BrokerServer(storage_dir=tmp_path / "convs")
+    srv = await start_server(server, sock_path)
+    try:
+        alice = BrokerClient("alice", sock_path)
+        await alice.connect()
+        r = await alice.create_conversation("T")
+        cid = r["conversation_id"]
+        # Bob joins (producing a system message), then leaves, then disconnects.
+        bob = BrokerClient("bob", sock_path)
+        await bob.connect()
+        await bob.join_conversation(cid)
+        await bob.close()
+
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable, BROKER_CLI, "follow",
+            "--identity", "carol",
+            "--socket", sock_path,
+            "--idle-timeout", "1",
+            "--timeout", "10",
+            "--include-system",
+            cid,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=8.0)
+        lines = [l for l in stdout.decode().splitlines() if l.strip()]
+        assert "[system] alice joined" in lines
+        assert "[system] bob joined" in lines
+        await alice.close()
+    finally:
+        srv.close()
+        await srv.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_follow_default_hides_system_events(sock_path, tmp_path):
+    """Without --include-system, join/leave lines are absent from stdout."""
+    server = BrokerServer(storage_dir=tmp_path / "convs")
+    srv = await start_server(server, sock_path)
+    try:
+        alice = BrokerClient("alice", sock_path)
+        await alice.connect()
+        r = await alice.create_conversation("T", content="body")
+        cid = r["conversation_id"]
+        await alice.close()
+
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable, BROKER_CLI, "follow",
+            "--identity", "carol",
+            "--socket", sock_path,
+            "--idle-timeout", "1",
+            "--timeout", "10",
+            cid,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=8.0)
+        lines = [l for l in stdout.decode().splitlines() if l.strip()]
+        assert "[alice] body" in lines
+        assert not any(l.startswith("[system]") for l in lines)
+    finally:
+        srv.close()
+        await srv.wait_closed()
