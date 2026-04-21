@@ -444,3 +444,33 @@ def test_broadcast_system_push_includes_full_message(server):
     # legacy fields preserved
     assert push["event"] == "join"
     assert push["identity"] == "bob"
+
+
+def test_list_conversations_defaults_to_open(server):
+    """list_conversations with no status filter returns only open conversations."""
+    server.connect("alice", lambda m: None)
+    r1 = server.handle_request("alice", {"id": "r1", "type": "create_conversation", "topic": "Open one"})
+    r2 = server.handle_request("alice", {"id": "r2", "type": "create_conversation", "topic": "To close"})
+    cid_closed = r2["data"]["conversation_id"]
+    server.handle_request("alice", {"id": "r3", "type": "close_conversation", "conversation_id": cid_closed})
+
+    result = server.handle_request("alice", {"id": "r4", "type": "list_conversations"})
+    topics = [c["topic"] for c in result["data"]["conversations"]]
+    assert "Open one" in topics
+    assert "To close" not in topics
+
+
+def test_list_conversations_status_all_returns_everything(server):
+    """Explicit status='all' returns open + closed."""
+    server.connect("alice", lambda m: None)
+    r1 = server.handle_request("alice", {"id": "r1", "type": "create_conversation", "topic": "Open one"})
+    r2 = server.handle_request("alice", {"id": "r2", "type": "create_conversation", "topic": "To close"})
+    cid_closed = r2["data"]["conversation_id"]
+    server.handle_request("alice", {"id": "r3", "type": "close_conversation", "conversation_id": cid_closed})
+
+    result = server.handle_request("alice", {
+        "id": "r4", "type": "list_conversations", "status": "all",
+    })
+    topics = [c["topic"] for c in result["data"]["conversations"]]
+    assert "Open one" in topics
+    assert "To close" in topics

@@ -211,11 +211,15 @@ class BrokerServer:
         }
 
     def _handle_list(self, identity: str, msg: dict) -> dict:
-        """Handle list_conversations request."""
-        status_filter = msg.get("status")
+        """Handle list_conversations request.
+
+        Default: returns only conversations with status='open'. Pass status='all'
+        to return everything, or status='open'/'closed' for explicit filtering.
+        """
+        status_filter = msg.get("status", "open")
         conversations = []
         for conv in self.conversations.values():
-            if status_filter and conv["status"] != status_filter:
+            if status_filter != "all" and conv["status"] != status_filter:
                 continue
             cursor = conv["cursors"].get(identity, 0)
             non_system = [m for m in conv["messages"] if m["sender"] != "system"]
