@@ -228,12 +228,23 @@ class BrokerServer:
         return {"conversation_id": cid, "members": members}
 
     def _handle_close(self, identity: str, msg: dict) -> dict:
-        """Handle close_conversation request."""
+        """Handle close_conversation request.
+
+        Flips the conversation to read-only and pushes a conversation_closed
+        event to every connected member except the closer. Followers treat
+        the event as an explicit exit signal.
+        """
         cid = msg["conversation_id"]
         if cid not in self.conversations:
             raise ValueError(f"Conversation '{cid}' not found")
         self.conversations[cid]["status"] = "closed"
         self._save_conversation(cid)
+
+        push = {"type": "conversation_closed", "conversation_id": cid}
+        for member in self.members.get(cid, set()):
+            if member != identity and member in self.clients:
+                self.clients[member](push)
+
         return {"conversation_id": cid, "status": "closed"}
 
 

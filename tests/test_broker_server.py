@@ -388,3 +388,32 @@ def test_persistence_survives_restart(tmp_path):
     assert server2.conversations[cid]["topic"] == "Persisted"
     non_system = [m for m in server2.conversations[cid]["messages"] if m["sender"] != "system"]
     assert len(non_system) >= 1
+
+
+def test_close_pushes_conversation_closed_to_members(server):
+    """Closing a conversation pushes a conversation_closed event to every
+    connected member except the closer."""
+    alice_msgs = []
+    bob_msgs = []
+    server.connect("alice", alice_msgs.append)
+    server.connect("bob", bob_msgs.append)
+
+    result = server.handle_request("alice", {
+        "id": "req-1", "type": "create_conversation", "topic": "T",
+    })
+    cid = result["data"]["conversation_id"]
+    server.handle_request("bob", {
+        "id": "req-2", "type": "join_conversation", "conversation_id": cid,
+    })
+
+    server.handle_request("alice", {
+        "id": "req-3", "type": "close_conversation", "conversation_id": cid,
+    })
+
+    closed_events = [m for m in bob_msgs if m.get("type") == "conversation_closed"]
+    assert len(closed_events) == 1
+    assert closed_events[0]["conversation_id"] == cid
+
+    # The closer does not receive their own close event
+    closer_events = [m for m in alice_msgs if m.get("type") == "conversation_closed"]
+    assert closer_events == []
