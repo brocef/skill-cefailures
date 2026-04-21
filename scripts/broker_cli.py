@@ -598,7 +598,11 @@ def main() -> None:
     # --- list ---
     p_list = subparsers.add_parser("list", help="List conversations")
     p_list.add_argument("--identity", required=True, help="Your identity")
-    p_list.add_argument("--status", choices=["open", "closed"], help="Filter by status")
+    p_list.add_argument(
+        "--status",
+        choices=["open", "closed", "all"],
+        help="Filter by status. Default (no flag): open. Use 'all' to include closed.",
+    )
     p_list.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
 
     # --- members ---

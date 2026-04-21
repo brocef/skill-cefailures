@@ -18,6 +18,8 @@ from broker_cli import (
 )
 from broker_server import BrokerServer
 
+BROKER_CLI = str(Path(__file__).parent.parent / "scripts" / "broker_cli.py")
+
 
 # ---------------------------------------------------------------------------
 # Module import
@@ -622,6 +624,67 @@ async def test_broker_read_compact_format(sock_path, tmp_path):
         )
         lines = [l for l in out.stdout.splitlines() if l.strip()]
         assert "[alice] hi there" in lines
+    finally:
+        srv.close()
+        await srv.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_broker_list_default_shows_only_open(sock_path, tmp_path):
+    """With no --status flag, `broker list` returns only open conversations."""
+    from broker_server import start_server
+    from broker_client import BrokerClient
+
+    server = BrokerServer(storage_dir=tmp_path / "convs")
+    srv = await start_server(server, sock_path)
+    try:
+        alice = BrokerClient("alice", sock_path)
+        await alice.connect()
+        r1 = await alice.create_conversation("open-one")
+        r2 = await alice.create_conversation("to-close")
+        await alice.close_conversation(r2["conversation_id"])
+        await alice.close()
+
+        out = await asyncio.to_thread(
+            subprocess.run,
+            [sys.executable, BROKER_CLI, "list", "--identity", "alice", "--socket", sock_path],
+            capture_output=True, text=True, check=True,
+        )
+        data = json.loads(out.stdout)
+        topics = [c["topic"] for c in data["conversations"]]
+        assert "open-one" in topics
+        assert "to-close" not in topics
+    finally:
+        srv.close()
+        await srv.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_broker_list_status_all(sock_path, tmp_path):
+    """--status all returns both open and closed conversations."""
+    from broker_server import start_server
+    from broker_client import BrokerClient
+
+    server = BrokerServer(storage_dir=tmp_path / "convs")
+    srv = await start_server(server, sock_path)
+    try:
+        alice = BrokerClient("alice", sock_path)
+        await alice.connect()
+        r1 = await alice.create_conversation("open-one")
+        r2 = await alice.create_conversation("to-close")
+        await alice.close_conversation(r2["conversation_id"])
+        await alice.close()
+
+        out = await asyncio.to_thread(
+            subprocess.run,
+            [sys.executable, BROKER_CLI, "list", "--identity", "alice",
+             "--socket", sock_path, "--status", "all"],
+            capture_output=True, text=True, check=True,
+        )
+        data = json.loads(out.stdout)
+        topics = [c["topic"] for c in data["conversations"]]
+        assert "open-one" in topics
+        assert "to-close" in topics
     finally:
         srv.close()
         await srv.wait_closed()
