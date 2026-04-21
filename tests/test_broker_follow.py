@@ -291,6 +291,8 @@ async def test_follow_exits_nonzero_when_server_vanishes(sock_path, tmp_path):
     )
     await asyncio.sleep(0.3)
     await alice.close()
+    if hasattr(srv, "close_clients"):
+        srv.close_clients()  # force EOF to still-connected clients (needed on Python 3.13+)
     srv.close()
     await srv.wait_closed()
 

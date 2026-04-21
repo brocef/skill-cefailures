@@ -294,28 +294,10 @@ async def _handle_client(server: BrokerServer, reader: asyncio.StreamReader, wri
 
 
 async def start_server(server: BrokerServer, sock_path: str) -> asyncio.AbstractServer:
-    """Start the Unix domain socket server.
-
-    The returned server's .close() is wrapped to also send EOF to any
-    currently-connected clients (via asyncio.Server.close_clients, available
-    since Python 3.12.1). This makes server shutdown observable to clients:
-    their readers see EOF and can exit cleanly, rather than remaining connected
-    indefinitely to a "closed" server that no longer accepts new connections.
-    """
+    """Start the Unix domain socket server."""
     Path(sock_path).unlink(missing_ok=True)
     srv = await asyncio.start_unix_server(
         lambda r, w: _handle_client(server, r, w),
         path=sock_path,
     )
-    _orig_close = srv.close
-
-    def close_with_clients() -> None:
-        _orig_close()
-        try:
-            srv.close_clients()  # type: ignore[attr-defined]
-        except AttributeError:
-            # Python < 3.12.1: no close_clients; existing handlers stay up.
-            pass
-
-    srv.close = close_with_clients  # type: ignore[method-assign]
     return srv
