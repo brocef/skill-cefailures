@@ -569,3 +569,24 @@ def test_run_and_print_error(running_server, capsys):
     err_data = json.loads(captured.err)
     assert "error" in err_data
     assert "not found" in err_data["error"]
+
+
+def test_format_message_compact_user_message():
+    """User messages render as [sender] content with no indent, no timestamp."""
+    from broker_cli import format_message_compact
+    msg = {"id": "msg-abc", "sender": "server", "content": "Okay, on it", "timestamp": "2026-04-21T..."}
+    assert format_message_compact(msg) == "[server] Okay, on it"
+
+
+def test_format_message_compact_system_message_from_history():
+    """System messages from history have sender='system' and free-form content."""
+    from broker_cli import format_message_compact
+    msg = {"id": "msg-xyz", "sender": "system", "content": "bob left", "timestamp": "2026-04-21T..."}
+    assert format_message_compact(msg) == "[system] bob left"
+
+
+def test_format_message_compact_multiline_content_preserved():
+    """Newlines in content are preserved; the line-oriented claim is best-effort."""
+    from broker_cli import format_message_compact
+    msg = {"sender": "alice", "content": "line1\nline2"}
+    assert format_message_compact(msg) == "[alice] line1\nline2"

@@ -41,6 +41,24 @@ def format_message(msg: dict) -> str:
     return f'  [{msg["sender"]}] {msg["content"]}'
 
 
+def format_message_compact(msg: dict) -> str:
+    """Format a message dict as a single compact line for agent consumption.
+
+    Both user and system messages from history render identically via the
+    sender/content fields: [sender] content. This is the agent-facing format;
+    it has no leading indent and no timestamp (the server persists timestamps
+    on disk for audit).
+
+    Args:
+        msg: A persisted message dict with keys: sender, content.
+             Timestamps and ids are ignored here.
+
+    Returns:
+        A string like: "[server] Okay, on it"
+    """
+    return f"[{msg['sender']}] {msg['content']}"
+
+
 LOBBY_HELP = """\
 Commands:
   list             List all conversations
