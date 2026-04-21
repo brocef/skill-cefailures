@@ -226,3 +226,39 @@ async def test_follow_default_hides_system_events(sock_path, tmp_path):
     finally:
         srv.close()
         await srv.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_follow_exits_clean_on_conversation_closed(sock_path, tmp_path):
+    """When the conversation is closed mid-follow, follow exits with code 0 without waiting for idle-timeout."""
+    server = BrokerServer(storage_dir=tmp_path / "convs")
+    srv = await start_server(server, sock_path)
+    try:
+        alice = BrokerClient("alice", sock_path)
+        await alice.connect()
+        r = await alice.create_conversation("T")
+        cid = r["conversation_id"]
+        bob = BrokerClient("bob", sock_path)
+        await bob.connect()
+        await bob.join_conversation(cid)
+        await bob.close()
+
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable, BROKER_CLI, "follow",
+            "--identity", "bob",
+            "--socket", sock_path,
+            "--idle-timeout", "60",  # long — so a premature idle-exit would indicate failure
+            "--timeout", "60",
+            cid,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        await asyncio.sleep(0.3)
+        await alice.close_conversation(cid)
+        await alice.close()
+
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5.0)
+        assert proc.returncode == 0, f"stderr: {stderr.decode()}"
+    finally:
+        srv.close()
+        await srv.wait_closed()
