@@ -590,3 +590,38 @@ def test_format_message_compact_multiline_content_preserved():
     from broker_cli import format_message_compact
     msg = {"sender": "alice", "content": "line1\nline2"}
     assert format_message_compact(msg) == "[alice] line1\nline2"
+
+
+@pytest.mark.asyncio
+async def test_broker_read_compact_format(sock_path, tmp_path):
+    """`broker read --format compact` emits one line per message in [sender] content form."""
+    from broker_server import BrokerServer, start_server
+    from broker_client import BrokerClient
+
+    server = BrokerServer(storage_dir=tmp_path / "convs")
+    srv = await start_server(server, sock_path)
+    try:
+        alice = BrokerClient("alice", sock_path)
+        await alice.connect()
+        result = await alice.create_conversation("T", content="hi there")
+        cid = result["conversation_id"]
+        await alice.close()
+
+        # Run the CLI as a subprocess, parsing its compact output.
+        # Use asyncio.to_thread so the server event loop keeps accepting connections
+        # while the subprocess (itself a client) makes its request.
+        broker_cli = str(Path(__file__).parent.parent / "scripts" / "broker_cli.py")
+        out = await asyncio.to_thread(
+            subprocess.run,
+            [sys.executable, broker_cli, "read",
+             "--identity", "bob",
+             "--socket", sock_path,
+             "--format", "compact",
+             cid],
+            capture_output=True, text=True, check=True,
+        )
+        lines = [l for l in out.stdout.splitlines() if l.strip()]
+        assert "[alice] hi there" in lines
+    finally:
+        srv.close()
+        await srv.wait_closed()

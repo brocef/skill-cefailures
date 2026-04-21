@@ -461,6 +461,8 @@ def main() -> None:
     p_read.add_argument("--identity", required=True, help="Your identity")
     p_read.add_argument("conversation_id", help="Conversation ID")
     p_read.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
+    p_read.add_argument("--format", choices=["json", "compact"], default="json",
+                        help="Output format. 'compact' emits [sender] content lines (agent-facing). Default: json.")
 
     # --- list ---
     p_list = subparsers.add_parser("list", help="List conversations")
@@ -511,9 +513,20 @@ def main() -> None:
             "conversation_id": args.conversation_id, "content": args.content,
         })
     elif args.command == "read":
-        _run_and_print(args.socket, args.identity, "history", {
-            "conversation_id": args.conversation_id,
-        })
+        if args.format == "compact":
+            try:
+                result = asyncio.run(run_oneshot(args.socket, args.identity, "history", {
+                    "conversation_id": args.conversation_id,
+                }))
+            except (ValueError, ConnectionError) as e:
+                print(json.dumps({"error": str(e)}), file=sys.stderr)
+                sys.exit(1)
+            for msg in result.get("messages", []):
+                print(format_message_compact(msg), flush=True)
+        else:
+            _run_and_print(args.socket, args.identity, "history", {
+                "conversation_id": args.conversation_id,
+            })
     elif args.command == "list":
         params = {}
         if args.status:
