@@ -464,6 +464,28 @@ def main() -> None:
     p_read.add_argument("--format", choices=["json", "compact"], default="json",
                         help="Output format. 'compact' emits [sender] content lines (agent-facing). Default: json.")
 
+    # --- follow ---
+    p_follow = subparsers.add_parser(
+        "follow",
+        help="Stream new messages from a conversation. Drains backlog, then "
+             "consumes pushes until idle-timeout, total timeout, count, or "
+             "conversation_closed. Use foreground to block until a reply arrives.",
+    )
+    p_follow.add_argument("--identity", required=True, help="Your identity")
+    p_follow.add_argument("conversation_id", help="Conversation ID")
+    p_follow.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
+    p_follow.add_argument("--idle-timeout", type=int, default=120,
+                          help="Exit after N seconds of silence. 0 disables. Default: 120.")
+    p_follow.add_argument("--timeout", type=int, default=600,
+                          help="Hard cap in seconds. 0 disables. Default: 600.")
+    p_follow.add_argument("--count", type=int, default=0,
+                          help="Exit after N messages received. 0 disables. Default: 0.")
+    p_follow.add_argument("--include-system", action="store_true",
+                          help="Include system join/leave events in the stream. "
+                               "Default: suppressed.")
+    p_follow.add_argument("--format", choices=["compact", "json"], default="compact",
+                          help="Output format. Default: compact.")
+
     # --- list ---
     p_list = subparsers.add_parser("list", help="List conversations")
     p_list.add_argument("--identity", required=True, help="Your identity")
