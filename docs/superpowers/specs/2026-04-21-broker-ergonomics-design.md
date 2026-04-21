@@ -73,11 +73,12 @@ broker follow <conversation_id> --identity <name>
 
 Behavior:
 
-1. Connect to the broker socket.
-2. Call the existing `history` request to drain any unread backlog; print each message to stdout in the requested format.
-3. Consume push messages from the existing client-side `on_push` queue (`broker_client.py:53-74`); print each to stdout.
-4. Exit when any of these becomes true: idle-timeout elapses since the last received message, total timeout reached, or count messages received.
-5. On socket disconnect mid-stream, print a single-line error to stderr and exit non-zero. No silent hangs.
+1. Install the `on_push` `asyncio.Queue` on the client **before** calling `connect()` — the client's `_listen` task is started during `connect()` (`broker_client.py:25`), so pushes arriving between connect and the first history response are already queued.
+2. Call the existing `history` request to drain any unread backlog; print each message to stdout in the requested format. Record each message's `id` in a per-session `seen_ids: set[str]`.
+3. Consume push messages from the `on_push` queue. For each push, check its `id` against `seen_ids`; if already printed, skip. Otherwise print and add to `seen_ids`. This dedups the narrow window where a message arrives between connect and history's cursor update — the server cursor protects cross-session dedup; `seen_ids` protects within-session dedup.
+4. Wait for each push via `asyncio.wait_for(queue.get(), timeout=idle_timeout)`. A `TimeoutError` is the idle-exit signal. An overall deadline check enforces `--timeout`. A counter enforces `--count`.
+5. Exit when any of these becomes true: idle-timeout elapses since the last received message, total timeout reached, count messages received, or the server pushes a `conversation_closed` event (see server changes below).
+6. On socket disconnect mid-stream (readline returns empty), print a single-line error to stderr and exit non-zero. No silent hangs.
 
 Compact output format (one message per line, no quoting):
 
@@ -86,7 +87,9 @@ Compact output format (one message per line, no quoting):
 [core] Ready for the issue description
 ```
 
-System messages are suppressed in compact output unless `--include-system` is passed. When included, they render as `[system] {identity} joined` / `[system] {identity} left`.
+System messages in history (`broker_server.py:94-102`) arrive with `sender="system"` and `content="bob joined"` — a free-form string. System messages from push (`broker_server.py:104`) arrive with `type="system"` and an `event`/`identity` structure. The compact formatter handles both by keying on the final rendered string: for history, print `content` verbatim; for push, synthesize `"{identity} {event}ed"` matching the history format. System messages are suppressed unless `--include-system` is passed.
+
+The formatter is a pure function over `(sender, content)`, reused by `broker read --format compact` for symmetry.
 
 **Updated subcommand: `broker list`**
 
@@ -98,6 +101,8 @@ broker list --status open     # explicit, equivalent to no flag
 broker list --status closed   # closed only
 broker list --status all      # everything (previous default)
 ```
+
+Required CLI edit: `broker_cli.py:450` currently declares `choices=["open", "closed"]`; add `"all"`. The CLI maps "absence of flag" to sending no `status` field on the request (server then applies its new default of `"open"`), and passes `"all"` literally (server interprets as no filter).
 
 Rationale: matches the "closed conversations drop out of the agent's working view but stay on disk for audit" principle.
 
@@ -133,6 +138,8 @@ def disconnect(self, identity: str) -> None:
 Membership now changes only via explicit `join`, `leave`, and `close` handlers (no changes to those). `send`'s auto-join remains — a new sender becomes a member on first send, and `_join_member`'s existing "already a member" guard keeps re-sends quiet.
 
 **Historical data is not rewritten.** Existing on-disk JSONs keep their historical join/leave messages intact; new sessions simply stop producing them.
+
+**Add a `conversation_closed` push in `_handle_close`.** Currently `_handle_close` (`broker_server.py:229-236`) flips status but emits no signal. A `broker follow` client on a conversation that is closed mid-stream would just sit until idle-timeout. Fix: after flipping status, push `{"type": "conversation_closed", "conversation_id": cid}` to every connected member. The `follow` CLI treats this as an explicit exit signal (clean, zero-exit-code). Two lines of server code plus a case in the client's listener.
 
 **Shift `_handle_list` default.**
 
@@ -204,11 +211,18 @@ Seeded with the specific failures from the phase-1 transcript:
 - New `tests/test_broker_follow.py`:
   - Drain-backlog-then-exit on idle.
   - Push message arrives during follow → printed.
+  - Message arrives between connect and history() response → printed exactly once (dedup via `seen_ids`).
   - `--count N` exits after N messages.
   - `--timeout N` hard cap.
-  - `--include-system` toggles join/leave rendering.
-  - Graceful disconnect → non-zero exit with stderr message.
-- Update existing tests that asserted leave-on-disconnect behavior to assert the opposite (membership persists across disconnect).
+  - `--include-system` toggles join/leave rendering; off by default.
+  - Compact output format matches history and push paths (symmetry test).
+  - Conversation closed mid-follow → exits zero without waiting for idle-timeout.
+  - Graceful socket disconnect → non-zero exit with stderr message.
+- Existing tests to update:
+  - `tests/test_broker_server.py:222-240` (`test_disconnect_broadcasts_leave`): invert — membership persists, no system message emitted.
+  - `tests/test_broker_e2e.py:64-71`: the explicit `leave_conversation` path must still assert leave-broadcast (that path is correct and stays). Confirm no implicit-disconnect-leave assertions elsewhere.
+  - `tests/test_broker_server.py` (close handler): add assertion that `conversation_closed` push is delivered to every connected member.
+- `ServerREPL.__init__` at `broker_cli.py:71` calls `server.connect` without a matching `disconnect` — harmless today, harmless after the fix. No change needed.
 - No tests for skill-doc content.
 
 ### Track 5: Rollout
@@ -227,6 +241,11 @@ Seeded with the specific failures from the phase-1 transcript:
 | Compact output format on `follow` | New code path. `read` still emits JSON by default. |
 | Disconnect bug fix | Bug fix. No consumer depended on the spam. |
 | New skill docs | Additive. |
+
+## Tradeoffs worth flagging to the implementer
+
+- **`--idle-timeout 120` default.** Chosen for the "send and wait for a reply" scenario, where an agent reasonably expects a reply within a minute or two. For a stream-while-working deployment (agent leaves `broker follow` running under Monitor while doing other work), 120s would cause premature exits during quiet stretches. A longer default (say 600s) would better serve that case but adds dead-time cost to the common case. Recommendation: keep 120s as default and let the patterns doc tell Monitor-backed consumers to pass `--idle-timeout 0` (meaning disabled) or a long value.
+- **Dedup set bounded by session length.** `seen_ids` grows until `follow` exits. For sessions receiving thousands of messages this could waste memory; for the expected scale (dozens to low hundreds per session) it's a non-issue. No action needed.
 
 ## Open questions
 
