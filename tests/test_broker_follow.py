@@ -115,3 +115,46 @@ async def test_follow_prints_push_message_mid_stream(sock_path, tmp_path):
     finally:
         srv.close()
         await srv.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_follow_count_exits_after_n_messages(sock_path, tmp_path):
+    """--count 1 exits after one new message (history messages do not count)."""
+    server = BrokerServer(storage_dir=tmp_path / "convs")
+    srv = await start_server(server, sock_path)
+    try:
+        alice = BrokerClient("alice", sock_path)
+        await alice.connect()
+        r = await alice.create_conversation("T", content="pre-existing")
+        cid = r["conversation_id"]
+        bob = BrokerClient("bob", sock_path)
+        await bob.connect()
+        await bob.join_conversation(cid)
+        await bob.close()
+
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable, BROKER_CLI, "follow",
+            "--identity", "bob",
+            "--socket", sock_path,
+            "--count", "1",
+            "--idle-timeout", "10",
+            "--timeout", "20",
+            cid,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        await asyncio.sleep(0.3)
+        await alice.send_message(cid, "msg-1")
+        await alice.send_message(cid, "msg-2")  # should be ignored — count already reached
+        await alice.close()
+
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=8.0)
+        lines = [l for l in stdout.decode().splitlines() if l.strip()]
+        # History backlog is always printed regardless of count.
+        assert "[alice] pre-existing" in lines
+        # Exactly one push message is printed.
+        push_lines = [l for l in lines if l == "[alice] msg-1" or l == "[alice] msg-2"]
+        assert push_lines == ["[alice] msg-1"]
+    finally:
+        srv.close()
+        await srv.wait_closed()
