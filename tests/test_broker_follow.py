@@ -262,3 +262,39 @@ async def test_follow_exits_clean_on_conversation_closed(sock_path, tmp_path):
     finally:
         srv.close()
         await srv.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_follow_exits_nonzero_when_server_vanishes(sock_path, tmp_path):
+    """If the broker server closes its socket while follow is running,
+    follow exits non-zero with a stderr error message."""
+    server = BrokerServer(storage_dir=tmp_path / "convs")
+    srv = await start_server(server, sock_path)
+    alice = BrokerClient("alice", sock_path)
+    await alice.connect()
+    r = await alice.create_conversation("T")
+    cid = r["conversation_id"]
+    bob = BrokerClient("bob", sock_path)
+    await bob.connect()
+    await bob.join_conversation(cid)
+    await bob.close()
+
+    proc = await asyncio.create_subprocess_exec(
+        sys.executable, BROKER_CLI, "follow",
+        "--identity", "bob",
+        "--socket", sock_path,
+        "--idle-timeout", "60",
+        "--timeout", "60",
+        cid,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    await asyncio.sleep(0.3)
+    await alice.close()
+    srv.close()
+    await srv.wait_closed()
+
+    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5.0)
+    assert proc.returncode != 0
+    assert b"broker" in stderr.lower() or b"socket" in stderr.lower() or b"connection" in stderr.lower(), \
+        f"expected an informative stderr; got: {stderr.decode()}"

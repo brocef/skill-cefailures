@@ -411,13 +411,7 @@ async def run_oneshot(sock_path: str, identity: str, request_type: str, params: 
 
 
 async def cmd_follow(args: argparse.Namespace) -> int:
-    """Run `broker follow`: drain backlog, then consume push until exit.
-
-    Returns the process exit code. 0 on clean exit; 1 on socket error.
-    """
     client = BrokerClient(args.identity, args.socket)
-    # Install the push queue BEFORE connect, so pushes landing between
-    # connect and history() don't go to a Queue(None) black hole.
     client.on_push = asyncio.Queue()
 
     try:
@@ -430,29 +424,48 @@ async def cmd_follow(args: argparse.Namespace) -> int:
 
     seen_ids: set[str] = set()
     try:
-        # 1. Drain backlog via history.
         history = await client.history(args.conversation_id)
         for msg in history["messages"]:
             seen_ids.add(msg["id"])
             _emit(msg, args)
 
-        # 2. Consume pushes.
         deadline = _compute_deadline(args.timeout)
         count = 0
         while True:
             timeout = _next_timeout(deadline, args.idle_timeout)
+            get_task = asyncio.create_task(client.on_push.get())
+            listener_task = client._listener_task  # type: ignore[attr-defined]
+
+            waiters = {get_task}
+            if listener_task is not None and not listener_task.done():
+                waiters.add(listener_task)
+
             try:
-                push = await asyncio.wait_for(client.on_push.get(), timeout=timeout)
-            except asyncio.TimeoutError:
-                # Either idle or hard-cap elapsed. Either way, clean exit.
+                done, pending = await asyncio.wait(
+                    waiters, timeout=timeout, return_when=asyncio.FIRST_COMPLETED,
+                )
+            except asyncio.CancelledError:
+                raise
+
+            if not done:
+                # Timeout (idle or hard cap) elapsed — clean exit.
+                get_task.cancel()
                 break
+
+            if listener_task is not None and listener_task in done:
+                # Server-side socket closed. Abort with a clear error.
+                get_task.cancel()
+                print(json.dumps({
+                    "error": "Broker socket closed unexpectedly. Is the broker server still running?",
+                }), file=sys.stderr)
+                return 1
+
+            push = get_task.result()
 
             if push.get("conversation_id") != args.conversation_id:
                 continue
-
             if push["type"] == "conversation_closed":
                 break
-
             if push["type"] in ("message", "system"):
                 msg = push["message"]
                 if msg["id"] in seen_ids:
