@@ -74,3 +74,44 @@ async def test_follow_drains_backlog_then_exits_on_idle(sock_path, tmp_path):
     finally:
         srv.close()
         await srv.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_follow_prints_push_message_mid_stream(sock_path, tmp_path):
+    """Messages sent after follow starts are pushed and printed."""
+    server = BrokerServer(storage_dir=tmp_path / "convs")
+    srv = await start_server(server, sock_path)
+    try:
+        alice = BrokerClient("alice", sock_path)
+        await alice.connect()
+        r = await alice.create_conversation("T")
+        cid = r["conversation_id"]
+        # Bob must be a member to receive pushes
+        bob = BrokerClient("bob", sock_path)
+        await bob.connect()
+        await bob.join_conversation(cid)
+        await bob.close()
+
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable, BROKER_CLI, "follow",
+            "--identity", "bob",
+            "--socket", sock_path,
+            "--idle-timeout", "2",
+            "--timeout", "10",
+            cid,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        # Give follow time to connect + drain (empty) + start listening.
+        await asyncio.sleep(0.3)
+        await alice.send_message(cid, "live message")
+        await asyncio.sleep(0.3)
+        await alice.close()
+
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=8.0)
+        lines = [l for l in stdout.decode().splitlines() if l.strip()]
+        assert "[alice] live message" in lines
+        assert proc.returncode == 0, f"stderr: {stderr.decode()}"
+    finally:
+        srv.close()
+        await srv.wait_closed()
