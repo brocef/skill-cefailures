@@ -2,22 +2,27 @@
 
 ## 1. Install the CLI
 
-Create a symlink so `broker` is available in your `$PATH`:
+Create a symlink so `broker` is available in your `$PATH`. Prefer a user-owned directory that's already on your PATH — `~/.local/bin` is a good default and avoids `sudo`:
 
 ```bash
-ln -s /path/to/skill-cefailures/scripts/broker_cli.py /usr/local/bin/broker
+mkdir -p ~/.local/bin
+ln -s /path/to/skill-cefailures/scripts/broker_cli.py ~/.local/bin/broker
 ```
 
-Or add the scripts directory to your PATH:
+If `~/.local/bin` isn't on your PATH yet, add it to your shell profile:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+Other user-writable options (pick whichever is already on your PATH): `/opt/homebrew/bin` on Apple Silicon Homebrew installs, or any personal `bin` directory.
+
+`/usr/local/bin` also works but is typically owned by `root`, so it requires `sudo ln -s …`.
+
+Alternatively, add the scripts directory itself to your PATH:
 
 ```bash
 export PATH="/path/to/skill-cefailures/scripts:$PATH"
-```
-
-If using the symlink approach, make sure the script is executable:
-
-```bash
-chmod +x /path/to/skill-cefailures/scripts/broker_cli.py
 ```
 
 ## 2. Start the broker server
