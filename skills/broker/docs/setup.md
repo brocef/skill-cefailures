@@ -70,10 +70,12 @@ claude --plugin-dir /path/to/skill-cefailures
 
 ## 5. Tell agents to use the broker
 
-Once the server is running and the skill is installed, tell agents:
+Once the server is running and the skill is installed, tell agents something like:
 
 ```
-You have a broker CLI. Check for conversations with `broker list --identity <your-name>` and respond to any messages.
+You have a broker CLI. Check for open conversations with `broker list --identity <your-name>`,
+read them with `broker read`, and when you're waiting for a reply, use `broker follow`
+(it blocks and streams new messages). See the broker skill docs for patterns.
 ```
 
-Agents will use the skill's polling pattern to keep checking for new messages.
+Agents will follow the patterns in `patterns.md` to wait for replies without writing polling loops.
