@@ -410,6 +410,105 @@ async def run_oneshot(sock_path: str, identity: str, request_type: str, params: 
         await client.close()
 
 
+async def cmd_follow(args: argparse.Namespace) -> int:
+    """Run `broker follow`: drain backlog, then consume push until exit.
+
+    Returns the process exit code. 0 on clean exit; 1 on socket error.
+    """
+    client = BrokerClient(args.identity, args.socket)
+    # Install the push queue BEFORE connect, so pushes landing between
+    # connect and history() don't go to a Queue(None) black hole.
+    client.on_push = asyncio.Queue()
+
+    try:
+        await client.connect()
+    except (FileNotFoundError, ConnectionRefusedError):
+        print(json.dumps({
+            "error": f"Cannot connect to broker at {args.socket}. Is the broker server running?",
+        }), file=sys.stderr)
+        return 1
+
+    seen_ids: set[str] = set()
+    try:
+        # 1. Drain backlog via history.
+        history = await client.history(args.conversation_id)
+        for msg in history["messages"]:
+            seen_ids.add(msg["id"])
+            _emit(msg, args)
+
+        # 2. Consume pushes.
+        deadline = _compute_deadline(args.timeout)
+        count = 0
+        while True:
+            timeout = _next_timeout(deadline, args.idle_timeout)
+            try:
+                push = await asyncio.wait_for(client.on_push.get(), timeout=timeout)
+            except asyncio.TimeoutError:
+                # Either idle or hard-cap elapsed. Either way, clean exit.
+                break
+
+            if push.get("conversation_id") != args.conversation_id:
+                continue
+
+            if push["type"] == "conversation_closed":
+                break
+
+            if push["type"] in ("message", "system"):
+                msg = push["message"]
+                if msg["id"] in seen_ids:
+                    continue
+                seen_ids.add(msg["id"])
+                if _emit(msg, args):
+                    count += 1
+                    if args.count > 0 and count >= args.count:
+                        break
+    finally:
+        await client.close()
+
+    return 0
+
+
+def _compute_deadline(hard_cap_seconds: int) -> float | None:
+    """Absolute monotonic deadline, or None if disabled (hard_cap == 0)."""
+    import time
+    if hard_cap_seconds <= 0:
+        return None
+    return time.monotonic() + hard_cap_seconds
+
+
+def _next_timeout(deadline: float | None, idle_seconds: int) -> float | None:
+    """Compute the next asyncio.wait_for timeout: min(remaining deadline, idle).
+
+    Returns None to wait forever (both disabled).
+    """
+    import time
+    candidates = []
+    if deadline is not None:
+        candidates.append(max(0.0, deadline - time.monotonic()))
+    if idle_seconds > 0:
+        candidates.append(float(idle_seconds))
+    if not candidates:
+        return None
+    return min(candidates)
+
+
+def _emit(msg: dict, args: argparse.Namespace) -> bool:
+    """Print a message per the requested format and system-filter.
+
+    Returns True if the message was emitted, False if filtered out.
+    """
+    if msg["sender"] == "system" and not args.include_system:
+        return False
+    if args.format == "json":
+        print(json.dumps({
+            "id": msg["id"], "sender": msg["sender"],
+            "content": msg["content"], "timestamp": msg["timestamp"],
+        }), flush=True)
+    else:
+        print(format_message_compact(msg), flush=True)
+    return True
+
+
 def _run_and_print(sock_path: str, identity: str, request_type: str, params: dict) -> None:
     """Run a one-shot request and print JSON result to stdout."""
     try:
@@ -549,6 +648,8 @@ def main() -> None:
             _run_and_print(args.socket, args.identity, "history", {
                 "conversation_id": args.conversation_id,
             })
+    elif args.command == "follow":
+        sys.exit(asyncio.run(cmd_follow(args)))
     elif args.command == "list":
         params = {}
         if args.status:
