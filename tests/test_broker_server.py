@@ -417,3 +417,30 @@ def test_close_pushes_conversation_closed_to_members(server):
     # The closer does not receive their own close event
     closer_events = [m for m in alice_msgs if m.get("type") == "conversation_closed"]
     assert closer_events == []
+
+
+def test_broadcast_system_push_includes_full_message(server):
+    """System event pushes carry the full persisted message (with id)
+    alongside the legacy event/identity fields."""
+    alice_msgs = []
+    server.connect("alice", alice_msgs.append)
+    server.connect("bob", lambda m: None)
+
+    result = server.handle_request("alice", {
+        "id": "req-1", "type": "create_conversation", "topic": "T",
+    })
+    cid = result["data"]["conversation_id"]
+    server.handle_request("bob", {
+        "id": "req-2", "type": "join_conversation", "conversation_id": cid,
+    })
+
+    system_pushes = [m for m in alice_msgs if m.get("type") == "system"]
+    assert len(system_pushes) >= 1
+    push = [m for m in system_pushes if m.get("identity") == "bob"][0]
+    assert "message" in push, "push must include the full message dict"
+    assert push["message"]["sender"] == "system"
+    assert push["message"]["id"].startswith("msg-")
+    assert push["message"]["content"] == "bob joined"
+    # legacy fields preserved
+    assert push["event"] == "join"
+    assert push["identity"] == "bob"

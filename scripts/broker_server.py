@@ -93,7 +93,12 @@ class BrokerServer:
             self._broadcast_system(conversation_id, "join", identity)
 
     def _broadcast_system(self, conversation_id: str, event: str, identity: str) -> None:
-        """Create a system message and broadcast to conversation members."""
+        """Create a system message, persist it, and push to connected members.
+
+        The push payload includes the full persisted message dict (with id) so
+        consumers can dedup system events by id the same way as user messages.
+        The legacy event/identity fields are preserved for back-compat.
+        """
         msg = {
             "id": self._message_id(),
             "sender": "system",
@@ -102,7 +107,13 @@ class BrokerServer:
         }
         self.conversations[conversation_id]["messages"].append(msg)
         self._save_conversation(conversation_id)
-        push = {"type": "system", "conversation_id": conversation_id, "event": event, "identity": identity}
+        push = {
+            "type": "system",
+            "conversation_id": conversation_id,
+            "event": event,
+            "identity": identity,
+            "message": msg,
+        }
         for member in self.members.get(conversation_id, set()):
             if member != identity and member in self.clients:
                 self.clients[member](push)
