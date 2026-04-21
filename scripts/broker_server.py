@@ -52,12 +52,13 @@ class BrokerServer:
         self.clients[identity] = send
 
     def disconnect(self, identity: str) -> None:
-        """Remove a client and broadcast leave events."""
+        """Remove the client's push callback. Does not change conversation membership.
+
+        Membership is declarative: it changes only via explicit join / leave / close.
+        Disconnecting does not broadcast a leave event — that was a historical bug
+        that caused join/leave spam across every send/read cycle.
+        """
         self.clients.pop(identity, None)
-        for cid, member_set in list(self.members.items()):
-            if identity in member_set:
-                member_set.discard(identity)
-                self._broadcast_system(cid, "leave", identity)
 
     def handle_request(self, identity: str, msg: dict) -> dict:
         """Dispatch a client request and return a response or error."""

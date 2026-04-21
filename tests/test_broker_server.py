@@ -219,8 +219,12 @@ def test_leave_broadcasts_system_message(server):
     assert any(m["identity"] == "bob" for m in system_msgs)
 
 
-def test_disconnect_broadcasts_leave(server):
-    """Disconnecting broadcasts leave to all conversations the client was in."""
+def test_disconnect_does_not_broadcast_leave(server):
+    """Disconnecting a client does NOT remove membership or broadcast leave.
+
+    Membership changes only via explicit join/leave/close. This protects
+    conversations from join/leave spam across agent send/read cycles.
+    """
     alice_msgs = []
     server.connect("alice", alice_msgs.append)
     server.connect("bob", lambda m: None)
@@ -236,8 +240,10 @@ def test_disconnect_broadcasts_leave(server):
     server.disconnect("bob")
 
     system_msgs = [m for m in alice_msgs if m["type"] == "system" and m["event"] == "leave"]
-    assert any(m["identity"] == "bob" for m in system_msgs)
-    assert "bob" not in server.members[cid]
+    assert not any(m.get("identity") == "bob" for m in system_msgs), \
+        "disconnect must not broadcast a leave event"
+    assert "bob" in server.members[cid], \
+        "disconnect must not remove bob from conversation membership"
 
 
 def test_system_messages_not_counted_in_message_count(server):
