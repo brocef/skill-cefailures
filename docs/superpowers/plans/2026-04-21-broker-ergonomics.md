@@ -1254,12 +1254,9 @@ async def cmd_follow(args: argparse.Namespace) -> int:
             if listener_task is not None and not listener_task.done():
                 waiters.add(listener_task)
 
-            try:
-                done, pending = await asyncio.wait(
-                    waiters, timeout=timeout, return_when=asyncio.FIRST_COMPLETED,
-                )
-            except asyncio.CancelledError:
-                raise
+            done, pending = await asyncio.wait(
+                waiters, timeout=timeout, return_when=asyncio.FIRST_COMPLETED,
+            )
 
             if not done:
                 # Timeout (idle or hard cap) elapsed — clean exit.
