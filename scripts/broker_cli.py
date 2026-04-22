@@ -693,6 +693,11 @@ def main() -> None:
     elif args.command == "repl":
         asyncio.run(run_client_mode(args.identity, args.socket))
     elif args.command == "create":
+        print(
+            "warning: 'broker create' is deprecated. The room model is being replaced by DMs; "
+            "use 'broker send --to <identity>' or 'broker broadcast' instead.",
+            file=sys.stderr,
+        )
         params = {"topic": args.topic}
         if args.content:
             params["content"] = args.content
@@ -839,10 +844,20 @@ def main() -> None:
             "conversation_id": args.conversation_id,
         })
     elif args.command == "join":
+        print(
+            "warning: 'broker join' is deprecated. Rooms are being replaced by per-identity inboxes; "
+            "use your derived identity and 'broker follow' instead.",
+            file=sys.stderr,
+        )
         _run_and_print(args.socket, args.identity, "join_conversation", {
             "conversation_id": args.conversation_id,
         })
     elif args.command == "leave":
+        print(
+            "warning: 'broker leave' is deprecated. Rooms are being replaced by per-identity inboxes; "
+            "no leave step is needed in the DM model.",
+            file=sys.stderr,
+        )
         _run_and_print(args.socket, args.identity, "leave_conversation", {
             "conversation_id": args.conversation_id,
         })

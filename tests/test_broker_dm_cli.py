@@ -145,6 +145,45 @@ def test_whoami_prints_derived_identity(tmp_path: Path) -> None:
     assert str(tmp_path) in result.stdout
 
 
+def test_create_emits_deprecation_warning(broker) -> None:
+    env = broker["env"]
+    result = subprocess.run(
+        CLI + ["create", "--identity", "alice", "test-room"],
+        env=env, capture_output=True, text=True,
+    )
+    # Should succeed (returncode 0) but emit a deprecation warning to stderr.
+    assert result.returncode == 0, result.stderr
+    assert "deprecat" in result.stderr.lower()
+
+
+def test_join_emits_deprecation_warning(broker) -> None:
+    env = broker["env"]
+    # Create a room first (itself will warn).
+    created = subprocess.run(
+        CLI + ["create", "--identity", "alice", "room"],
+        env=env, capture_output=True, text=True,
+    )
+    import json as _json
+    conv_id = _json.loads(created.stdout)["conversation_id"]
+    result = subprocess.run(
+        CLI + ["join", "--identity", "bob", conv_id],
+        env=env, capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "deprecat" in result.stderr.lower()
+
+
+def test_leave_emits_deprecation_warning(broker) -> None:
+    env = broker["env"]
+    created = subprocess.run(CLI + ["create", "--identity", "alice", "room"], env=env, capture_output=True, text=True)
+    import json as _json
+    conv_id = _json.loads(created.stdout)["conversation_id"]
+    subprocess.run(CLI + ["join", "--identity", "bob", conv_id], env=env, capture_output=True, text=True)
+    result = subprocess.run(CLI + ["leave", "--identity", "bob", conv_id], env=env, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert "deprecat" in result.stderr.lower()
+
+
 def test_follow_tails_inbox_file(broker) -> None:
     env = broker["env"]
     # Pre-populate one message so follow has something to drain.
