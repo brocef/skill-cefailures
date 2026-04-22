@@ -8,15 +8,23 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
+from broker_storage import InboxLog, OutboxLog, CursorStore, IdentityRegistry
+
 
 class BrokerServer:
     """Central broker that manages conversations, membership, and message routing."""
 
     def __init__(self, storage_dir: Path) -> None:
-        self.storage_dir = storage_dir
+        self.storage_dir = storage_dir  # conversations dir (legacy rooms)
         self.conversations: dict[str, dict] = {}
-        self.members: dict[str, set[str]] = {}  # conversation_id -> set of identities
-        self.clients: dict[str, Callable] = {}  # identity -> send callback
+        self.members: dict[str, set[str]] = {}
+        self.clients: dict[str, Callable] = {}
+        # DM model: inbox/outbox/cursors live as siblings of conversations/.
+        root = storage_dir.parent
+        self.inbox_log = InboxLog(root / "inbox")
+        self.outbox_log = OutboxLog(root / "outbox")
+        self.cursors = CursorStore(root / "cursors")
+        self.registry = IdentityRegistry(root / "identities.json")
         self._load_from_disk()
 
     def _generate_id(self) -> str:
