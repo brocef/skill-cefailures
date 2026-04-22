@@ -147,3 +147,60 @@ def test_reply_all_unknown_message_errors(tmp_path: Path) -> None:
     })
     assert result["type"] == "error"
     assert "not found" in result["message"].lower()
+
+
+def test_history_inbox_returns_all_without_advancing_cursor(tmp_path: Path) -> None:
+    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server.connect("alice", lambda m: None)
+    server.handle_request("alice", {"type": "send_dm", "id": "1", "to": ["bob"], "content": "first"})
+    server.handle_request("alice", {"type": "send_dm", "id": "2", "to": ["bob"], "content": "second"})
+
+    before_cursor = server.cursors.get("bob")
+    result = server.handle_request("bob", {"type": "history_inbox", "id": "x"})
+    assert result["type"] == "response"
+    lines = result["data"]["lines"]
+    assert len(lines) == 2
+    assert server.cursors.get("bob") == before_cursor
+
+
+def test_history_inbox_filters_by_sender(tmp_path: Path) -> None:
+    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server.connect("alice", lambda m: None)
+    server.connect("carol", lambda m: None)
+    server.handle_request("alice", {"type": "send_dm", "id": "1", "to": ["bob"], "content": "from alice"})
+    server.handle_request("carol", {"type": "send_dm", "id": "2", "to": ["bob"], "content": "from carol"})
+
+    result = server.handle_request("bob", {"type": "history_inbox", "id": "x", "from": "alice"})
+    lines = result["data"]["lines"]
+    assert len(lines) == 1
+    assert "from alice" in lines[0]
+
+
+def test_history_sent_reads_outbox(tmp_path: Path) -> None:
+    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server.connect("alice", lambda m: None)
+    server.handle_request("alice", {"type": "send_dm", "id": "1", "to": ["bob"], "content": "sent 1"})
+    server.handle_request("alice", {"type": "send_dm", "id": "2", "to": ["carol"], "content": "sent 2"})
+
+    result = server.handle_request("alice", {"type": "history_inbox", "id": "x", "sent": True})
+    lines = result["data"]["lines"]
+    assert len(lines) == 2
+    assert any("sent 1" in line for line in lines)
+    assert any("sent 2" in line for line in lines)
+
+
+def test_read_inbox_advances_cursor_and_returns_only_new(tmp_path: Path) -> None:
+    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server.connect("alice", lambda m: None)
+    server.handle_request("alice", {"type": "send_dm", "id": "1", "to": ["bob"], "content": "one"})
+
+    first = server.handle_request("bob", {"type": "read_inbox", "id": "x"})
+    assert len(first["data"]["lines"]) == 1
+
+    second = server.handle_request("bob", {"type": "read_inbox", "id": "y"})
+    assert second["data"]["lines"] == []
+
+    server.handle_request("alice", {"type": "send_dm", "id": "2", "to": ["bob"], "content": "two"})
+    third = server.handle_request("bob", {"type": "read_inbox", "id": "z"})
+    assert len(third["data"]["lines"]) == 1
+    assert third["data"]["lines"][0].endswith("two")

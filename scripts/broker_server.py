@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Callable
 
 from broker_constants import BROADCAST
-from broker_format import format_message
+from broker_format import format_message, parse_message
 from broker_storage import InboxLog, OutboxLog, CursorStore, IdentityRegistry
 
 
@@ -88,6 +88,8 @@ class BrokerServer:
                 "send_dm": self._handle_send_dm,
                 "send_broadcast": self._handle_broadcast,
                 "reply_all": self._handle_reply_all,
+                "history_inbox": self._handle_history_inbox,
+                "read_inbox": self._handle_read_inbox,
             }.get(msg_type)
 
             if not handler:
@@ -369,6 +371,45 @@ class BrokerServer:
             "to": ordered,
             "content": msg.get("content", ""),
         })
+
+    def _handle_history_inbox(self, identity: str, msg: dict) -> dict:
+        """Read the identity's inbox (or outbox, with `sent=True`) without advancing the cursor.
+
+        Optional filters:
+            from: only lines whose sender matches this identity
+            since: only lines with timestamp >= this ISO8601 string
+        """
+        sent = bool(msg.get("sent"))
+        if sent:
+            lines = self.outbox_log.read_all(identity)
+        else:
+            lines, _ = self.inbox_log.read_from(identity, 0)
+
+        from_filter = msg.get("from")
+        since = msg.get("since")
+        if from_filter or since:
+            filtered: list[str] = []
+            for line in lines:
+                try:
+                    parsed = parse_message(line, viewer=identity)
+                except ValueError:
+                    continue
+                if from_filter and parsed.sender != from_filter:
+                    continue
+                if since and parsed.timestamp < since:
+                    continue
+                filtered.append(line)
+            lines = filtered
+        self.registry.touch(identity, now=self._timestamp(), wrote=False)
+        return {"lines": lines}
+
+    def _handle_read_inbox(self, identity: str, msg: dict) -> dict:
+        """Return inbox lines since the identity's last read-cursor; advance the cursor."""
+        offset = self.cursors.get(identity)
+        lines, new_offset = self.inbox_log.read_from(identity, offset)
+        self.cursors.set(identity, new_offset)
+        self.registry.touch(identity, now=self._timestamp(), wrote=False)
+        return {"lines": lines}
 
     def _record_dm(
         self,
