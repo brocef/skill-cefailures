@@ -581,9 +581,9 @@ def main() -> None:
     p_ra.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
 
     # --- read ---
-    p_read = subparsers.add_parser("read", help="Read new messages")
-    p_read.add_argument("--identity", required=True, help="Your identity")
-    p_read.add_argument("conversation_id", help="Conversation ID")
+    p_read = subparsers.add_parser("read", help="Read new messages (DM inbox when no conv-id, legacy room otherwise)")
+    p_read.add_argument("--identity", required=False, help="Your identity (defaults to cwd-derived)")
+    p_read.add_argument("conversation_id", nargs="?", help="Conversation ID (legacy room mode)")
     p_read.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
     p_read.add_argument("--format", choices=["json", "compact"], default="json",
                         help="Output format. 'compact' emits [sender] content lines (agent-facing). Default: json.")
@@ -750,20 +750,39 @@ def main() -> None:
         for line in result.get("lines", []):
             print(line)
     elif args.command == "read":
-        if args.format == "compact":
+        identity = args.identity
+        if identity is None:
+            from broker_identity import derive_identity, IdentityDerivationError
             try:
-                result = asyncio.run(run_oneshot(args.socket, args.identity, "history", {
-                    "conversation_id": args.conversation_id,
-                }))
+                identity = derive_identity(Path.cwd())
+            except IdentityDerivationError as e:
+                print(f"error: {e}", file=sys.stderr)
+                sys.exit(1)
+        if args.conversation_id is None:
+            # DM inbox mode — advances cursor
+            try:
+                result = asyncio.run(run_oneshot(args.socket, identity, "read_inbox", {}))
             except (ValueError, ConnectionError) as e:
                 print(json.dumps({"error": str(e)}), file=sys.stderr)
                 sys.exit(1)
-            for msg in result.get("messages", []):
-                print(format_message_compact(msg), flush=True)
+            for line in result.get("lines", []):
+                print(line)
         else:
-            _run_and_print(args.socket, args.identity, "history", {
-                "conversation_id": args.conversation_id,
-            })
+            # Legacy room mode
+            if args.format == "compact":
+                try:
+                    result = asyncio.run(run_oneshot(args.socket, identity, "history", {
+                        "conversation_id": args.conversation_id,
+                    }))
+                except (ValueError, ConnectionError) as e:
+                    print(json.dumps({"error": str(e)}), file=sys.stderr)
+                    sys.exit(1)
+                for msg in result.get("messages", []):
+                    print(format_message_compact(msg), flush=True)
+            else:
+                _run_and_print(args.socket, identity, "history", {
+                    "conversation_id": args.conversation_id,
+                })
     elif args.command == "follow":
         sys.exit(asyncio.run(cmd_follow(args)))
     elif args.command == "list":

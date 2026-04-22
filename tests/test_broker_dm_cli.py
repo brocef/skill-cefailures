@@ -119,3 +119,13 @@ def test_history_cli_sent_flag(broker) -> None:
     result = subprocess.run(CLI + ["history", "--identity", "alice", "--sent"], env=env, capture_output=True, text=True)
     assert result.returncode == 0
     assert "sent one" in result.stdout
+
+
+def test_read_cli_inbox_mode(broker) -> None:
+    env = broker["env"]
+    subprocess.run(CLI + ["send", "--identity", "alice", "--to", "bob", "msg1"], env=env, capture_output=True, text=True)
+    first = subprocess.run(CLI + ["read", "--identity", "bob"], env=env, capture_output=True, text=True)
+    assert first.returncode == 0, first.stderr
+    assert "msg1" in first.stdout
+    second = subprocess.run(CLI + ["read", "--identity", "bob"], env=env, capture_output=True, text=True)
+    assert second.stdout.strip() == ""
