@@ -87,6 +87,7 @@ class BrokerServer:
                 "close_conversation": self._handle_close,
                 "send_dm": self._handle_send_dm,
                 "send_broadcast": self._handle_broadcast,
+                "reply_all": self._handle_reply_all,
             }.get(msg_type)
 
             if not handler:
@@ -333,6 +334,41 @@ class BrokerServer:
         self.outbox_log.append(identity, sender_line)
         self.registry.touch(identity, now=timestamp, wrote=True)
         return {"message_id": message_id, "recipient_count": len(self.registry.all())}
+
+    def _load_message_record(self, message_id: str) -> dict | None:
+        path = self.storage_dir.parent / "messages" / f"{message_id}.json"
+        if not path.exists():
+            return None
+        return json.loads(path.read_text())
+
+    def _handle_reply_all(self, identity: str, msg: dict) -> dict:
+        """Reply to everyone on a prior DM thread (excluding self).
+
+        Rejects if the target message was a broadcast.
+        """
+        record = self._load_message_record(msg["to_message"])
+        if record is None:
+            raise ValueError(f"Message '{msg['to_message']}' not found")
+        if record["is_broadcast"]:
+            raise ValueError("Cannot reply-all to a broadcast; use send_dm instead.")
+
+        recipients = [record["sender"]] + list(record["to"])
+        recipients = [r for r in recipients if r != identity]
+        seen: set[str] = set()
+        ordered: list[str] = []
+        for r in recipients:
+            if r not in seen:
+                seen.add(r)
+                ordered.append(r)
+        if not ordered:
+            raise ValueError("reply-all yielded an empty recipient set (you were the only party).")
+
+        return self._handle_send_dm(identity, {
+            "type": "send_dm",
+            "id": msg.get("id", ""),
+            "to": ordered,
+            "content": msg.get("content", ""),
+        })
 
     def _record_dm(
         self,

@@ -101,3 +101,49 @@ def test_broadcast_writes_sender_outbox(tmp_path: Path) -> None:
     _broadcast(server, "alice", "hello world")
     sent = server.outbox_log.read_all("alice")
     assert any("→ BROADCAST" in line for line in sent)
+
+
+def test_reply_all_computes_recipient_set(tmp_path: Path) -> None:
+    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server.connect("alice", lambda m: None)
+    server.connect("bob", lambda m: None)
+    server.connect("carol", lambda m: None)
+    sent = server.handle_request("alice", {
+        "type": "send_dm", "id": "1", "to": ["bob", "carol"], "content": "kickoff",
+    })["data"]
+    orig_id = sent["message_id"]
+
+    result = server.handle_request("bob", {
+        "type": "reply_all", "id": "2", "to_message": orig_id, "content": "replying",
+    })
+    assert result["type"] == "response"
+    assert set(result["data"]["recipients"]) == {"alice", "carol"}
+
+    alice_lines, _ = server.inbox_log.read_from("alice", 0)
+    carol_lines, _ = server.inbox_log.read_from("carol", 0)
+    bob_lines, _ = server.inbox_log.read_from("bob", 0)
+    assert any(line.endswith("replying") for line in alice_lines)
+    assert any(line.endswith("replying") for line in carol_lines)
+    assert not any(line.endswith("replying") for line in bob_lines)
+
+
+def test_reply_all_rejects_broadcast_message(tmp_path: Path) -> None:
+    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server.connect("alice", lambda m: None)
+    server.handle_request("alice", {"type": "send_dm", "id": "seed", "to": ["alice"], "content": "s"})
+    bcast = server.handle_request("alice", {"type": "send_broadcast", "id": "1", "content": "hi all"})
+    result = server.handle_request("alice", {
+        "type": "reply_all", "id": "2", "to_message": bcast["data"]["message_id"], "content": "nope",
+    })
+    assert result["type"] == "error"
+    assert "broadcast" in result["message"].lower()
+
+
+def test_reply_all_unknown_message_errors(tmp_path: Path) -> None:
+    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server.connect("alice", lambda m: None)
+    result = server.handle_request("alice", {
+        "type": "reply_all", "id": "2", "to_message": "msg-does-not-exist", "content": "x",
+    })
+    assert result["type"] == "error"
+    assert "not found" in result["message"].lower()
