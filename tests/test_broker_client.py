@@ -126,3 +126,74 @@ async def test_client_list_members(tmp_path, sock_path):
     finally:
         srv.close()
         await srv.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_send_dm_round_trip(tmp_path, sock_path):
+    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    srv = await start_server(server, sock_path)
+
+    alice = BrokerClient("alice", sock_path); await alice.connect()
+    bob = BrokerClient("bob", sock_path); await bob.connect()
+    try:
+        result = await alice.send_dm(["bob"], "hello bob")
+        assert "message_id" in result
+    finally:
+        await alice.close()
+        await bob.close()
+        srv.close()
+        await srv.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_broadcast_round_trip(tmp_path, sock_path):
+    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    srv = await start_server(server, sock_path)
+
+    alice = BrokerClient("alice", sock_path); await alice.connect()
+    bob = BrokerClient("bob", sock_path); await bob.connect()
+    try:
+        await alice.send_dm(["bob"], "seed")
+        result = await alice.broadcast("to all")
+        assert result["recipient_count"] >= 2
+    finally:
+        await alice.close(); await bob.close()
+        srv.close(); await srv.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_reply_all_round_trip(tmp_path, sock_path):
+    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    srv = await start_server(server, sock_path)
+
+    alice = BrokerClient("alice", sock_path); await alice.connect()
+    bob = BrokerClient("bob", sock_path); await bob.connect()
+    carol = BrokerClient("carol", sock_path); await carol.connect()
+    try:
+        sent = await alice.send_dm(["bob", "carol"], "kickoff")
+        reply = await bob.reply_all(sent["message_id"], "responding")
+        assert set(reply["recipients"]) == {"alice", "carol"}
+    finally:
+        for c in (alice, bob, carol): await c.close()
+        srv.close(); await srv.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_history_inbox_and_read_inbox(tmp_path, sock_path):
+    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    srv = await start_server(server, sock_path)
+
+    alice = BrokerClient("alice", sock_path); await alice.connect()
+    bob = BrokerClient("bob", sock_path); await bob.connect()
+    try:
+        await alice.send_dm(["bob"], "one")
+        await alice.send_dm(["bob"], "two")
+        hist = await bob.history_inbox()
+        assert len(hist["lines"]) == 2
+        first = await bob.read_inbox()
+        assert len(first["lines"]) == 2
+        second = await bob.read_inbox()
+        assert second["lines"] == []
+    finally:
+        await alice.close(); await bob.close()
+        srv.close(); await srv.wait_closed()

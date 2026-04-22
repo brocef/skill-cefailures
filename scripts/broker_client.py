@@ -126,3 +126,31 @@ class BrokerClient:
         return await self._request({
             "type": "close_conversation", "conversation_id": conversation_id,
         })
+
+    async def send_dm(self, to: list[str], content: str) -> dict:
+        """Send a direct message to one or more recipients."""
+        return await self._request({"type": "send_dm", "to": to, "content": content})
+
+    async def broadcast(self, content: str) -> dict:
+        """Broadcast to every registered identity."""
+        return await self._request({"type": "send_broadcast", "content": content})
+
+    async def reply_all(self, to_message: str, content: str) -> dict:
+        """Reply to everyone on a prior DM (excluding self)."""
+        return await self._request({
+            "type": "reply_all", "to_message": to_message, "content": content,
+        })
+
+    async def history_inbox(
+        self, *, sender: str | None = None, since: str | None = None, sent: bool = False,
+    ) -> dict:
+        """Read inbox (or outbox with `sent=True`) without advancing the cursor."""
+        msg: dict = {"type": "history_inbox"}
+        if sender: msg["from"] = sender
+        if since: msg["since"] = since
+        if sent: msg["sent"] = True
+        return await self._request(msg)
+
+    async def read_inbox(self) -> dict:
+        """Read new inbox lines since the last read-cursor; advances the cursor."""
+        return await self._request({"type": "read_inbox"})
