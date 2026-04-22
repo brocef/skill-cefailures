@@ -76,3 +76,26 @@ def test_broadcast_fans_out(broker) -> None:
     bob_inbox = (broker["tmp"] / "inbox" / "bob.log").read_text()
     assert "→ BROADCAST" in alice_inbox
     assert "→ BROADCAST" in bob_inbox
+
+
+def test_reply_all_cli(broker) -> None:
+    env = broker["env"]
+    sent = subprocess.run(
+        CLI + ["send", "--identity", "alice", "--to", "bob,carol", "kickoff"],
+        env=env, capture_output=True, text=True,
+    )
+    message_id = sent.stdout.strip()
+    assert sent.returncode == 0 and message_id.startswith("msg-")
+
+    result = subprocess.run(
+        CLI + ["reply-all", "--identity", "bob", "--to-message", message_id, "responding"],
+        env=env, capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    alice_inbox = (broker["tmp"] / "inbox" / "alice.log").read_text()
+    carol_inbox = (broker["tmp"] / "inbox" / "carol.log").read_text()
+    bob_inbox_path = broker["tmp"] / "inbox" / "bob.log"
+    bob_inbox = bob_inbox_path.read_text() if bob_inbox_path.exists() else ""
+    assert "responding" in alice_inbox
+    assert "responding" in carol_inbox
+    assert "responding" not in bob_inbox  # no self-echo

@@ -573,6 +573,13 @@ def main() -> None:
     p_bcast.add_argument("content", help="Message content")
     p_bcast.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
 
+    # --- reply-all (DM model) ---
+    p_ra = subparsers.add_parser("reply-all", help="Reply to all recipients of a prior DM (excluding self)")
+    p_ra.add_argument("--identity", required=False, help="Sender identity (defaults to cwd-derived)")
+    p_ra.add_argument("--to-message", required=True, help="Message ID of the original DM")
+    p_ra.add_argument("content", help="Message content")
+    p_ra.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
+
     # --- read ---
     p_read = subparsers.add_parser("read", help="Read new messages")
     p_read.add_argument("--identity", required=True, help="Your identity")
@@ -690,6 +697,23 @@ def main() -> None:
                 sys.exit(1)
         try:
             result = asyncio.run(run_oneshot(args.socket, identity, "send_broadcast", {"content": args.content}))
+        except (ValueError, ConnectionError) as e:
+            print(json.dumps({"error": str(e)}), file=sys.stderr)
+            sys.exit(1)
+        print(result["message_id"])
+    elif args.command == "reply-all":
+        identity = args.identity
+        if identity is None:
+            from broker_identity import derive_identity, IdentityDerivationError
+            try:
+                identity = derive_identity(Path.cwd())
+            except IdentityDerivationError as e:
+                print(f"error: {e}", file=sys.stderr)
+                sys.exit(1)
+        try:
+            result = asyncio.run(run_oneshot(args.socket, identity, "reply_all", {
+                "to_message": args.to_message, "content": args.content,
+            }))
         except (ValueError, ConnectionError) as e:
             print(json.dumps({"error": str(e)}), file=sys.stderr)
             sys.exit(1)
