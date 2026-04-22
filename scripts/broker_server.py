@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
+from broker_constants import BROADCAST
+from broker_format import format_message
 from broker_storage import InboxLog, OutboxLog, CursorStore, IdentityRegistry
 
 
@@ -83,6 +85,7 @@ class BrokerServer:
                 "list_conversations": self._handle_list,
                 "list_members": self._handle_list_members,
                 "close_conversation": self._handle_close,
+                "send_dm": self._handle_send_dm,
             }.get(msg_type)
 
             if not handler:
@@ -269,6 +272,64 @@ class BrokerServer:
                 self.clients[member](push)
 
         return {"conversation_id": cid, "status": "closed"}
+
+    def _handle_send_dm(self, identity: str, msg: dict) -> dict:
+        """Handle a direct-message send.
+
+        msg: { type, id, to: [identity, ...], content }
+        Rejects if `to` contains BROADCAST (use send_broadcast instead).
+        Appends to each recipient's inbox log, appends to sender's outbox log,
+        and pushes `inbox_message` to each online recipient.
+        """
+        to = msg.get("to") or []
+        content = msg.get("content", "")
+        if BROADCAST in to:
+            raise ValueError("BROADCAST is not a valid recipient; use send_broadcast.")
+        if not to:
+            raise ValueError("send_dm requires at least one recipient in `to`.")
+
+        message_id = self._message_id()
+        timestamp = self._timestamp()
+        self._record_dm(message_id, identity, to, timestamp, content, is_broadcast=False)
+
+        for recipient in to:
+            line = format_message(timestamp, identity, to, content, viewer=recipient)
+            self.inbox_log.append(recipient, line)
+            if recipient in self.clients and recipient != identity:
+                self.clients[recipient]({
+                    "type": "inbox_message",
+                    "message_id": message_id,
+                    "recipient": recipient,
+                    "line": line,
+                })
+
+        sender_line = format_message(timestamp, identity, to, content, viewer=identity)
+        self.outbox_log.append(identity, sender_line)
+
+        self.registry.touch(identity, now=timestamp, wrote=True)
+        return {"message_id": message_id, "recipients": list(to)}
+
+    def _record_dm(
+        self,
+        message_id: str,
+        sender: str,
+        to: list[str],
+        timestamp: str,
+        content: str,
+        is_broadcast: bool,
+    ) -> None:
+        """Store the raw fields needed to answer reply-all queries."""
+        self.storage_dir.parent.joinpath("messages").mkdir(parents=True, exist_ok=True)
+        record = {
+            "id": message_id,
+            "sender": sender,
+            "to": list(to),
+            "timestamp": timestamp,
+            "content": content,
+            "is_broadcast": is_broadcast,
+        }
+        path = self.storage_dir.parent / "messages" / f"{message_id}.json"
+        path.write_text(json.dumps(record))
 
 
 async def _handle_client(server: BrokerServer, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
