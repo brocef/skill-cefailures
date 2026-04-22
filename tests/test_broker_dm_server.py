@@ -69,3 +69,35 @@ def test_send_dm_pushes_to_connected_recipient(tmp_path: Path) -> None:
     server.connect("bob", received.append)
     _send(server, "alice", to=["bob"], content="live push")
     assert any(m.get("type") == "inbox_message" for m in received)
+
+
+def _broadcast(server: BrokerServer, identity: str, content: str) -> dict:
+    result = server.handle_request(identity, {"type": "send_broadcast", "id": "x", "content": content})
+    if result["type"] == "error":
+        raise ValueError(result["message"])
+    return result["data"]
+
+
+def test_broadcast_delivers_to_every_registered_identity(tmp_path: Path) -> None:
+    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server.connect("alice", lambda m: None)
+    server.connect("bob", lambda m: None)
+    server.connect("carol", lambda m: None)
+    # Register all three by having each send a DM.
+    server.handle_request("alice", {"type": "send_dm", "id": "1", "to": ["bob"], "content": "seed"})
+    server.handle_request("bob", {"type": "send_dm", "id": "2", "to": ["carol"], "content": "seed"})
+    server.handle_request("carol", {"type": "send_dm", "id": "3", "to": ["alice"], "content": "seed"})
+
+    _broadcast(server, "alice", "announcement")
+    for recipient in ("alice", "bob", "carol"):
+        lines, _ = server.inbox_log.read_from(recipient, 0)
+        assert any("→ BROADCAST" in line and line.endswith("announcement") for line in lines)
+
+
+def test_broadcast_writes_sender_outbox(tmp_path: Path) -> None:
+    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server.connect("alice", lambda m: None)
+    server.handle_request("alice", {"type": "send_dm", "id": "1", "to": ["alice"], "content": "self"})
+    _broadcast(server, "alice", "hello world")
+    sent = server.outbox_log.read_all("alice")
+    assert any("→ BROADCAST" in line for line in sent)

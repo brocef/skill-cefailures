@@ -86,6 +86,7 @@ class BrokerServer:
                 "list_members": self._handle_list_members,
                 "close_conversation": self._handle_close,
                 "send_dm": self._handle_send_dm,
+                "send_broadcast": self._handle_broadcast,
             }.get(msg_type)
 
             if not handler:
@@ -308,6 +309,30 @@ class BrokerServer:
 
         self.registry.touch(identity, now=timestamp, wrote=True)
         return {"message_id": message_id, "recipients": list(to)}
+
+    def _handle_broadcast(self, identity: str, msg: dict) -> dict:
+        """Fan out to every registered identity's inbox."""
+        content = msg.get("content", "")
+        message_id = self._message_id()
+        timestamp = self._timestamp()
+        recipients = [BROADCAST]
+        self._record_dm(message_id, identity, recipients, timestamp, content, is_broadcast=True)
+
+        for dest in self.registry.all():
+            line = format_message(timestamp, identity, recipients, content, viewer=dest)
+            self.inbox_log.append(dest, line)
+            if dest in self.clients and dest != identity:
+                self.clients[dest]({
+                    "type": "inbox_message",
+                    "message_id": message_id,
+                    "recipient": dest,
+                    "line": line,
+                })
+
+        sender_line = format_message(timestamp, identity, recipients, content, viewer=identity)
+        self.outbox_log.append(identity, sender_line)
+        self.registry.touch(identity, now=timestamp, wrote=True)
+        return {"message_id": message_id, "recipient_count": len(self.registry.all())}
 
     def _record_dm(
         self,
