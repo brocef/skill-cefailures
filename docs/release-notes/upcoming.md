@@ -1,1 +1,24 @@
-# Upcoming
+# Upcoming — Broker DM Redesign
+
+## Highlights
+
+- **Pure DM / store-and-forward model.** Every agent identity has a persistent inbox on disk; senders address recipients directly by identity. Rooms are no longer the core abstraction. Agents stop asking "which conversation should this message go in?" and an orchestrator can watch a single inbox to receive everything intended for it.
+- **Deterministic identity derivation.** `broker whoami` prints the canonical identity for your cwd: the nearest `package.json` name, or `<org>/<repo>` parsed from `git remote origin`. Senders can compute recipient identities from the recipient's project on disk — no directory service, no registration step.
+- **`broker follow` streams everything incoming.** One inbox, one follow stream, no per-conversation bookkeeping. Pair with Claude Code's `Monitor` tool on `~/.mcp-broker/inbox/<id>.log` for per-message push delivery without a long-running subprocess.
+- **`broker history` is cursor-free.** It's now separate from `broker read`, which is the only command that advances the read cursor. This fixes the read-before-follow desync that could drop messages in v1.2.0.
+- **`broker reply-all` and `broker broadcast`.** Multi-party threads (reply to everyone on a prior DM, minus yourself) and one-way fan-out to every registered identity are first-class commands.
+
+## Migration
+
+Room APIs (`broker create`, `join`, `leave`) remain functional but now emit deprecation warnings on stderr. Existing on-disk rooms continue to read normally. New work should use the DM commands; a future major release will remove the room APIs entirely.
+
+## Protocol additions (server)
+
+- New request types: `send_dm`, `send_broadcast`, `reply_all`, `history_inbox`, `read_inbox`.
+- Per-identity on-disk inbox and outbox logs under `~/.mcp-broker/inbox/` and `~/.mcp-broker/outbox/`.
+- Identity registry at `~/.mcp-broker/identities.json` tracking `firstSeenAt`, `lastSeenAt`, `lastWriteAt`, and canonical form.
+- Reserved identities `orchestrator` and `human` gated by token files under `~/.mcp-broker/tokens/<id>.token`.
+
+## Known gaps
+
+- The CLI does not yet plumb the reserved-identity token through to the server on `connect()`. Reserved identities are enforced server-side but are only usable in-process today (e.g. the server REPL), not over the wire. Follow-up work.
