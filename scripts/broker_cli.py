@@ -4,6 +4,7 @@
 import argparse
 import asyncio
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -529,8 +530,8 @@ def _run_and_print(sock_path: str, identity: str, request_type: str, params: dic
         sys.exit(1)
 
 
-DEFAULT_SOCKET = str(Path.home() / ".mcp-broker" / "broker.sock")
-DEFAULT_STORAGE = Path.home() / ".mcp-broker" / "conversations"
+DEFAULT_SOCKET = os.environ.get("MCP_BROKER_SOCK", str(Path.home() / ".mcp-broker" / "broker.sock"))
+DEFAULT_STORAGE = Path(os.environ.get("MCP_BROKER_STORAGE", str(Path.home() / ".mcp-broker" / "conversations")))
 
 
 def main() -> None:
@@ -559,9 +560,10 @@ def main() -> None:
     p_create.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
 
     # --- send ---
-    p_send = subparsers.add_parser("send", help="Send a message")
-    p_send.add_argument("--identity", required=True, help="Your identity")
-    p_send.add_argument("conversation_id", help="Conversation ID")
+    p_send = subparsers.add_parser("send", help="Send a message (DM with --to, or legacy room with conversation_id)")
+    p_send.add_argument("--identity", required=False, help="Sender identity (defaults to cwd-derived)")
+    p_send.add_argument("--to", help="Comma-separated recipient identities (DM mode)")
+    p_send.add_argument("conversation_id", nargs="?", help="Conversation ID (legacy room mode)")
     p_send.add_argument("content", help="Message content")
     p_send.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
 
@@ -644,9 +646,33 @@ def main() -> None:
             params["content"] = args.content
         _run_and_print(args.socket, args.identity, "create_conversation", params)
     elif args.command == "send":
-        _run_and_print(args.socket, args.identity, "send_message", {
-            "conversation_id": args.conversation_id, "content": args.content,
-        })
+        identity = args.identity
+        if identity is None:
+            from broker_identity import derive_identity, IdentityDerivationError
+            try:
+                identity = derive_identity(Path.cwd())
+            except IdentityDerivationError as e:
+                print(f"error: {e}", file=sys.stderr)
+                sys.exit(1)
+        if args.to:
+            # DM mode
+            recipients = [r.strip() for r in args.to.split(",")]
+            try:
+                result = asyncio.run(run_oneshot(args.socket, identity, "send_dm", {
+                    "to": recipients, "content": args.content,
+                }))
+            except (ValueError, ConnectionError) as e:
+                print(json.dumps({"error": str(e)}), file=sys.stderr)
+                sys.exit(1)
+            print(result["message_id"])
+        else:
+            # Legacy room mode — requires conversation_id
+            if args.conversation_id is None:
+                print("error: either --to <recipients> (DM) or a conversation_id (legacy room) is required", file=sys.stderr)
+                sys.exit(1)
+            _run_and_print(args.socket, identity, "send_message", {
+                "conversation_id": args.conversation_id, "content": args.content,
+            })
     elif args.command == "read":
         if args.format == "compact":
             try:
