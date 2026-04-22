@@ -680,6 +680,9 @@ def main() -> None:
     p_close.add_argument("conversation_id", help="Conversation ID")
     p_close.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
 
+    # --- whoami (DM model) ---
+    p_whoami = subparsers.add_parser("whoami", help="Print the identity derived from cwd")
+
     args = parser.parse_args()
 
     if args.command is None:
@@ -847,6 +850,14 @@ def main() -> None:
         _run_and_print(args.socket, args.identity, "close_conversation", {
             "conversation_id": args.conversation_id,
         })
+    elif args.command == "whoami":
+        from broker_identity import derive_identity, IdentityDerivationError
+        try:
+            identity = derive_identity(Path.cwd())
+        except IdentityDerivationError as e:
+            print(f"error: {e}", file=sys.stderr)
+            sys.exit(1)
+        print(f"{identity}  (from {Path.cwd()})")
 
 
 if __name__ == "__main__":

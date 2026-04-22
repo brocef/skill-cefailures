@@ -131,6 +131,20 @@ def test_read_cli_inbox_mode(broker) -> None:
     assert second.stdout.strip() == ""
 
 
+def test_whoami_prints_derived_identity(tmp_path: Path) -> None:
+    import json as _json
+    (tmp_path / "package.json").write_text(_json.dumps({"name": "test-pkg"}))
+    result = subprocess.run(
+        CLI + ["whoami"],
+        cwd=tmp_path,
+        env={"PATH": Path(sys.executable).parent.as_posix()},
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "test-pkg" in result.stdout
+    assert str(tmp_path) in result.stdout
+
+
 def test_follow_tails_inbox_file(broker) -> None:
     env = broker["env"]
     # Pre-populate one message so follow has something to drain.
