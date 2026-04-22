@@ -204,3 +204,44 @@ def test_read_inbox_advances_cursor_and_returns_only_new(tmp_path: Path) -> None
     third = server.handle_request("bob", {"type": "read_inbox", "id": "z"})
     assert len(third["data"]["lines"]) == 1
     assert third["data"]["lines"][0].endswith("two")
+
+
+def test_reserved_identity_requires_token(tmp_path: Path) -> None:
+    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server.connect("bob", lambda m: None)
+    with pytest.raises(ValueError, match="reserved"):
+        server.connect("orchestrator", lambda m: None)
+
+
+def test_reserved_identity_with_token_allowed(tmp_path: Path) -> None:
+    root = tmp_path
+    token_dir = root / "tokens"
+    token_dir.mkdir()
+    (token_dir / "orchestrator.token").write_text("ok")
+
+    server = BrokerServer(storage_dir=root / "conversations")
+    server.connect("orchestrator", lambda m: None, token="ok")
+    server.connect("bob", lambda m: None)
+    server.handle_request("orchestrator", {
+        "type": "send_dm", "id": "1", "to": ["bob"], "content": "orchestrator here",
+    })
+    lines, _ = server.inbox_log.read_from("bob", 0)
+    assert any("[orchestrator]" in line for line in lines)
+
+
+def test_broadcast_identity_cannot_be_claimed(tmp_path: Path) -> None:
+    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    with pytest.raises(ValueError, match="reserved"):
+        server.connect("BROADCAST", lambda m: None)
+
+
+def test_reserved_identity_unconnected_rejected_on_request(tmp_path: Path) -> None:
+    """A reserved identity must go through privileged connect() before it can send."""
+    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server.connect("bob", lambda m: None)
+    # Try to use 'orchestrator' in handle_request without connect().
+    result = server.handle_request("orchestrator", {
+        "type": "send_dm", "id": "1", "to": ["bob"], "content": "spoofed",
+    })
+    assert result["type"] == "error"
+    assert "reserved" in result["message"].lower()

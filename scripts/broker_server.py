@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from broker_constants import BROADCAST
+from broker_constants import BROADCAST, RESERVED_IDENTITIES
 from broker_format import format_message, parse_message
 from broker_storage import InboxLog, OutboxLog, CursorStore, IdentityRegistry
 
@@ -57,9 +57,23 @@ class BrokerServer:
         path = self.storage_dir / f"{conversation_id}.json"
         path.write_text(json.dumps(conv, indent=2))
 
-    def connect(self, identity: str, send: Callable) -> None:
-        """Register a client connection."""
+    def connect(self, identity: str, send: Callable, token: str | None = None) -> None:
+        """Register a client connection. Reserved identities require a matching token."""
+        if identity in RESERVED_IDENTITIES:
+            if identity == "BROADCAST":
+                raise ValueError("BROADCAST is reserved and cannot be claimed as an identity.")
+            expected = self._read_token(identity)
+            if expected is None or token != expected:
+                raise ValueError(f"Identity '{identity}' is reserved; a valid token is required.")
         self.clients[identity] = send
+        self.registry.touch(identity, now=self._timestamp(), wrote=False)
+
+    def _read_token(self, identity: str) -> str | None:
+        """Read the contents of ~/.mcp-broker/tokens/<identity>.token, or None."""
+        path = self.storage_dir.parent / "tokens" / f"{identity}.token"
+        if not path.exists():
+            return None
+        return path.read_text().strip()
 
     def disconnect(self, identity: str) -> None:
         """Remove the client's push callback. Does not change conversation membership.
@@ -74,6 +88,13 @@ class BrokerServer:
         """Dispatch a client request and return a response or error."""
         req_id = msg.get("id", "")
         msg_type = msg.get("type", "")
+
+        if identity in RESERVED_IDENTITIES and identity not in self.clients:
+            return {
+                "type": "error",
+                "id": req_id,
+                "message": f"Identity '{identity}' is reserved; connect with a valid token first.",
+            }
 
         try:
             handler = {
