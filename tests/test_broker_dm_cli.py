@@ -62,3 +62,17 @@ def test_send_dm_multi_recipient(broker) -> None:
     assert result.returncode == 0, result.stderr
     assert (broker["tmp"] / "inbox" / "bob.log").exists()
     assert (broker["tmp"] / "inbox" / "carol.log").exists()
+
+
+def test_broadcast_fans_out(broker) -> None:
+    env = broker["env"]
+    # Register alice and bob by each sending a DM to the other.
+    subprocess.run(CLI + ["send", "--identity", "alice", "--to", "bob", "seed"], env=env, capture_output=True, text=True)
+    subprocess.run(CLI + ["send", "--identity", "bob", "--to", "alice", "seed"], env=env, capture_output=True, text=True)
+    # Broadcast from alice.
+    result = subprocess.run(CLI + ["broadcast", "--identity", "alice", "announcement"], env=env, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    alice_inbox = (broker["tmp"] / "inbox" / "alice.log").read_text()
+    bob_inbox = (broker["tmp"] / "inbox" / "bob.log").read_text()
+    assert "→ BROADCAST" in alice_inbox
+    assert "→ BROADCAST" in bob_inbox

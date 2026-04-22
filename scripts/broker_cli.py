@@ -567,6 +567,12 @@ def main() -> None:
     p_send.add_argument("content", help="Message content")
     p_send.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
 
+    # --- broadcast (DM model) ---
+    p_bcast = subparsers.add_parser("broadcast", help="Send a broadcast to every registered identity")
+    p_bcast.add_argument("--identity", required=False, help="Sender identity (defaults to cwd-derived)")
+    p_bcast.add_argument("content", help="Message content")
+    p_bcast.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
+
     # --- read ---
     p_read = subparsers.add_parser("read", help="Read new messages")
     p_read.add_argument("--identity", required=True, help="Your identity")
@@ -673,6 +679,21 @@ def main() -> None:
             _run_and_print(args.socket, identity, "send_message", {
                 "conversation_id": args.conversation_id, "content": args.content,
             })
+    elif args.command == "broadcast":
+        identity = args.identity
+        if identity is None:
+            from broker_identity import derive_identity, IdentityDerivationError
+            try:
+                identity = derive_identity(Path.cwd())
+            except IdentityDerivationError as e:
+                print(f"error: {e}", file=sys.stderr)
+                sys.exit(1)
+        try:
+            result = asyncio.run(run_oneshot(args.socket, identity, "send_broadcast", {"content": args.content}))
+        except (ValueError, ConnectionError) as e:
+            print(json.dumps({"error": str(e)}), file=sys.stderr)
+            sys.exit(1)
+        print(result["message_id"])
     elif args.command == "read":
         if args.format == "compact":
             try:
