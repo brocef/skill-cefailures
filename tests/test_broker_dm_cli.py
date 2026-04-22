@@ -99,3 +99,23 @@ def test_reply_all_cli(broker) -> None:
     assert "responding" in alice_inbox
     assert "responding" in carol_inbox
     assert "responding" not in bob_inbox  # no self-echo
+
+
+def test_history_cli(broker) -> None:
+    env = broker["env"]
+    subprocess.run(CLI + ["send", "--identity", "alice", "--to", "bob", "one"], env=env, capture_output=True, text=True)
+    subprocess.run(CLI + ["send", "--identity", "alice", "--to", "bob", "two"], env=env, capture_output=True, text=True)
+    result = subprocess.run(CLI + ["history", "--identity", "bob"], env=env, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    lines = result.stdout.strip().splitlines()
+    assert len(lines) == 2
+    assert lines[0].endswith("one")
+    assert lines[1].endswith("two")
+
+
+def test_history_cli_sent_flag(broker) -> None:
+    env = broker["env"]
+    subprocess.run(CLI + ["send", "--identity", "alice", "--to", "bob", "sent one"], env=env, capture_output=True, text=True)
+    result = subprocess.run(CLI + ["history", "--identity", "alice", "--sent"], env=env, capture_output=True, text=True)
+    assert result.returncode == 0
+    assert "sent one" in result.stdout

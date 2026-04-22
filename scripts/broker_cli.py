@@ -610,6 +610,14 @@ def main() -> None:
     p_follow.add_argument("--format", choices=["compact", "json"], default="compact",
                           help="Output format. Default: compact.")
 
+    # --- history (DM model) ---
+    p_hist = subparsers.add_parser("history", help="Read inbox (or outbox with --sent) without advancing cursor")
+    p_hist.add_argument("--identity", required=False, help="Your identity (defaults to cwd-derived)")
+    p_hist.add_argument("--from", dest="from_filter", help="Only lines from this sender")
+    p_hist.add_argument("--since", help="Only lines with timestamp >= this ISO8601 string")
+    p_hist.add_argument("--sent", action="store_true", help="Read the sender's outbox instead of inbox")
+    p_hist.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
+
     # --- list ---
     p_list = subparsers.add_parser("list", help="List conversations")
     p_list.add_argument("--identity", required=True, help="Your identity")
@@ -718,6 +726,29 @@ def main() -> None:
             print(json.dumps({"error": str(e)}), file=sys.stderr)
             sys.exit(1)
         print(result["message_id"])
+    elif args.command == "history":
+        identity = args.identity
+        if identity is None:
+            from broker_identity import derive_identity, IdentityDerivationError
+            try:
+                identity = derive_identity(Path.cwd())
+            except IdentityDerivationError as e:
+                print(f"error: {e}", file=sys.stderr)
+                sys.exit(1)
+        params: dict = {}
+        if args.from_filter:
+            params["from"] = args.from_filter
+        if args.since:
+            params["since"] = args.since
+        if args.sent:
+            params["sent"] = True
+        try:
+            result = asyncio.run(run_oneshot(args.socket, identity, "history_inbox", params))
+        except (ValueError, ConnectionError) as e:
+            print(json.dumps({"error": str(e)}), file=sys.stderr)
+            sys.exit(1)
+        for line in result.get("lines", []):
+            print(line)
     elif args.command == "read":
         if args.format == "compact":
             try:
