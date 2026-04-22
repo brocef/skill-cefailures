@@ -112,8 +112,13 @@ class IdentityRegistry:
         self._load()
 
     def _load(self) -> None:
-        if self.path.exists():
+        if not self.path.exists():
+            return
+        try:
             self._entries = json.loads(self.path.read_text())
+        except (json.JSONDecodeError, OSError):
+            # Corrupt or unreadable registry — start fresh rather than crashing.
+            self._entries = {}
 
     def _save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)

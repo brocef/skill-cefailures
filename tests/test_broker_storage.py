@@ -103,3 +103,26 @@ def test_registry_list_all(tmp_path: Path) -> None:
     reg.touch("alice", now="t1", wrote=False)
     reg.touch("bob", now="t1", wrote=False)
     assert sorted(reg.all()) == ["alice", "bob"]
+
+
+def test_registry_lookup_case_insensitive(tmp_path: Path) -> None:
+    reg = IdentityRegistry(tmp_path / "identities.json")
+    reg.touch("Alice", now="2026-04-22T00:00:00Z", wrote=False)
+    entry = reg.get("alice")
+    assert entry is not None
+    assert entry["canonical"] == "Alice"
+
+
+def test_registry_wrote_false_does_not_set_last_write(tmp_path: Path) -> None:
+    reg = IdentityRegistry(tmp_path / "identities.json")
+    reg.touch("alice", now="2026-04-22T00:00:00Z", wrote=False)
+    entry = reg.get("alice")
+    assert "lastWriteAt" not in entry
+
+
+def test_registry_recovers_from_corrupt_file(tmp_path: Path) -> None:
+    path = tmp_path / "identities.json"
+    path.write_text("{not json")
+    reg = IdentityRegistry(path)
+    reg.touch("alice", now="t1", wrote=True)
+    assert reg.get("alice")["firstSeenAt"] == "t1"
