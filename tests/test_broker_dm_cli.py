@@ -129,3 +129,26 @@ def test_read_cli_inbox_mode(broker) -> None:
     assert "msg1" in first.stdout
     second = subprocess.run(CLI + ["read", "--identity", "bob"], env=env, capture_output=True, text=True)
     assert second.stdout.strip() == ""
+
+
+def test_follow_tails_inbox_file(broker) -> None:
+    env = broker["env"]
+    # Pre-populate one message so follow has something to drain.
+    subprocess.run(
+        CLI + ["send", "--identity", "alice", "--to", "bob", "backlog msg"],
+        env=env, capture_output=True, text=True,
+    )
+    # Start follow in background. Short idle-timeout so it exits quickly.
+    follow = subprocess.Popen(
+        CLI + ["follow", "--identity", "bob", "--idle-timeout", "2"],
+        env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+    )
+    time.sleep(0.3)
+    # Send a live message while follow is running.
+    subprocess.run(
+        CLI + ["send", "--identity", "alice", "--to", "bob", "live msg"],
+        env=env, capture_output=True, text=True,
+    )
+    stdout, stderr = follow.communicate(timeout=5)
+    assert "backlog msg" in stdout, stderr
+    assert "live msg" in stdout, stderr

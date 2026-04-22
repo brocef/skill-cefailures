@@ -411,6 +411,34 @@ async def run_oneshot(sock_path: str, identity: str, request_type: str, params: 
         await client.close()
 
 
+def cmd_follow_inbox(identity: str, idle_timeout: int) -> int:
+    """Tail the per-identity DM inbox log, starting from cursor, exiting on idle."""
+    import time
+    from broker_storage import InboxLog, CursorStore
+
+    storage_root = Path(os.environ.get(
+        "MCP_BROKER_STORAGE",
+        str(Path.home() / ".mcp-broker" / "conversations"),
+    )).parent
+    inbox = InboxLog(storage_root / "inbox")
+    cursors = CursorStore(storage_root / "cursors")
+
+    poll_interval = 0.2
+    last_activity = time.monotonic()
+
+    while True:
+        offset = cursors.get(identity)
+        lines, new_offset = inbox.read_from(identity, offset)
+        if lines:
+            for line in lines:
+                print(line, flush=True)
+            cursors.set(identity, new_offset)
+            last_activity = time.monotonic()
+        if idle_timeout > 0 and time.monotonic() - last_activity >= idle_timeout:
+            return 0
+        time.sleep(poll_interval)
+
+
 async def cmd_follow(args: argparse.Namespace) -> int:
     client = BrokerClient(args.identity, args.socket)
     client.on_push = asyncio.Queue()
@@ -595,8 +623,8 @@ def main() -> None:
              "consumes pushes until idle-timeout, total timeout, count, or "
              "conversation_closed. Use foreground to block until a reply arrives.",
     )
-    p_follow.add_argument("--identity", required=True, help="Your identity")
-    p_follow.add_argument("conversation_id", help="Conversation ID")
+    p_follow.add_argument("--identity", required=False, help="Your identity (defaults to cwd-derived)")
+    p_follow.add_argument("conversation_id", nargs="?", help="Conversation ID (legacy room mode). Omit for DM inbox mode.")
     p_follow.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
     p_follow.add_argument("--idle-timeout", type=int, default=120,
                           help="Exit after N seconds of silence. 0 disables. Default: 120.")
@@ -784,6 +812,19 @@ def main() -> None:
                     "conversation_id": args.conversation_id,
                 })
     elif args.command == "follow":
+        identity = args.identity
+        if identity is None:
+            from broker_identity import derive_identity, IdentityDerivationError
+            try:
+                identity = derive_identity(Path.cwd())
+            except IdentityDerivationError as e:
+                print(f"error: {e}", file=sys.stderr)
+                sys.exit(1)
+        if args.conversation_id is None:
+            # DM inbox tail mode — no server round-trip, reads file directly.
+            sys.exit(cmd_follow_inbox(identity, args.idle_timeout))
+        # Legacy room follow mode — existing behavior.
+        args.identity = identity  # cmd_follow reads args.identity
         sys.exit(asyncio.run(cmd_follow(args)))
     elif args.command == "list":
         params = {}
