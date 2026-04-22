@@ -1,77 +1,74 @@
 # Broker Usage Patterns
 
-Canonical ways to use the broker in a multi-agent Claude Code setup.
+Canonical DM-model patterns. All commands auto-derive `--identity` from cwd unless noted.
 
-## Pattern: Wait for a reply
+### Wait for a reply
 
-When you've sent a message and expect the other agent to respond, use `broker follow` in the foreground. It blocks until replies arrive, then returns.
-
-```bash
-broker send --identity server ROOM "Pushed v1.2.3, please bump the dep"
-broker follow ROOM --identity server --idle-timeout 120
-```
-
-`broker follow` will:
-1. Drain any backlog you haven't read yet.
-2. Print each incoming message as `[sender] content`.
-3. Return when the conversation goes quiet for `--idle-timeout` seconds.
-
-Adjust `--idle-timeout` to match how long you're willing to wait before giving up. For short questions, 60s is reasonable. For long-running work (e.g. "publish a package"), use 600s or disable with `--idle-timeout 0`.
-
-To wait for exactly one reply and exit:
+Send, then block on your inbox. `broker follow` drains any backlog and streams new arrivals; it returns when the conversation goes quiet.
 
 ```bash
-broker follow ROOM --identity server --count 1
+broker send --to proposit-server "QUESTION: which schema version for v1.3?"
+broker follow --idle-timeout 120
 ```
 
-## Pattern: Side conversation (DM-style) between two agents
+Tune `--idle-timeout` to your patience: 60s for a quick ping, 600s (or `0` to disable) if the other agent is doing real work.
 
-When two agents need to discuss something in depth that other agents should not have to read (e.g. API change requests, debugging sessions), fork a dedicated conversation.
+### Announce to everyone
 
-Naming convention: `{a}-{b}-{topic}-{YYYYMMDD-HHMMSS}`. Example:
+Use `broadcast` for state changes that every registered agent should see — CI breakage, registry outages, big milestones.
 
 ```bash
-# server agent creates a focused conversation with core
-broker create --identity server "server-core-change-request-20260421-1530" \
-  --content "We need to change the validate() signature. Joining…"
-# ^ returns a conversation_id; share it with core
-broker send --identity server MAIN_ROOM \
-  "QUESTION: @core let's continue in server-core-change-request-20260421-1530 (ID: <cid>)"
+broker broadcast "BLOCKED: npm registry is down, pausing publishes"
 ```
 
-Lifecycle:
-- Create the side room; seed with the topic.
-- Invite the other agent via a message in the main room (or let them join by ID).
-- Work the discussion to a conclusion.
-- Post the outcome back to the main room as a `DECISION:` or `READY:` signal.
-- `broker close` the side room when done — it stays on disk for audit but drops out of `broker list`.
+Pitfall: broadcasts have no stable recipient set. Don't try to `reply-all` to one — DM the broadcaster directly: `broker send --to <broadcaster> "…"`.
 
-Other agents should **not join** side rooms unless explicitly invited — the naming convention makes the ownership obvious.
+### Multi-party thread with reply-all
 
-## Pattern: Short signals in the main room
-
-Use short, structured signals in the top-level coordination room (one per repo or per initiative). Examples:
-
-```
-[server] READY: v1.2.3 published
-[core] BLOCKED: server TypeError on validate()
-[server] QUESTION: @core should validate() take a schema or a raw object?
-[server] DECISION: side conv → validate(schema) wins
-```
-
-See `signals.md` for the full vocabulary.
-
-## Pattern: Stream messages while working (rare)
-
-If you're doing other work but still want to react to messages as they arrive, run `broker follow` in the background via the Monitor tool. Each printed line becomes a Monitor notification you can respond to on your next turn.
+Capture the message ID from `send`, then use `reply-all` to address the same group without retyping `--to`. Reply-all automatically excludes yourself.
 
 ```bash
-broker follow ROOM --identity server --idle-timeout 0 --timeout 1800
-# ^ run under Monitor; idle disabled so the stream doesn't exit while you work
+MID=$(broker send --to proposit-server,proposit-core "QUESTION: validate(schema) or validate(obj)?")
+broker follow --idle-timeout 180
+broker reply-all --to-message "$MID" "DECISION: validate(schema) wins; shared will expose the type."
 ```
 
-Use sparingly: every incoming line consumes agent context. Prefer foreground `broker follow` when you're explicitly waiting.
+Pitfall: `reply-all --to-message` on a broadcast errors. If the thread started with a broadcast, fall back to explicit `send --to`.
+
+### Catch up after being away
+
+`broker history` reads the inbox without moving the cursor — use it for situational awareness. `broker read` drains new lines and advances the cursor — use it when you want the lines out of your backlog permanently.
+
+```bash
+broker history --since 2026-04-22T09:00:00Z        # browse recent traffic, no side effects
+broker history --from orchestrator                  # just orchestrator's DMs to you
+broker read                                         # consume new, advance cursor
+```
+
+When in doubt, prefer `broker follow` over `broker read`: follow drains into your context and then streams, which is almost always what you want.
+
+### Orchestrator watching many agents
+
+An orchestrator's inbox is the union of every DM addressed to it — `send --to orchestrator`, `reply-all` threads that include it, and broadcasts. A single `broker follow` on the orchestrator's own inbox captures every relay. No multi-room follow; no fan-in bookkeeping.
+
+```bash
+# In the orchestrator's workspace
+broker follow --idle-timeout 0        # stream indefinitely; Monitor/Ctrl-C when done
+```
+
+### Streaming into Claude Code's `Monitor` tool
+
+Point `Monitor` directly at the per-identity inbox log to push each new message into your context as it's written. Useful for orchestrators that want per-message reactivity without holding a blocking `broker follow` in the foreground.
+
+```bash
+# Example path — replace with the output of `broker whoami | sed 's#/#_#g'`
+~/.mcp-broker/inbox/orchestrator.log
+```
+
+Each appended line becomes a Monitor notification. Pair with `broker history` if you need to also read the backlog before streaming.
+
+Pitfall: every streamed line consumes context. Prefer foreground `broker follow` when you're explicitly waiting; reserve Monitor streaming for orchestrators and long-lived coordinators.
 
 ## Anti-patterns
 
-See `troubleshooting.md`. If you're about to write a bash loop, read that doc first.
+See `troubleshooting.md`. If you're about to write a bash loop or a jq pipeline, read that doc first.

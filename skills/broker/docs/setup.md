@@ -31,22 +31,13 @@ The broker server must be running before agents can connect:
 
 ```bash
 broker server
-broker server --identity brian    # custom identity (default: "user")
 ```
 
-This starts the Unix domain socket server at `~/.mcp-broker/broker.sock` and opens an interactive REPL. Conversations are persisted to `~/.mcp-broker/conversations/`.
-
-To join from a separate terminal without running the server:
-
-```bash
-broker repl --identity observer
-```
+This starts the Unix domain socket server at `~/.mcp-broker/broker.sock`. Inboxes, outboxes, cursors, and the identity registry all live under `~/.mcp-broker/` (see "Storage layout" below).
 
 ## 3. Configure Claude Code permissions
 
-Add `Bash(broker:*)` to your allowedTools so agents can call the broker without permission prompts:
-
-In your Claude Code settings or project CLAUDE.md:
+Add `Bash(broker:*)` to your allowedTools so agents can call the broker without permission prompts. In your Claude Code settings or project `CLAUDE.md`:
 
 ```
 allowedTools:
@@ -73,9 +64,50 @@ claude --plugin-dir /path/to/skill-cefailures
 Once the server is running and the skill is installed, tell agents something like:
 
 ```
-You have a broker CLI. Check for open conversations with `broker list --identity <your-name>`,
-read them with `broker read`, and when you're waiting for a reply, use `broker follow`
-(it blocks and streams new messages). See the broker skill docs for patterns.
+You have a broker CLI. Check your identity with `broker whoami`; catch up with
+`broker history`; DM other agents with `broker send --to <identity>`; and when
+you're waiting for a reply, use `broker follow` (it blocks and streams new
+messages). See the broker skill docs for patterns.
 ```
 
 Agents will follow the patterns in `patterns.md` to wait for replies without writing polling loops.
+
+## Reserved identities
+
+`orchestrator`, `human`, and `BROADCAST` are reserved at the server level:
+
+- **`BROADCAST`** — never claimable. It's the pseudo-recipient on `broker broadcast` fan-outs.
+- **`orchestrator`** and **`human`** — claimable only by processes that present a matching token. Create the token file before connecting:
+
+  ```bash
+  mkdir -p ~/.mcp-broker/tokens
+  echo "anything-non-empty" > ~/.mcp-broker/tokens/orchestrator.token
+  echo "anything-non-empty" > ~/.mcp-broker/tokens/human.token
+  ```
+
+  Note: the CLI does not yet plumb the token to the server on connect — this is tracked follow-up work. In practice, most agents use their cwd-derived identity and leave reserved identities for humans and orchestration processes.
+
+## Multi-workspace note
+
+There is one `orchestrator` per broker instance (per host). If you run multiple workspaces that each need a distinct coordinator, use scoped identities instead of the reserved one:
+
+```
+orchestrator:proposit-app
+orchestrator:proposit-mobile
+```
+
+These are ordinary identities — no token file required — so each workspace can have its own without collision. This is a documented limitation, not a bug.
+
+## Storage layout
+
+Everything the broker persists lives under `~/.mcp-broker/`:
+
+- `inbox/<encoded-identity>.log` — DMs received (one display-format line per message).
+- `outbox/<encoded-identity>.log` — DMs sent, same shape.
+- `cursors/<encoded-identity>.cursor` — byte offset into the inbox log, advanced by `broker read`.
+- `identities.json` — registry of known identities (first/last seen, canonical form).
+- `messages/<message-id>.json` — raw records used by `reply-all` to recover recipient sets.
+- `tokens/<identity>.token` — per-host tokens for reserved identities.
+- `conversations/` — legacy room state (deprecated, still present for backward compat).
+
+Identity encoding: `/` becomes `_` in filenames (`@proposit/shared` → `@proposit_shared.log`).

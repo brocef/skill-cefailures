@@ -1,214 +1,158 @@
 # Broker CLI Usage
 
-## Commands
+Full reference for the DM/inbox CLI. For how to wire these together, see `patterns.md`.
 
-### create — Start a conversation
+## Storage layout
 
+Everything lives under `~/.mcp-broker/`:
+
+- `inbox/<encoded-identity>.log` — newline-delimited display-format lines for messages you received.
+- `outbox/<encoded-identity>.log` — same shape, for messages you sent.
+- `cursors/<encoded-identity>.cursor` — byte offset into the inbox log; advanced by `broker read`.
+- `identities.json` — registry of known identities (`firstSeenAt`, `lastSeenAt`, `lastWriteAt`, `canonical`).
+- `messages/<message-id>.json` — raw records used by `reply-all` to look up recipient sets.
+- `tokens/<identity>.token` — per-host token files for reserved identities (`orchestrator`, `human`).
+- `broker.sock` — Unix socket the CLI talks to.
+- `conversations/` — legacy room state (deprecated, kept for old `create`/`join`/`leave`).
+
+**Identity encoding:** `/` becomes `_` in filenames. So `@proposit/shared` → `inbox/@proposit_shared.log`.
+
+## Message display format
+
+Each inbox/outbox line has the form `<ISO8601> [<header>] <content>`, with three header shapes:
+
+```
+2026-04-22T10:15:03Z [proposit-server] READY: shared v1.2.3 published
+2026-04-22T10:15:47Z [proposit-server → you, @proposit_core] QUESTION: who owns the migration?
+2026-04-22T10:16:02Z [orchestrator → BROADCAST] npm registry is down
+```
+
+- **Single recipient:** just `[<sender>]` — the viewer is the sole recipient, inferred from context.
+- **Multi-recipient:** `[<sender> → you, other1, other2]` — the viewer appears as `you`, other recipients listed as their identities.
+- **Broadcast:** `[<sender> → BROADCAST]`.
+
+Content newlines are escaped as `\n`; backslashes as `\\`. That's it — there is no JSON to parse.
+
+## CLI reference
+
+### whoami
+
+```
+broker whoami
+```
+
+Print the identity derived from the current cwd using the 2-rule algorithm (package.json `name`, then `git remote origin`). Useful to confirm which inbox you'll write to before sending.
+
+Example:
 ```bash
-broker create --identity agent_a "Design a caching layer"
-broker create --identity agent_a "Design a caching layer" --content "Focus on Redis for the hot path"
+$ broker whoami
+@proposit/shared
 ```
 
-Output:
-```json
-{
-  "conversation_id": "a1b2c3",
-  "topic": "Design a caching layer",
-  "created_by": "agent_a"
-}
+### send — DM one or more recipients
+
+```
+broker send --to <csv-of-identities> [--identity <me>] <content>
 ```
 
-### send — Send a message
+Send a DM. `--identity` is auto-filled from cwd if omitted. `--to` takes a comma-separated list of identities. Returns the message ID on stdout.
 
+- `--to a,b,c` — recipients (required).
+- `--identity X` — override sender (defaults to `broker whoami`).
+- Positional `CONTENT` — the message body. Use standard shell quoting.
+
+Example:
 ```bash
-broker send --identity agent_a a1b2c3 "I'll start with the config module"
+$ broker send --to proposit-server "READY: shared v1.2.3 published"
+msg-7f3a91
 ```
 
-Output:
-```json
-{
-  "message_id": "msg-d4e5f6",
-  "conversation_id": "a1b2c3",
-  "sender": "agent_a"
-}
+### broadcast — fan out to every registered identity
+
+```
+broker broadcast [--identity <me>] <content>
 ```
 
-Sending auto-joins you to the conversation if you aren't a member yet.
+Delivers to every identity currently in `identities.json` except the sender. Recipients see `[<sender> → BROADCAST] <content>`.
 
-### read — Read new messages
-
+Example:
 ```bash
-broker read --identity agent_b a1b2c3
+$ broker broadcast "BLOCKED: npm registry is down, pausing publishes"
+msg-b12c04
 ```
 
-Output:
-```json
-{
-  "conversation_id": "a1b2c3",
-  "messages": [
-    {"id": "msg-d4e5f6", "sender": "agent_a", "content": "I'll start with the config module", "timestamp": "2026-04-10T..."},
-    {"id": "msg-g7h8i9", "sender": "system", "content": "agent_b joined", "timestamp": "2026-04-10T..."}
-  ]
-}
+### reply-all — reply to all recipients of a prior DM
+
+```
+broker reply-all --to-message <MID> [--identity <me>] <content>
 ```
 
-Messages include system messages (join/leave events) with `"sender": "system"`. Reading does not auto-join the conversation — you can read without participating.
+Looks up the recipient set of message `<MID>` in `messages/<MID>.json`, then sends a new DM to `(sender ∪ recipients) − self`. Errors if the target message is a broadcast (no stable recipient set).
 
-Each call advances your cursor, so calling `read` again only returns messages since the last read.
+- `--to-message MID` — the message to reply to (required).
+- Positional `CONTENT` — the reply body.
 
-The `--format` flag selects output shape:
-
+Example:
 ```bash
-broker read --identity agent_b a1b2c3                      # JSON (default)
-broker read --identity agent_b a1b2c3 --format compact     # [sender] content lines
+$ broker reply-all --to-message msg-7f3a91 "DECISION: schema wins"
+msg-e9d201
 ```
 
-### follow — Block and stream new messages
+### follow — block, drain, stream
 
+```
+broker follow [--idle-timeout N] [--identity <me>]
+```
+
+Tail the per-identity inbox log. Drains unread backlog first (advancing the cursor as it goes), then streams new messages via push from the server. No conversation ID needed. Legacy conv-id form still works.
+
+- `--idle-timeout N` — exit after N seconds with no new messages (default 120; `0` disables).
+- `--identity X` — override cwd-derived identity.
+
+Exits cleanly (code 0) on idle; non-zero on socket error.
+
+Example:
 ```bash
-broker follow a1b2c3 --identity agent_b
-broker follow a1b2c3 --identity agent_b --idle-timeout 60 --timeout 300
-broker follow a1b2c3 --identity agent_b --count 1   # wait for one reply
-broker follow a1b2c3 --identity agent_b --include-system --format json
+$ broker follow --idle-timeout 60
+2026-04-22T10:15:03Z [proposit-server] READY: shared v1.2.3 published
+2026-04-22T10:15:47Z [proposit-server → you, @proposit_core] QUESTION: who owns the migration?
 ```
 
-Behavior:
-- Connects to the broker and drains any unread backlog (via the server-side per-identity cursor).
-- Streams new messages as they arrive (push from the server — no polling).
-- Exits when any of these becomes true:
-  - `--idle-timeout N` seconds elapse with no new message (default 120; `0` disables).
-  - `--timeout N` hard cap elapses (default 600; `0` disables).
-  - `--count N` messages received (default unset).
-  - The conversation is closed by another agent.
-
-Output (compact, default):
+### history — read without advancing the cursor
 
 ```
-[server] Okay, on it
-[core] Ready for the issue description
+broker history [--from <identity>] [--since <ISO8601>] [--sent] [--identity <me>]
 ```
 
-System join/leave events are suppressed unless `--include-system` is passed. JSON output is available via `--format json` (one JSON object per line).
+Dump inbox (or outbox with `--sent`) as display lines. Does not touch the read cursor — safe to call repeatedly.
 
-Exit codes:
-- `0` — clean exit via idle/timeout/count/close.
-- `1` — could not connect, or socket dropped mid-stream (error printed to stderr).
+- `--from X` — only messages from identity X.
+- `--since ISO` — only messages at or after this timestamp.
+- `--sent` — read from outbox instead of inbox.
+- `--identity X` — override cwd-derived identity.
 
-**Do not** wrap `broker follow` in a `while true` loop. It already handles push + dedup + exit conditions.
-
-### list — List conversations
-
+Example:
 ```bash
-broker list --identity agent_a
-broker list --identity agent_a --status open
+$ broker history --from orchestrator --since 2026-04-22T09:00:00Z
+2026-04-22T09:45:10Z [orchestrator → you] catch up on #1234 when you're free
 ```
 
-Output:
-```json
-{
-  "conversations": [
-    {
-      "id": "a1b2c3",
-      "topic": "Design a caching layer",
-      "status": "open",
-      "created_by": "agent_a",
-      "message_count": 5,
-      "unread_count": 2
-    }
-  ]
-}
+### read — drain new lines, advance cursor
+
+```
+broker read [--identity <me>]
 ```
 
-**Default**: returns only conversations with `status="open"`. To include closed conversations:
+Print only inbox lines newer than the stored cursor, then advance the cursor to the end. Useful in scripted one-shots where you explicitly want to consume-and-mark. Legacy conv-id form still works for old callers.
 
+Example:
 ```bash
-broker list --identity agent_a                  # open only (default)
-broker list --identity agent_a --status closed  # closed only
-broker list --identity agent_a --status all     # everything
+$ broker read
+2026-04-22T10:15:47Z [proposit-server → you, @proposit_core] QUESTION: who owns the migration?
 ```
 
-### members — List conversation members
+**Do not chain `read` → `follow`.** Read advances the cursor, so follow will see nothing until the next new message. Use `follow` alone; it handles drain + stream.
 
-```bash
-broker members --identity agent_a a1b2c3
-```
+## Legacy room commands
 
-Output:
-```json
-{
-  "conversation_id": "a1b2c3",
-  "members": ["agent_a", "agent_b"]
-}
-```
-
-### join — Join a conversation
-
-```bash
-broker join --identity agent_b a1b2c3
-```
-
-Output:
-```json
-{
-  "conversation_id": "a1b2c3",
-  "status": "joined"
-}
-```
-
-### leave — Leave a conversation
-
-```bash
-broker leave --identity agent_b a1b2c3
-```
-
-Output:
-```json
-{
-  "conversation_id": "a1b2c3",
-  "status": "left"
-}
-```
-
-### close — Close a conversation
-
-```bash
-broker close --identity agent_a a1b2c3
-```
-
-Output:
-```json
-{
-  "conversation_id": "a1b2c3",
-  "status": "closed"
-}
-```
-
-Closed conversations are read-only. No one can send messages.
-
-## Error Handling
-
-All errors output JSON to stderr and exit with code 1:
-
-```json
-{"error": "Conversation 'xyz' not found"}
-```
-
-```json
-{"error": "Cannot connect to broker at /path/to/broker.sock. Is the broker server running?"}
-```
-
-## Common Workflow
-
-```bash
-# 1. Check for conversations
-broker list --identity agent_a
-
-# 2. Read messages from a conversation
-broker read --identity agent_a a1b2c3
-
-# 3. Respond
-broker send --identity agent_a a1b2c3 "Here's my analysis..."
-
-# 4. Poll for new messages (repeat steps 2-3)
-broker read --identity agent_a a1b2c3
-```
+`broker create`, `join`, `leave`, `close`, `list`, `members` remain for backward compatibility but print deprecation warnings on stderr. They operate on the old `conversations/` store. New work should use the DM commands above — see `SKILL.md` for replacement patterns (side conversations become targeted `send --to` threads; "list" becomes `history`).

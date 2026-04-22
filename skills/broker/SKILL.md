@@ -1,56 +1,72 @@
 ---
 name: broker
-description: Use when collaborating with other agents, coordinating with other Claude Code instances, joining multi-agent conversations, or when the user asks you to talk to another agent. Use when you see references to the broker command or conversation IDs.
+description: Use when collaborating with other agents, coordinating with other Claude Code instances, sending DMs between agents, or when the user asks you to talk to another agent. Use when you see references to the broker command, inboxes, or agent identities.
 ---
 
 # Broker
 
-A chatroom-like CLI for multi-agent conversations. Multiple Claude Code agents and a human talk through a shared broker server over a Unix socket. Conversations persist to `~/.mcp-broker/conversations/` for audit.
+A DM/inbox CLI for multi-agent Claude Code. Every agent has a persistent identity derived from its workspace and a per-identity inbox on disk. Messages persist regardless of whether the recipient is online. Use `broker follow` to drain your inbox and stream new messages as they arrive — no polling, no conversation IDs to track.
 
 ## Prerequisites
 
 - The broker server must be running (`broker server` in a terminal).
 - `Bash(broker:*)` must be in your `allowedTools`.
 
+## Your identity
+
+The broker derives your identity from your cwd:
+
+1. Nearest `package.json` walking up from cwd → its `name` field (e.g. `@proposit/shared`, `proposit-server`).
+2. Otherwise, `git remote get-url origin` → `<org>/<repo>` (e.g. `Proposit-App/proposit-mobile`).
+3. Otherwise, error.
+
+Run `broker whoami` to confirm. The CLI auto-fills `--identity` from cwd when omitted, so you usually don't pass it. **To address another agent, compute their identity from their project — there is no directory to browse.**
+
 ## Quick Reference
 
 | Command | Description |
 |---------|-------------|
-| `broker list --identity NAME` | List **open** conversations. Pass `--status all` to include closed. |
-| `broker create --identity NAME TOPIC [--content "seed"]` | Start a conversation |
-| `broker send --identity NAME CONV_ID CONTENT` | Send a message |
-| `broker read --identity NAME CONV_ID [--format compact\|json]` | Read new messages once |
-| `broker follow --identity NAME CONV_ID` | **Block and stream new messages** — use this to wait for a reply |
-| `broker join --identity NAME CONV_ID` | Join a conversation |
-| `broker leave --identity NAME CONV_ID` | Leave a conversation |
-| `broker members --identity NAME CONV_ID` | List who's in a conversation |
-| `broker close --identity NAME CONV_ID` | Close a conversation (read-only) |
-
-All commands exit non-zero on error with JSON to stderr. `broker follow` and `broker read --format compact` emit agent-facing one-line format: `[sender] content`.
+| `broker whoami` | Print the identity the CLI will use from this cwd |
+| `broker send --to a,b CONTENT` | DM one or more recipients |
+| `broker broadcast CONTENT` | Fan out to every registered identity |
+| `broker reply-all --to-message MID CONTENT` | Reply to all recipients of a prior DM, excluding self |
+| `broker follow [--idle-timeout N]` | Block, drain inbox, stream new DMs as they arrive |
+| `broker history [--from X] [--since ISO] [--sent]` | Read inbox (or outbox) without advancing the cursor |
+| `broker read` | Advance cursor; print only new inbox lines since last read |
 
 ## Critical rules
 
-These are the most common mistakes agents make with the broker. Follow them before consulting the detailed docs.
+1. **Use `broker follow` to wait for messages.** Do not write `while true; broker read; sleep N`. Follow drains + streams + exits on idle/timeout.
+2. **Don't `broker read` before `broker follow`.** Read advances the cursor past the backlog; if you then follow, the backlog is already gone. Use `follow` alone.
+3. **Don't parse broker output with `jq` / `python`.** The line format is already agent-facing — read it directly.
+4. **To reply to a broadcast, use `send --to <broadcaster>`, not `reply-all`.** Broadcasts have no stable recipient set, so reply-all has no room to address.
 
-1. **Use `broker follow` to wait for messages.** Do **not** write `while true; broker read; sleep N`. `broker follow` blocks until messages arrive, drains the backlog, streams pushes, and exits on idle/timeout/count.
-2. **Do not parse broker output with `python`, `jq`, or similar.** The compact line format (`[sender] content`) is the agent-facing format; read it directly. JSON is for scripts only.
-3. **Do not maintain `/tmp/*_seen.txt` dedup files.** The broker server tracks per-identity read cursors; each `broker read` / `broker follow` only returns messages not yet seen by your identity.
-4. **For focused 2-agent discussions, create a new conversation** named `{a}-{b}-{topic}-{timestamp}` instead of using a shared room. Close it when done. This keeps other agents' context clean.
+## Canonical patterns
 
-## Canonical pattern: wait for a reply
-
+Wait for a reply:
 ```bash
-broker send --identity server ROOM "We need changes to core"
-broker follow ROOM --identity server --idle-timeout 120
-# ^ blocks, prints every incoming line, returns when the discussion quiets
+broker send --to proposit-server "READY: shared v1.2.3 published"
+broker follow --idle-timeout 120
+```
+
+Announce to everyone:
+```bash
+broker broadcast "BLOCKED: npm registry is down, pausing publishes"
+```
+
+Multi-party thread with reply-all:
+```bash
+MID=$(broker send --to a,b,c "QUESTION: should validate() take a schema?")
+broker follow --idle-timeout 120
+broker reply-all --to-message "$MID" "DECISION: schema wins"
 ```
 
 ## Docs
 
 | Doc | When to read |
 |-----|-------------|
-| `docs/usage.md` | Full CLI reference with examples and JSON formats |
-| `docs/patterns.md` | Canonical patterns: wait-for-reply, side conversations, stream-while-working |
-| `docs/signals.md` | Signal vocabulary (READY / BLOCKED / QUESTION / DECISION) for inter-agent coordination |
-| `docs/troubleshooting.md` | Anti-patterns and why they're wrong — read if you catch yourself writing a polling loop |
-| `docs/setup.md` | Installation, configuration, first-time setup |
+| `docs/usage.md` | Full CLI reference, storage layout, display format |
+| `docs/patterns.md` | Canonical patterns: wait-for-reply, broadcast, reply-all, catch-up, monitor streaming |
+| `docs/signals.md` | Signal vocabulary (READY / BLOCKED / QUESTION / DECISION) |
+| `docs/troubleshooting.md` | Anti-patterns and fixes — read if you catch yourself writing a loop |
+| `docs/setup.md` | Install, server, reserved identities, storage layout |
