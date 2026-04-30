@@ -360,9 +360,12 @@ def _add_token_arg(p: argparse.ArgumentParser) -> None:
 
 
 def _resolve_identity(explicit: str | None) -> str:
-    """Return explicit identity or derive from cwd; exit on derivation failure."""
+    """Resolve identity: --identity arg > BROKER_IDENTITY env > .broker/config.json > cwd derivation."""
     if explicit is not None:
         return explicit
+    env_identity = os.environ.get("BROKER_IDENTITY")
+    if env_identity:
+        return env_identity
     from broker_identity import derive_identity, IdentityDerivationError
     try:
         return derive_identity(Path.cwd())
