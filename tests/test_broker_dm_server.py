@@ -263,3 +263,40 @@ def test_read_token_handles_namespaced_identity(tmp_path: Path) -> None:
 def test_read_token_returns_none_for_missing_file(tmp_path: Path) -> None:
     server = BrokerServer(root_dir=tmp_path)
     assert server._read_token("@orchestrator/missing") is None
+
+
+def test_bare_orchestrator_is_not_reserved_anymore(tmp_path: Path) -> None:
+    """v1.5.0: bare 'orchestrator' connects as a peer, no token required."""
+    server = BrokerServer(root_dir=tmp_path)
+    # Should NOT raise: bare 'orchestrator' is unprivileged in v1.5.0.
+    server.connect("orchestrator", lambda m: None)
+    assert "orchestrator" in server.clients
+
+
+def test_namespaced_orchestrator_requires_token_at_connect(tmp_path: Path) -> None:
+    """@orchestrator/<scope> must go through is_reserved() — no token = rejected."""
+    server = BrokerServer(root_dir=tmp_path)
+    with pytest.raises(ValueError, match="reserved"):
+        server.connect("@orchestrator/myorg", lambda m: None)
+
+
+def test_namespaced_orchestrator_with_token_succeeds(tmp_path: Path) -> None:
+    """@orchestrator/<scope> with a valid token connects fine."""
+    tokens_dir = tmp_path / "tokens"
+    tokens_dir.mkdir()
+    (tokens_dir / "@orchestrator_myorg.token").write_text("ok")
+
+    server = BrokerServer(root_dir=tmp_path)
+    server.connect("@orchestrator/myorg", lambda m: None, token="ok")
+    assert "@orchestrator/myorg" in server.clients
+
+
+def test_namespaced_orchestrator_handle_request_blocks_unconnected(tmp_path: Path) -> None:
+    """A request from a reserved-shaped identity that hasn't connected gets a clean error."""
+    server = BrokerServer(root_dir=tmp_path)
+    server.connect("bob", lambda m: None)
+    result = server.handle_request("@orchestrator/myorg", {
+        "type": "send_dm", "id": "1", "to": ["bob"], "content": "spoofed",
+    })
+    assert result["type"] == "error"
+    assert "reserved" in result["message"].lower()

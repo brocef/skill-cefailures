@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from broker_constants import BROADCAST, RESERVED_IDENTITIES
+from broker_constants import BROADCAST, is_reserved
 from broker_format import format_message, parse_message
 from broker_storage import InboxLog, OutboxLog, CursorStore, IdentityRegistry
 
@@ -36,7 +36,7 @@ class BrokerServer:
 
     def connect(self, identity: str, send: Callable, token: str | None = None) -> None:
         """Register a client connection. Reserved identities require a matching token."""
-        if identity in RESERVED_IDENTITIES:
+        if is_reserved(identity):
             if identity == "BROADCAST":
                 raise ValueError("BROADCAST is reserved and cannot be claimed as an identity.")
             expected = self._read_token(identity)
@@ -62,7 +62,7 @@ class BrokerServer:
         req_id = msg.get("id", "")
         msg_type = msg.get("type", "")
 
-        if identity in RESERVED_IDENTITIES and identity not in self.clients:
+        if is_reserved(identity) and identity not in self.clients:
             return {
                 "type": "error",
                 "id": req_id,
