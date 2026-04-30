@@ -26,12 +26,16 @@ class InboxLog:
     def path_for(self, identity: str) -> Path:
         return self.base_dir / f"{encode_identity(identity)}.log"
 
-    def append(self, identity: str, line: str) -> None:
-        """Append `line` (no trailing newline) to the identity's inbox. Adds newline."""
+    def append(self, identity: str, message_id: str, line: str) -> None:
+        """Append `line` (no trailing newline) to the identity's inbox.
+
+        Prepends `<message_id>\t` to the line so `--show-ids` can recover the MID
+        on read without a separate lookup. See split_mid_prefix() in broker_format.
+        """
         path = self.path_for(identity)
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a") as f:
-            f.write(line + "\n")
+            f.write(f"{message_id}\t{line}\n")
 
     def read_from(self, identity: str, offset: int) -> tuple[list[str], int]:
         """Return (complete lines after `offset`, new byte offset after the last complete line).
@@ -64,11 +68,12 @@ class OutboxLog:
     def path_for(self, identity: str) -> Path:
         return self.base_dir / f"{encode_identity(identity)}.log"
 
-    def append(self, identity: str, line: str) -> None:
+    def append(self, identity: str, message_id: str, line: str) -> None:
+        """Append `line` to the identity's outbox with `<message_id>\t` prefix."""
         path = self.path_for(identity)
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a") as f:
-            f.write(line + "\n")
+            f.write(f"{message_id}\t{line}\n")
 
     def read_all(self, identity: str) -> list[str]:
         path = self.path_for(identity)

@@ -23,20 +23,20 @@ def test_encode_identity_replaces_slash() -> None:
 
 def test_inbox_append_reads_back(tmp_path: Path) -> None:
     log = InboxLog(tmp_path)
-    log.append("alice", "line one")
-    log.append("alice", "line two")
-    assert log.path_for("alice").read_text() == "line one\nline two\n"
+    log.append("alice", "msg-test", "line one")
+    log.append("alice", "msg-test", "line two")
+    assert log.path_for("alice").read_text() == "msg-test\tline one\nmsg-test\tline two\n"
 
 
 def test_inbox_read_from_offset(tmp_path: Path) -> None:
     log = InboxLog(tmp_path)
-    log.append("alice", "one")
-    log.append("alice", "two")
-    log.append("alice", "three")
-    first_line_end = len("one\n")
+    log.append("alice", "msg-test", "one")
+    log.append("alice", "msg-test", "two")
+    log.append("alice", "msg-test", "three")
+    first_line_end = len("msg-test\tone\n")
     lines, new_offset = log.read_from("alice", offset=first_line_end)
-    assert lines == ["two", "three"]
-    assert new_offset == len("one\ntwo\nthree\n")
+    assert lines == ["msg-test\ttwo", "msg-test\tthree"]
+    assert new_offset == len("msg-test\tone\nmsg-test\ttwo\nmsg-test\tthree\n")
 
 
 def test_inbox_read_empty_for_unknown_identity(tmp_path: Path) -> None:
@@ -67,16 +67,16 @@ def test_cursor_store_round_trip(tmp_path: Path) -> None:
 
 def test_outbox_append(tmp_path: Path) -> None:
     log = OutboxLog(tmp_path)
-    log.append("alice", "first sent")
-    log.append("alice", "second sent")
-    assert log.path_for("alice").read_text() == "first sent\nsecond sent\n"
+    log.append("alice", "msg-test", "first sent")
+    log.append("alice", "msg-test", "second sent")
+    assert log.path_for("alice").read_text() == "msg-test\tfirst sent\nmsg-test\tsecond sent\n"
 
 
 def test_outbox_read_all(tmp_path: Path) -> None:
     log = OutboxLog(tmp_path)
-    log.append("alice", "a")
-    log.append("alice", "b")
-    assert log.read_all("alice") == ["a", "b"]
+    log.append("alice", "msg-test", "a")
+    log.append("alice", "msg-test", "b")
+    assert log.read_all("alice") == ["msg-test\ta", "msg-test\tb"]
     assert log.read_all("nobody") == []
 
 
@@ -126,3 +126,30 @@ def test_registry_recovers_from_corrupt_file(tmp_path: Path) -> None:
     reg = IdentityRegistry(path)
     reg.touch("alice", now="t1", wrote=True)
     assert reg.get("alice")["firstSeenAt"] == "t1"
+
+
+def test_inbox_append_prepends_mid_with_tab(tmp_path: Path) -> None:
+    inbox = InboxLog(tmp_path)
+    inbox.append("alice", "msg-abc123", "2026-04-30T00:00:00Z [bob] hi")
+    contents = (tmp_path / "alice.log").read_text()
+    assert contents == "msg-abc123\t2026-04-30T00:00:00Z [bob] hi\n"
+
+
+def test_outbox_append_prepends_mid_with_tab(tmp_path: Path) -> None:
+    outbox = OutboxLog(tmp_path)
+    outbox.append("alice", "msg-xyz", "2026-04-30T00:00:00Z [alice → bob] hi")
+    contents = (tmp_path / "alice.log").read_text()
+    assert contents == "msg-xyz\t2026-04-30T00:00:00Z [alice → bob] hi\n"
+
+
+def test_read_from_returns_full_lines_with_mid_prefix(tmp_path: Path) -> None:
+    """read_from is unchanged — it returns whatever was written, including the MID prefix."""
+    inbox = InboxLog(tmp_path)
+    inbox.append("alice", "msg-1", "2026-04-30T00:00:00Z [bob] one")
+    inbox.append("alice", "msg-2", "2026-04-30T00:00:01Z [bob] two")
+    lines, offset = inbox.read_from("alice", 0)
+    assert lines == [
+        "msg-1\t2026-04-30T00:00:00Z [bob] one",
+        "msg-2\t2026-04-30T00:00:01Z [bob] two",
+    ]
+    assert offset > 0
