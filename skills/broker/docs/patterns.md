@@ -41,7 +41,7 @@ Pitfall: `reply-all --to-message` on a broadcast errors. If the thread started w
 
 ```bash
 broker history --since 2026-04-22T09:00:00Z        # browse recent traffic, no side effects
-broker history --from orchestrator                  # just orchestrator's DMs to you
+broker history --from @orchestrator/myorg              # just orchestrator's DMs to you
 broker read                                         # consume new, advance cursor
 ```
 
@@ -49,10 +49,10 @@ When in doubt, prefer `broker follow` over `broker read`: follow drains into you
 
 ### Orchestrator watching many agents
 
-An orchestrator's inbox is the union of every DM addressed to it — `send --to orchestrator`, `reply-all` threads that include it, and broadcasts. A single `broker follow` on the orchestrator's own inbox captures every relay. No multi-room follow; no fan-in bookkeeping.
+An `@orchestrator/<scope>` inbox is the union of every DM addressed to it — `send --to @orchestrator/<scope>`, `reply-all` threads that include it, and broadcasts. A single `broker follow` on the orchestrator's own inbox captures every relay. No multi-room follow; no fan-in bookkeeping.
 
 ```bash
-# In the orchestrator's workspace
+# In the @orchestrator/<scope> workspace
 broker follow --idle-timeout 0        # stream indefinitely; Monitor/Ctrl-C when done
 ```
 
@@ -62,7 +62,7 @@ Point `Monitor` directly at the per-identity inbox log to push each new message 
 
 ```bash
 # Example path — replace with the output of `broker whoami | sed 's#/#_#g'`
-~/.mcp-broker/inbox/orchestrator.log
+~/.mcp-broker/inbox/@orchestrator_myorg.log
 ```
 
 Each appended line becomes a Monitor notification. Pair with `broker history` if you need to also read the backlog before streaming.

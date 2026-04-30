@@ -11,7 +11,7 @@ Everything lives under `~/.mcp-broker/`:
 - `cursors/<encoded-identity>.cursor` — byte offset into the inbox log; advanced by `broker read`.
 - `identities.json` — registry of known identities (`firstSeenAt`, `lastSeenAt`, `lastWriteAt`, `canonical`).
 - `messages/<message-id>.json` — raw records used by `reply-all` to look up recipient sets.
-- `tokens/<identity>.token` — per-host token files for reserved identities (`orchestrator`, `human`).
+- `tokens/<identity>.token` — per-host token files for reserved identities (`@orchestrator/<scope>`, `human`).
 - `broker.sock` — Unix socket the CLI talks to.
 
 **Identity encoding:** `/` becomes `_` in filenames. So `@myorg/projectA` → `inbox/@myorg_projectA.log`.
@@ -23,7 +23,7 @@ Each inbox/outbox line has the form `<ISO8601> [<header>] <content>`, with three
 ```
 2026-04-22T10:15:03Z [projectA-server] READY: shared v1.2.3 published
 2026-04-22T10:15:47Z [projectA-server → you, @myorg_projectB] QUESTION: who owns the migration?
-2026-04-22T10:16:02Z [orchestrator → BROADCAST] npm registry is down
+2026-04-22T10:16:02Z [@orchestrator/myorg → BROADCAST] npm registry is down
 ```
 
 - **Single recipient:** just `[<sender>]` — the viewer is the sole recipient, inferred from context.
@@ -132,8 +132,8 @@ Dump inbox (or outbox with `--sent`) as display lines. Does not touch the read c
 
 Example:
 ```bash
-$ broker history --from orchestrator --since 2026-04-22T09:00:00Z
-2026-04-22T09:45:10Z [orchestrator → you] catch up on #1234 when you're free
+$ broker history --from @orchestrator/myorg --since 2026-04-22T09:00:00Z
+2026-04-22T09:45:10Z [@orchestrator/myorg → you] catch up on #1234 when you're free
 ```
 
 ### read — drain new lines, advance cursor
@@ -174,7 +174,7 @@ user
 broker server [--identity <me>] [--root-dir <path>] [--token <value>]
 ```
 
-Boot the broker server and drop into an interactive REPL on stdin. The REPL identity defaults to `user`; pass `--identity orchestrator` (with `--token`) to drive the broker as the workspace orchestrator. From the REPL:
+Boot the broker server and drop into an interactive REPL on stdin. The REPL identity defaults to `user`; pass `--identity @orchestrator/<scope>` (with `--token`) to drive the broker as the workspace orchestrator. From the REPL:
 
 ```
 broker> who

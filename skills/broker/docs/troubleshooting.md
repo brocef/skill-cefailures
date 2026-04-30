@@ -49,9 +49,9 @@ If you want the thread to include others, list them explicitly with `--to a,b,c`
 
 ## "Reserved-identity error on connect"
 
-The server refuses to bind `orchestrator`, `human`, or `BROADCAST` without a matching token. `BROADCAST` is never claimable. For the other two, you need both:
+The server refuses to bind reserved identities (`@orchestrator/<scope>`, `human`, or `BROADCAST`) without a matching token. `BROADCAST` is never claimable. For the others, you need both:
 
-1. A token file at `~/.mcp-broker/tokens/<identity>.token` (any non-empty content).
+1. A token file at `~/.mcp-broker/tokens/<encoded-identity>.token` (any non-empty content). For namespaced orchestrators, the encoded form replaces `/` with `_`, so `@orchestrator/myorg` lives at `~/.mcp-broker/tokens/@orchestrator_myorg.token`.
 2. The same value passed at connect time via `--token <value>` or the `BROKER_TOKEN` env var.
 
 See `setup.md` for the full mechanism. Most agents should use their cwd-derived identity anyway — reserved identities are for humans and orchestration processes.

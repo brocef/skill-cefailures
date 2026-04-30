@@ -74,36 +74,35 @@ Agents will follow the patterns in `patterns.md` to wait for replies without wri
 
 ## Reserved identities
 
-`orchestrator`, `human`, and `BROADCAST` are reserved at the server level:
+`@orchestrator/<scope>`, `human`, and `BROADCAST` are reserved at the server level:
 
 - **`BROADCAST`** — never claimable. It's the pseudo-recipient on `broker broadcast` fan-outs.
-- **`orchestrator`** and **`human`** — claimable only by processes that present a matching token. Create the token file once, then pass the same value via `--token` (or the `BROKER_TOKEN` env var) on every CLI invocation:
+- **`@orchestrator/<scope>`** — namespaced reserved coordinator identities. Multiple may coexist on one host (e.g., `@orchestrator/myorg`, `@orchestrator/team-frontend`); each requires its own token file. `<scope>` must match `[A-Za-z0-9._-]{1,64}`.
 
   ```bash
   mkdir -p ~/.mcp-broker/tokens
-  echo "secret-value" > ~/.mcp-broker/tokens/orchestrator.token
-  echo "secret-value" > ~/.mcp-broker/tokens/human.token
+  echo "secret-value" > ~/.mcp-broker/tokens/@orchestrator_myorg.token
 
   # Per-call:
-  broker send --identity orchestrator --token secret-value --to alice "hi"
+  broker send --identity @orchestrator/myorg --token secret-value --to alice "hi"
 
   # Or via env var:
   export BROKER_TOKEN=secret-value
-  broker send --identity orchestrator --to alice "hi"
+  broker send --identity @orchestrator/myorg --to alice "hi"
   ```
 
   In practice, most agents use their cwd-derived identity and leave reserved identities for humans and orchestration processes.
 
 ## Multi-workspace note
 
-There is one `orchestrator` per broker instance (per host). If you run multiple workspaces that each need a distinct coordinator, use scoped identities instead of the reserved one:
+Each workspace can have its own orchestrator by picking a different `<scope>`:
 
 ```
-orchestrator:projectA
-orchestrator:projectB-mobile
+@orchestrator/projectA
+@orchestrator/projectB-mobile
 ```
 
-These are ordinary identities — no token file required — so each workspace can have its own without collision. This is a documented limitation, not a bug.
+Each gets its own token file at `~/.mcp-broker/tokens/@orchestrator_<scope>.token`. There's no shared per-host singleton; multiple `broker server --identity @orchestrator/<scope>` processes can coexist (one per scope).
 
 ## Storage layout
 
