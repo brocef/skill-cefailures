@@ -210,7 +210,7 @@ def test_reserved_identity_requires_token(tmp_path: Path) -> None:
     server = BrokerServer(root_dir=tmp_path)
     server.connect("bob", lambda m: None)
     with pytest.raises(ValueError, match="reserved"):
-        server.connect("orchestrator", lambda m: None)
+        server.connect("@orchestrator/test", lambda m: None)
 
 
 def test_reserved_identity_with_token_allowed(tmp_path: Path) -> None:
@@ -239,8 +239,8 @@ def test_reserved_identity_unconnected_rejected_on_request(tmp_path: Path) -> No
     """A reserved identity must go through privileged connect() before it can send."""
     server = BrokerServer(root_dir=tmp_path)
     server.connect("bob", lambda m: None)
-    # Try to use 'orchestrator' in handle_request without connect().
-    result = server.handle_request("orchestrator", {
+    # Try to use '@orchestrator/test' in handle_request without connect().
+    result = server.handle_request("@orchestrator/test", {
         "type": "send_dm", "id": "1", "to": ["bob"], "content": "spoofed",
     })
     assert result["type"] == "error"

@@ -64,27 +64,27 @@ def test_send_dm_multi_recipient(broker) -> None:
 
 
 def test_send_with_token_for_reserved_identity(broker) -> None:
-    """`broker send --token X --identity orchestrator ...` works when the token file matches."""
+    """`broker send --token X --identity @orchestrator/test ...` works when the token file matches."""
     env = broker["env"]
     tokens_dir = broker["tmp"] / "tokens"
     tokens_dir.mkdir(parents=True, exist_ok=True)
-    (tokens_dir / "orchestrator.token").write_text("ok\n")
+    (tokens_dir / "@orchestrator_test.token").write_text("ok\n")
 
     result = subprocess.run(
-        CLI + ["send", "--token", "ok", "--identity", "orchestrator", "--to", "alice", "ping"],
+        CLI + ["send", "--token", "ok", "--identity", "@orchestrator/test", "--to", "alice", "ping"],
         env=env, capture_output=True, text=True,
     )
     assert result.returncode == 0, result.stderr
     inbox = broker["tmp"] / "inbox" / "alice.log"
     assert inbox.exists()
-    assert "[orchestrator]" in inbox.read_text()
+    assert "[@orchestrator/test]" in inbox.read_text()
 
 
 def test_send_without_token_for_reserved_identity_fails_cleanly(broker) -> None:
     """Connecting as a reserved identity without a token returns a non-zero exit and a JSON error."""
     env = broker["env"]
     result = subprocess.run(
-        CLI + ["send", "--identity", "orchestrator", "--to", "alice", "nope"],
+        CLI + ["send", "--identity", "@orchestrator/test", "--to", "alice", "nope"],
         env=env, capture_output=True, text=True,
     )
     assert result.returncode != 0
@@ -97,15 +97,15 @@ def test_broker_token_env_var_is_used(broker) -> None:
     env = dict(broker["env"])
     tokens_dir = broker["tmp"] / "tokens"
     tokens_dir.mkdir(parents=True, exist_ok=True)
-    (tokens_dir / "orchestrator.token").write_text("env-tok\n")
+    (tokens_dir / "@orchestrator_test.token").write_text("env-tok\n")
     env["BROKER_TOKEN"] = "env-tok"
 
     result = subprocess.run(
-        CLI + ["send", "--identity", "orchestrator", "--to", "alice", "from env"],
+        CLI + ["send", "--identity", "@orchestrator/test", "--to", "alice", "from env"],
         env=env, capture_output=True, text=True,
     )
     assert result.returncode == 0, result.stderr
-    assert "[orchestrator]" in (broker["tmp"] / "inbox" / "alice.log").read_text()
+    assert "[@orchestrator/test]" in (broker["tmp"] / "inbox" / "alice.log").read_text()
 
 
 def test_broadcast_fans_out(broker) -> None:

@@ -93,16 +93,16 @@ async def test_client_with_token_connects_as_reserved_identity(tmp_path, sock_pa
     """BrokerClient(token=...) lets a reserved identity connect when the token file matches."""
     tokens_dir = tmp_path / "tokens"
     tokens_dir.mkdir()
-    (tokens_dir / "orchestrator.token").write_text("ok\n")
+    (tokens_dir / "@orchestrator_test.token").write_text("ok\n")
 
     server = BrokerServer(root_dir=tmp_path)
     srv = await start_server(server, sock_path)
     try:
-        client = BrokerClient(identity="orchestrator", sock_path=sock_path, token="ok")
+        client = BrokerClient(identity="@orchestrator/test", sock_path=sock_path, token="ok")
         await client.connect()
         # If we got here without raising, connect() round-tripped successfully.
         result = await client.list_clients()
-        assert "orchestrator" in result["clients"]
+        assert "@orchestrator/test" in result["clients"]
         await client.close()
     finally:
         srv.close()
@@ -115,7 +115,7 @@ async def test_client_without_token_raises_on_reserved_identity(tmp_path, sock_p
     server = BrokerServer(root_dir=tmp_path)
     srv = await start_server(server, sock_path)
     try:
-        client = BrokerClient(identity="orchestrator", sock_path=sock_path)
+        client = BrokerClient(identity="@orchestrator/test", sock_path=sock_path)
         with pytest.raises(ValueError, match="reserved"):
             await client.connect()
         await client.close()

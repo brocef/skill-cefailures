@@ -111,7 +111,7 @@ async def test_socket_reserved_identity_without_token_returns_error(storage_dir,
     srv = await start_server(server, sock_path)
     try:
         reader, writer = await _connect_client(sock_path)
-        await _send(writer, {"id": "r1", "type": "connect", "identity": "orchestrator"})
+        await _send(writer, {"id": "r1", "type": "connect", "identity": "@orchestrator/test"})
         resp = await _recv(reader)
         assert resp["type"] == "error"
         assert resp["id"] == "r1"
@@ -128,7 +128,7 @@ async def test_socket_reserved_identity_with_valid_token_connects(storage_dir, s
     """Connecting as a reserved identity with a matching token succeeds."""
     tokens_dir = storage_dir / "tokens"
     tokens_dir.mkdir(parents=True)
-    (tokens_dir / "orchestrator.token").write_text("secret-value\n")
+    (tokens_dir / "@orchestrator_test.token").write_text("secret-value\n")
 
     server = BrokerServer(root_dir=storage_dir)
     srv = await start_server(server, sock_path)
@@ -136,7 +136,7 @@ async def test_socket_reserved_identity_with_valid_token_connects(storage_dir, s
         reader, writer = await _connect_client(sock_path)
         await _send(writer, {
             "id": "r1", "type": "connect",
-            "identity": "orchestrator", "token": "secret-value",
+            "identity": "@orchestrator/test", "token": "secret-value",
         })
         resp = await _recv(reader)
         assert resp["type"] == "response"
@@ -157,7 +157,7 @@ async def test_socket_reserved_identity_with_wrong_token_returns_error(storage_d
     """Wrong token for a reserved identity returns a clean error response."""
     tokens_dir = storage_dir / "tokens"
     tokens_dir.mkdir(parents=True)
-    (tokens_dir / "orchestrator.token").write_text("real-token\n")
+    (tokens_dir / "@orchestrator_test.token").write_text("real-token\n")
 
     server = BrokerServer(root_dir=storage_dir)
     srv = await start_server(server, sock_path)
@@ -165,7 +165,7 @@ async def test_socket_reserved_identity_with_wrong_token_returns_error(storage_d
         reader, writer = await _connect_client(sock_path)
         await _send(writer, {
             "id": "r1", "type": "connect",
-            "identity": "orchestrator", "token": "wrong",
+            "identity": "@orchestrator/test", "token": "wrong",
         })
         resp = await _recv(reader)
         assert resp["type"] == "error"
