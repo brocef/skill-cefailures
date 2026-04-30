@@ -219,3 +219,49 @@ def test_follow_tails_inbox_file(broker) -> None:
     stdout, stderr = follow.communicate(timeout=5)
     assert "backlog msg" in stdout, stderr
     assert "live msg" in stdout, stderr
+
+
+def test_cli_rejects_bare_orchestrator_with_at_prefix(broker) -> None:
+    """`--identity @orchestrator` (no scope) is rejected at parse time, not at connect."""
+    env = broker["env"]
+    result = subprocess.run(
+        CLI + ["send", "--identity", "@orchestrator", "--to", "alice", "ping"],
+        env=env, capture_output=True, text=True,
+    )
+    assert result.returncode != 0
+    assert "@orchestrator" in result.stderr
+    assert "scope" in result.stderr.lower()
+
+
+def test_cli_rejects_orchestrator_with_empty_scope(broker) -> None:
+    env = broker["env"]
+    result = subprocess.run(
+        CLI + ["send", "--identity", "@orchestrator/", "--to", "alice", "ping"],
+        env=env, capture_output=True, text=True,
+    )
+    assert result.returncode != 0
+    assert "scope" in result.stderr.lower()
+
+
+def test_cli_rejects_orchestrator_with_invalid_chars(broker) -> None:
+    env = broker["env"]
+    result = subprocess.run(
+        CLI + ["send", "--identity", "@orchestrator/foo bar", "--to", "alice", "ping"],
+        env=env, capture_output=True, text=True,
+    )
+    assert result.returncode != 0
+
+
+def test_cli_accepts_well_formed_orchestrator_identity(broker) -> None:
+    """Validator must not reject valid namespaced identities (this would have a token error,
+    but the parse-time check should pass)."""
+    env = broker["env"]
+    result = subprocess.run(
+        CLI + ["send", "--identity", "@orchestrator/test", "--to", "alice", "ping"],
+        env=env, capture_output=True, text=True,
+    )
+    # No token file, so connect rejects — that's a runtime error, not an argparse error.
+    assert result.returncode != 0
+    # Make sure the failure is the reserved-identity rejection, not the validator.
+    assert "scope" not in result.stderr.lower()
+    assert "reserved" in result.stderr.lower()

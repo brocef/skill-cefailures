@@ -308,6 +308,23 @@ class _VersionAction(argparse.Action):
         sys.exit(0)
 
 
+def _validate_identity_arg(value: str) -> str:
+    """Argparse type validator for --identity.
+
+    Rejects identity strings that look like a malformed orchestrator name
+    (start with `@orchestrator` but don't full-match the strict pattern).
+    All other identities pass through unchanged — peer identity strings
+    are unauthenticated, so we don't validate them here.
+    """
+    from broker_constants import _ORCHESTRATOR_RE
+    if value.startswith("@orchestrator") and not _ORCHESTRATOR_RE.fullmatch(value):
+        raise argparse.ArgumentTypeError(
+            f"'--identity {value}' is reserved-prefix-shaped but not a valid orchestrator identity. "
+            f"Use --identity @orchestrator/<scope> where <scope> matches [A-Za-z0-9._-]{{1,64}}."
+        )
+    return value
+
+
 def _add_token_arg(p: argparse.ArgumentParser) -> None:
     """Add --token to a subparser, defaulting to BROKER_TOKEN env var if set."""
     p.add_argument(
@@ -335,34 +352,39 @@ def main() -> None:
     subparsers = parser.add_subparsers(dest="command")
 
     p_server = subparsers.add_parser("server", help="Start the broker server with an interactive REPL")
-    p_server.add_argument("--identity", default="user", help="Identity for this REPL session (default: user)")
+    p_server.add_argument("--identity", default="user", type=_validate_identity_arg,
+                          help="Identity for this REPL session (default: user)")
     p_server.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
     p_server.add_argument("--root-dir", type=Path, default=DEFAULT_ROOT,
                           help="Broker root directory (env: MCP_BROKER_ROOT)")
     _add_token_arg(p_server)
 
     p_send = subparsers.add_parser("send", help="Send a DM to one or more identities")
-    p_send.add_argument("--identity", required=False, help="Sender identity (defaults to cwd-derived)")
+    p_send.add_argument("--identity", required=False, type=_validate_identity_arg,
+                        help="Sender identity (defaults to cwd-derived)")
     p_send.add_argument("--to", required=True, help="Comma-separated recipient identities")
     p_send.add_argument("content", help="Message content")
     p_send.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
     _add_token_arg(p_send)
 
     p_bcast = subparsers.add_parser("broadcast", help="Broadcast to every registered identity")
-    p_bcast.add_argument("--identity", required=False, help="Sender identity (defaults to cwd-derived)")
+    p_bcast.add_argument("--identity", required=False, type=_validate_identity_arg,
+                         help="Sender identity (defaults to cwd-derived)")
     p_bcast.add_argument("content", help="Message content")
     p_bcast.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
     _add_token_arg(p_bcast)
 
     p_ra = subparsers.add_parser("reply-all", help="Reply to all recipients of a prior DM (excluding self)")
-    p_ra.add_argument("--identity", required=False, help="Sender identity (defaults to cwd-derived)")
+    p_ra.add_argument("--identity", required=False, type=_validate_identity_arg,
+                      help="Sender identity (defaults to cwd-derived)")
     p_ra.add_argument("--to-message", required=True, help="Message ID of the original DM")
     p_ra.add_argument("content", help="Message content")
     p_ra.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
     _add_token_arg(p_ra)
 
     p_read = subparsers.add_parser("read", help="Drain your DM inbox (advances the cursor)")
-    p_read.add_argument("--identity", required=False, help="Your identity (defaults to cwd-derived)")
+    p_read.add_argument("--identity", required=False, type=_validate_identity_arg,
+                        help="Your identity (defaults to cwd-derived)")
     p_read.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
     _add_token_arg(p_read)
 
@@ -370,12 +392,14 @@ def main() -> None:
         "follow",
         help="Tail your DM inbox log. Drains backlog, then waits for new messages until idle-timeout elapses.",
     )
-    p_follow.add_argument("--identity", required=False, help="Your identity (defaults to cwd-derived)")
+    p_follow.add_argument("--identity", required=False, type=_validate_identity_arg,
+                          help="Your identity (defaults to cwd-derived)")
     p_follow.add_argument("--idle-timeout", type=int, default=120,
                           help="Exit after N seconds of silence. 0 disables. Default: 120.")
 
     p_hist = subparsers.add_parser("history", help="Read inbox (or outbox with --sent) without advancing cursor")
-    p_hist.add_argument("--identity", required=False, help="Your identity (defaults to cwd-derived)")
+    p_hist.add_argument("--identity", required=False, type=_validate_identity_arg,
+                        help="Your identity (defaults to cwd-derived)")
     p_hist.add_argument("--from", dest="from_filter", help="Only lines from this sender")
     p_hist.add_argument("--since", help="Only lines with timestamp >= this ISO8601 string")
     p_hist.add_argument("--sent", action="store_true", help="Read the sender's outbox instead of inbox")
@@ -383,7 +407,8 @@ def main() -> None:
     _add_token_arg(p_hist)
 
     p_clients = subparsers.add_parser("clients", help="List identities currently connected to the broker")
-    p_clients.add_argument("--identity", required=False, help="Your identity (defaults to cwd-derived)")
+    p_clients.add_argument("--identity", required=False, type=_validate_identity_arg,
+                           help="Your identity (defaults to cwd-derived)")
     p_clients.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
     _add_token_arg(p_clients)
 
