@@ -13,7 +13,6 @@ Everything lives under `~/.mcp-broker/`:
 - `messages/<message-id>.json` — raw records used by `reply-all` to look up recipient sets.
 - `tokens/<identity>.token` — per-host token files for reserved identities (`orchestrator`, `human`).
 - `broker.sock` — Unix socket the CLI talks to.
-- `conversations/` — legacy room state (deprecated, kept for old `create`/`join`/`leave`).
 
 **Identity encoding:** `/` becomes `_` in filenames. So `@proposit/shared` → `inbox/@proposit_shared.log`.
 
@@ -104,7 +103,7 @@ msg-e9d201
 broker follow [--idle-timeout N] [--identity <me>]
 ```
 
-Tail the per-identity inbox log. Drains unread backlog first (advancing the cursor as it goes), then streams new messages via push from the server. No conversation ID needed. Legacy conv-id form still works.
+Tail the per-identity inbox log. Drains unread backlog first (advancing the cursor as it goes), then waits for newly-appended lines.
 
 - `--idle-timeout N` — exit after N seconds with no new messages (default 120; `0` disables).
 - `--identity X` — override cwd-derived identity.
@@ -143,7 +142,7 @@ $ broker history --from orchestrator --since 2026-04-22T09:00:00Z
 broker read [--identity <me>]
 ```
 
-Print only inbox lines newer than the stored cursor, then advance the cursor to the end. Useful in scripted one-shots where you explicitly want to consume-and-mark. Legacy conv-id form still works for old callers.
+Print only inbox lines newer than the stored cursor, then advance the cursor to the end. Useful in scripted one-shots where you explicitly want to consume-and-mark.
 
 Example:
 ```bash
@@ -153,6 +152,37 @@ $ broker read
 
 **Do not chain `read` → `follow`.** Read advances the cursor, so follow will see nothing until the next new message. Use `follow` alone; it handles drain + stream.
 
-## Legacy room commands
+### clients — list connected identities
 
-`broker create`, `join`, `leave`, `close`, `list`, `members` remain for backward compatibility but print deprecation warnings on stderr. They operate on the old `conversations/` store. New work should use the DM commands above — see `SKILL.md` for replacement patterns (side conversations become targeted `send --to` threads; "list" becomes `history`).
+```
+broker clients [--identity <me>]
+```
+
+Print every identity currently holding a live socket connection to the broker. Useful for confirming who is online before sending a DM, or for sanity-checking that a remote agent registered.
+
+Example:
+```bash
+$ broker clients
+alice
+proposit-server
+user
+```
+
+### server — start the broker with an interactive REPL
+
+```
+broker server [--identity <me>] [--root-dir <path>] [--token <value>]
+```
+
+Boot the broker server and drop into an interactive REPL on stdin. The REPL identity defaults to `user`; pass `--identity orchestrator` (with `--token`) to drive the broker as the workspace orchestrator. From the REPL:
+
+```
+broker> who
+broker> send <identity[,identity]> <text>
+broker> broadcast <text>
+broker> read | history
+broker> emit-messages on|off
+broker> help | exit
+```
+
+Toggling `emit-messages on` echoes a copy of every message the broker routes — handy when you want a live audit tail of what's flowing through.

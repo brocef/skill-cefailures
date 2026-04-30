@@ -77,15 +77,22 @@ Agents will follow the patterns in `patterns.md` to wait for replies without wri
 `orchestrator`, `human`, and `BROADCAST` are reserved at the server level:
 
 - **`BROADCAST`** — never claimable. It's the pseudo-recipient on `broker broadcast` fan-outs.
-- **`orchestrator`** and **`human`** — claimable only by processes that present a matching token. Create the token file before connecting:
+- **`orchestrator`** and **`human`** — claimable only by processes that present a matching token. Create the token file once, then pass the same value via `--token` (or the `BROKER_TOKEN` env var) on every CLI invocation:
 
   ```bash
   mkdir -p ~/.mcp-broker/tokens
-  echo "anything-non-empty" > ~/.mcp-broker/tokens/orchestrator.token
-  echo "anything-non-empty" > ~/.mcp-broker/tokens/human.token
+  echo "secret-value" > ~/.mcp-broker/tokens/orchestrator.token
+  echo "secret-value" > ~/.mcp-broker/tokens/human.token
+
+  # Per-call:
+  broker send --identity orchestrator --token secret-value --to alice "hi"
+
+  # Or via env var:
+  export BROKER_TOKEN=secret-value
+  broker send --identity orchestrator --to alice "hi"
   ```
 
-  Note: the CLI does not yet plumb the token to the server on connect — this is tracked follow-up work. In practice, most agents use their cwd-derived identity and leave reserved identities for humans and orchestration processes.
+  In practice, most agents use their cwd-derived identity and leave reserved identities for humans and orchestration processes.
 
 ## Multi-workspace note
 
@@ -108,6 +115,5 @@ Everything the broker persists lives under `~/.mcp-broker/`:
 - `identities.json` — registry of known identities (first/last seen, canonical form).
 - `messages/<message-id>.json` — raw records used by `reply-all` to recover recipient sets.
 - `tokens/<identity>.token` — per-host tokens for reserved identities.
-- `conversations/` — legacy room state (deprecated, still present for backward compat).
 
 Identity encoding: `/` becomes `_` in filenames (`@proposit/shared` → `@proposit_shared.log`).

@@ -9,7 +9,7 @@ from broker_server import BrokerServer
 
 
 def test_server_initializes_dm_storage(tmp_path: Path) -> None:
-    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server = BrokerServer(root_dir=tmp_path)
     assert server.inbox_log.base_dir == tmp_path / "inbox"
     assert server.outbox_log.base_dir == tmp_path / "outbox"
     assert server.cursors.base_dir == tmp_path / "cursors"
@@ -25,7 +25,7 @@ def _send(server: BrokerServer, identity: str, **kwargs) -> dict:
 
 
 def test_send_dm_delivers_to_single_recipient(tmp_path: Path) -> None:
-    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server = BrokerServer(root_dir=tmp_path)
     server.connect("alice", lambda m: None)
     server.connect("bob", lambda m: None)
     data = _send(server, "alice", to=["bob"], content="hello bob")
@@ -37,7 +37,7 @@ def test_send_dm_delivers_to_single_recipient(tmp_path: Path) -> None:
 
 
 def test_send_dm_delivers_to_multiple_recipients(tmp_path: Path) -> None:
-    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server = BrokerServer(root_dir=tmp_path)
     server.connect("alice", lambda m: None)
     _send(server, "alice", to=["bob", "carol"], content="group ping")
     bob_lines, _ = server.inbox_log.read_from("bob", 0)
@@ -47,7 +47,7 @@ def test_send_dm_delivers_to_multiple_recipients(tmp_path: Path) -> None:
 
 
 def test_send_dm_writes_sender_outbox(tmp_path: Path) -> None:
-    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server = BrokerServer(root_dir=tmp_path)
     server.connect("alice", lambda m: None)
     _send(server, "alice", to=["bob"], content="audit me")
     sent = server.outbox_log.read_all("alice")
@@ -56,14 +56,14 @@ def test_send_dm_writes_sender_outbox(tmp_path: Path) -> None:
 
 
 def test_send_dm_rejects_broadcast_sentinel(tmp_path: Path) -> None:
-    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server = BrokerServer(root_dir=tmp_path)
     server.connect("alice", lambda m: None)
     with pytest.raises(ValueError, match="BROADCAST"):
         _send(server, "alice", to=["BROADCAST"], content="nope")
 
 
 def test_send_dm_pushes_to_connected_recipient(tmp_path: Path) -> None:
-    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server = BrokerServer(root_dir=tmp_path)
     received: list[dict] = []
     server.connect("alice", lambda m: None)
     server.connect("bob", received.append)
@@ -79,7 +79,7 @@ def _broadcast(server: BrokerServer, identity: str, content: str) -> dict:
 
 
 def test_broadcast_delivers_to_every_registered_identity(tmp_path: Path) -> None:
-    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server = BrokerServer(root_dir=tmp_path)
     server.connect("alice", lambda m: None)
     server.connect("bob", lambda m: None)
     server.connect("carol", lambda m: None)
@@ -95,7 +95,7 @@ def test_broadcast_delivers_to_every_registered_identity(tmp_path: Path) -> None
 
 
 def test_broadcast_writes_sender_outbox(tmp_path: Path) -> None:
-    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server = BrokerServer(root_dir=tmp_path)
     server.connect("alice", lambda m: None)
     server.handle_request("alice", {"type": "send_dm", "id": "1", "to": ["alice"], "content": "self"})
     _broadcast(server, "alice", "hello world")
@@ -104,7 +104,7 @@ def test_broadcast_writes_sender_outbox(tmp_path: Path) -> None:
 
 
 def test_reply_all_computes_recipient_set(tmp_path: Path) -> None:
-    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server = BrokerServer(root_dir=tmp_path)
     server.connect("alice", lambda m: None)
     server.connect("bob", lambda m: None)
     server.connect("carol", lambda m: None)
@@ -128,7 +128,7 @@ def test_reply_all_computes_recipient_set(tmp_path: Path) -> None:
 
 
 def test_reply_all_rejects_broadcast_message(tmp_path: Path) -> None:
-    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server = BrokerServer(root_dir=tmp_path)
     server.connect("alice", lambda m: None)
     server.handle_request("alice", {"type": "send_dm", "id": "seed", "to": ["alice"], "content": "s"})
     bcast = server.handle_request("alice", {"type": "send_broadcast", "id": "1", "content": "hi all"})
@@ -140,7 +140,7 @@ def test_reply_all_rejects_broadcast_message(tmp_path: Path) -> None:
 
 
 def test_reply_all_unknown_message_errors(tmp_path: Path) -> None:
-    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server = BrokerServer(root_dir=tmp_path)
     server.connect("alice", lambda m: None)
     result = server.handle_request("alice", {
         "type": "reply_all", "id": "2", "to_message": "msg-does-not-exist", "content": "x",
@@ -150,7 +150,7 @@ def test_reply_all_unknown_message_errors(tmp_path: Path) -> None:
 
 
 def test_history_inbox_returns_all_without_advancing_cursor(tmp_path: Path) -> None:
-    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server = BrokerServer(root_dir=tmp_path)
     server.connect("alice", lambda m: None)
     server.handle_request("alice", {"type": "send_dm", "id": "1", "to": ["bob"], "content": "first"})
     server.handle_request("alice", {"type": "send_dm", "id": "2", "to": ["bob"], "content": "second"})
@@ -164,7 +164,7 @@ def test_history_inbox_returns_all_without_advancing_cursor(tmp_path: Path) -> N
 
 
 def test_history_inbox_filters_by_sender(tmp_path: Path) -> None:
-    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server = BrokerServer(root_dir=tmp_path)
     server.connect("alice", lambda m: None)
     server.connect("carol", lambda m: None)
     server.handle_request("alice", {"type": "send_dm", "id": "1", "to": ["bob"], "content": "from alice"})
@@ -177,7 +177,7 @@ def test_history_inbox_filters_by_sender(tmp_path: Path) -> None:
 
 
 def test_history_sent_reads_outbox(tmp_path: Path) -> None:
-    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server = BrokerServer(root_dir=tmp_path)
     server.connect("alice", lambda m: None)
     server.handle_request("alice", {"type": "send_dm", "id": "1", "to": ["bob"], "content": "sent 1"})
     server.handle_request("alice", {"type": "send_dm", "id": "2", "to": ["carol"], "content": "sent 2"})
@@ -190,7 +190,7 @@ def test_history_sent_reads_outbox(tmp_path: Path) -> None:
 
 
 def test_read_inbox_advances_cursor_and_returns_only_new(tmp_path: Path) -> None:
-    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server = BrokerServer(root_dir=tmp_path)
     server.connect("alice", lambda m: None)
     server.handle_request("alice", {"type": "send_dm", "id": "1", "to": ["bob"], "content": "one"})
 
@@ -207,7 +207,7 @@ def test_read_inbox_advances_cursor_and_returns_only_new(tmp_path: Path) -> None
 
 
 def test_reserved_identity_requires_token(tmp_path: Path) -> None:
-    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server = BrokerServer(root_dir=tmp_path)
     server.connect("bob", lambda m: None)
     with pytest.raises(ValueError, match="reserved"):
         server.connect("orchestrator", lambda m: None)
@@ -219,7 +219,7 @@ def test_reserved_identity_with_token_allowed(tmp_path: Path) -> None:
     token_dir.mkdir()
     (token_dir / "orchestrator.token").write_text("ok")
 
-    server = BrokerServer(storage_dir=root / "conversations")
+    server = BrokerServer(root_dir=root)
     server.connect("orchestrator", lambda m: None, token="ok")
     server.connect("bob", lambda m: None)
     server.handle_request("orchestrator", {
@@ -230,14 +230,14 @@ def test_reserved_identity_with_token_allowed(tmp_path: Path) -> None:
 
 
 def test_broadcast_identity_cannot_be_claimed(tmp_path: Path) -> None:
-    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server = BrokerServer(root_dir=tmp_path)
     with pytest.raises(ValueError, match="reserved"):
         server.connect("BROADCAST", lambda m: None)
 
 
 def test_reserved_identity_unconnected_rejected_on_request(tmp_path: Path) -> None:
     """A reserved identity must go through privileged connect() before it can send."""
-    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server = BrokerServer(root_dir=tmp_path)
     server.connect("bob", lambda m: None)
     # Try to use 'orchestrator' in handle_request without connect().
     result = server.handle_request("orchestrator", {

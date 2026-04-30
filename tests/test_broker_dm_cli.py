@@ -17,10 +17,9 @@ def broker(tmp_path: Path):
     """
     import uuid
     sock = Path(f"/tmp/broker_dm_cli_{uuid.uuid4().hex[:8]}.sock")
-    storage = tmp_path / "conversations"
     env = {
         "MCP_BROKER_SOCK": str(sock),
-        "MCP_BROKER_STORAGE": str(storage),
+        "MCP_BROKER_ROOT": str(tmp_path),
         "PATH": Path(sys.executable).parent.as_posix(),
     }
     proc = subprocess.Popen(CLI + ["server"], env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -62,6 +61,51 @@ def test_send_dm_multi_recipient(broker) -> None:
     assert result.returncode == 0, result.stderr
     assert (broker["tmp"] / "inbox" / "bob.log").exists()
     assert (broker["tmp"] / "inbox" / "carol.log").exists()
+
+
+def test_send_with_token_for_reserved_identity(broker) -> None:
+    """`broker send --token X --identity orchestrator ...` works when the token file matches."""
+    env = broker["env"]
+    tokens_dir = broker["tmp"] / "tokens"
+    tokens_dir.mkdir(parents=True, exist_ok=True)
+    (tokens_dir / "orchestrator.token").write_text("ok\n")
+
+    result = subprocess.run(
+        CLI + ["send", "--token", "ok", "--identity", "orchestrator", "--to", "alice", "ping"],
+        env=env, capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    inbox = broker["tmp"] / "inbox" / "alice.log"
+    assert inbox.exists()
+    assert "[orchestrator]" in inbox.read_text()
+
+
+def test_send_without_token_for_reserved_identity_fails_cleanly(broker) -> None:
+    """Connecting as a reserved identity without a token returns a non-zero exit and a JSON error."""
+    env = broker["env"]
+    result = subprocess.run(
+        CLI + ["send", "--identity", "orchestrator", "--to", "alice", "nope"],
+        env=env, capture_output=True, text=True,
+    )
+    assert result.returncode != 0
+    # stderr should carry a structured error mentioning the reservation.
+    assert "reserved" in result.stderr.lower()
+
+
+def test_broker_token_env_var_is_used(broker) -> None:
+    """If --token is omitted, BROKER_TOKEN from the environment is used."""
+    env = dict(broker["env"])
+    tokens_dir = broker["tmp"] / "tokens"
+    tokens_dir.mkdir(parents=True, exist_ok=True)
+    (tokens_dir / "orchestrator.token").write_text("env-tok\n")
+    env["BROKER_TOKEN"] = "env-tok"
+
+    result = subprocess.run(
+        CLI + ["send", "--identity", "orchestrator", "--to", "alice", "from env"],
+        env=env, capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "[orchestrator]" in (broker["tmp"] / "inbox" / "alice.log").read_text()
 
 
 def test_broadcast_fans_out(broker) -> None:
@@ -145,43 +189,13 @@ def test_whoami_prints_derived_identity(tmp_path: Path) -> None:
     assert str(tmp_path) in result.stdout
 
 
-def test_create_emits_deprecation_warning(broker) -> None:
+def test_room_subcommands_are_gone(broker) -> None:
+    """The legacy room CLI surface must no longer parse — argparse should reject it."""
     env = broker["env"]
-    result = subprocess.run(
-        CLI + ["create", "--identity", "alice", "test-room"],
-        env=env, capture_output=True, text=True,
-    )
-    # Should succeed (returncode 0) but emit a deprecation warning to stderr.
-    assert result.returncode == 0, result.stderr
-    assert "deprecat" in result.stderr.lower()
-
-
-def test_join_emits_deprecation_warning(broker) -> None:
-    env = broker["env"]
-    # Create a room first (itself will warn).
-    created = subprocess.run(
-        CLI + ["create", "--identity", "alice", "room"],
-        env=env, capture_output=True, text=True,
-    )
-    import json as _json
-    conv_id = _json.loads(created.stdout)["conversation_id"]
-    result = subprocess.run(
-        CLI + ["join", "--identity", "bob", conv_id],
-        env=env, capture_output=True, text=True,
-    )
-    assert result.returncode == 0, result.stderr
-    assert "deprecat" in result.stderr.lower()
-
-
-def test_leave_emits_deprecation_warning(broker) -> None:
-    env = broker["env"]
-    created = subprocess.run(CLI + ["create", "--identity", "alice", "room"], env=env, capture_output=True, text=True)
-    import json as _json
-    conv_id = _json.loads(created.stdout)["conversation_id"]
-    subprocess.run(CLI + ["join", "--identity", "bob", conv_id], env=env, capture_output=True, text=True)
-    result = subprocess.run(CLI + ["leave", "--identity", "bob", conv_id], env=env, capture_output=True, text=True)
-    assert result.returncode == 0, result.stderr
-    assert "deprecat" in result.stderr.lower()
+    for legacy in ("create", "join", "leave", "close", "members", "list", "repl"):
+        result = subprocess.run(CLI + [legacy], env=env, capture_output=True, text=True)
+        assert result.returncode != 0
+        assert "invalid choice" in result.stderr.lower(), f"{legacy}: {result.stderr}"
 
 
 def test_follow_tails_inbox_file(broker) -> None:

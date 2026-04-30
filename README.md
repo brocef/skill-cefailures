@@ -89,123 +89,153 @@ tests/
   test_create_skill.py
   test_install_skill.py
   test_analyze_permissions.py
-  test_broker_server.py
-  test_broker_transport.py
   test_broker_client.py
-  test_broker_cli.py
-  test_broker_e2e.py
+  test_broker_dm_cli.py
+  test_broker_dm_e2e.py
+  test_broker_dm_server.py
+  test_broker_format.py
+  test_broker_identity.py
+  test_broker_repl.py
+  test_broker_storage.py
+  test_broker_transport.py
 ```
 
 ## Message Broker
 
-A chatroom-like tool that lets Claude Code agents and a human talk to each other in real time. Messages route through a Unix domain socket for instant delivery and are persisted to disk so conversations survive restarts.
+A direct-message bus that lets Claude Code agents (and a human) talk to each other in real time. Every participant has a persistent identity and a per-identity inbox on disk, so messages survive restarts and can be addressed without any kind of conversation/room setup.
 
 ### Architecture
 
-A central broker server runs as a socket hub. Each Claude Code agent calls the broker CLI to send and receive messages. A human can participate through the built-in REPL or a separate client terminal.
+A single broker server runs as a Unix-domain-socket hub on the host. Every participant — humans, orchestrators, and individual repo-bound agents — connects to the same socket as a named **identity**. Sending a message is a simple call: `broker send --to <identity> "<text>"`. The server appends the message to the recipient's `inbox/<identity>.log`, pushes it live if the recipient is connected, and persists a per-message record so `reply-all` can reconstruct the recipient set later.
 
 ```
-Claude A ──Bash──► broker send/read/list ◄──┐
-                                             │ Unix domain
-Claude B ──Bash──► broker send/read/list ◄──┤ socket
-                                             │
-                    broker server        ◄───┘
-                    (socket server + REPL)
+                      ┌──────────────────────────────────────────┐
+                      │              broker server               │
+                      │    ~/.mcp-broker/broker.sock (unix)      │
+                      │    inbox/, outbox/, cursors/,            │
+                      │    identities.json, messages/, tokens/   │
+                      └──────────────┬───────────────────────────┘
+                                     │
+       ┌─────────────────────────────┼─────────────────────────────┐
+       │                             │                             │
+   Claude A                      Claude B                       Human
+  (proposit-server)         (@proposit/shared)             (user / human)
+   `broker send`              `broker send`                broker server REPL
+   `broker follow`            `broker follow`              who / send / read
+   `broker history`           `broker history`             emit-messages on
 ```
 
-### 1. Start the broker server
+### Roles
 
-The broker server must be running before agents or clients can connect:
+The DM model has no room/membership concept. Roles are conventions on top of identities, plus a small server-enforced reservation:
+
+- **User (`user`).** The default identity inside `broker server`. The human running the server interacts with the broker through the in-process REPL — sending DMs, broadcasting, reading their inbox. No token required.
+- **Orchestrator (`orchestrator`).** A reserved coordinator identity. Used when a controlling process (often a parent Claude Code session) needs to dispatch work to per-repo agents and collect their replies in one inbox. Reserved means the broker server requires a matching token file at `~/.mcp-broker/tokens/orchestrator.token` and a `--token` value on connect.
+- **Individual agents.** Each Claude Code instance derives its identity from its workspace: the nearest `package.json` `name`, falling back to `<org>/<repo>` from `git remote origin`. The agent calls `broker whoami` to see what identity it will use; senders compute the same string to address it. No token required.
+- **Reserved-but-token-gated.** `human` is also reserved (token-gated), for direct human-as-DM-recipient flows where you want a single canonical inbox regardless of which terminal you're typing from. `BROADCAST` is permanently reserved as the fan-out pseudo-recipient and cannot be claimed.
+
+### Quick start
 
 ```bash
-python scripts/broker_cli.py --server
-python scripts/broker_cli.py --server --identity brian    # default identity is "user"
+# 1. Symlink the CLI onto your $PATH.
+ln -s /path/to/skill-cefailures/scripts/broker_cli.py ~/.local/bin/broker
+
+# 2. Start the server in a terminal — drops you into an interactive REPL.
+broker server
+#   Broker server listening on /Users/you/.mcp-broker/broker.sock
+#   Broker REPL — connected as 'user'. Type 'help' for commands.
+#   broker>
+
+# 3. (Optional) Add `Bash(broker:*)` to your Claude Code allowedTools so agents
+#    can call the broker without permission prompts.
 ```
 
-This starts the socket server at `~/.mcp-broker/broker.sock` and opens an interactive REPL where you can participate in conversations. Conversations are persisted to `~/.mcp-broker/conversations/`.
+### Usage from the human's perspective
 
-### 2. Install the broker CLI
+While `broker server` is running, the REPL gives you a small set of DM-aware commands:
 
-Create a symlink so `broker` is available in your `$PATH`:
+```
+broker> who
+  alice
+  proposit-server
+  user (you)
+
+broker> send proposit-server please publish v1.2.3
+  sent msg-7f3a91
+
+broker> broadcast pausing publishes — npm registry is down
+  broadcast msg-b12c04 to 4 identity(s)
+
+broker> read
+  2026-04-30T18:21:09Z [proposit-server] READY: shared v1.2.3 published
+  2026-04-30T18:23:44Z [@proposit_core → you, proposit-server] QUESTION: who owns the migration?
+
+broker> emit-messages on
+  emit-messages: on
+# every routed message now also prints inline as `[audit] <line>`
+
+broker> help
+broker> exit
+```
+
+You can also use the same one-shot CLI agents use, from any other terminal — handy for scripts:
 
 ```bash
-ln -s /path/to/skill-cefailures/scripts/broker_cli.py /usr/local/bin/broker
-chmod +x /path/to/skill-cefailures/scripts/broker_cli.py
+broker send --to proposit-server "READY: shared v1.2.3 published"
+broker history --since 2026-04-30T00:00:00Z
+broker follow --idle-timeout 60
 ```
 
-Add `Bash(broker:*)` to your Claude Code allowedTools so agents can call the broker without permission prompts.
+### Usage from an AI agent's perspective
 
-### 3. Start a conversation
-
-From the broker server REPL, create a conversation and seed it with instructions for the agents:
-
-```
-broker> create Design a caching layer
-  Created a1b2c3
-  Seed message (Enter to skip): I need agent_a and agent_b to collaborate on
-  adding Redis caching to the API. Focus on the hot path in /api/v1/search.
-  Sent msg-d4e5f6
-```
-
-Then tell each agent to check for conversations:
-
-```
-You have a broker CLI. Check for conversations with `broker list --identity <agent-name>` and respond to any messages.
-```
-
-Agents use `broker list`, `broker read`, and `broker send` to participate. Messages from agents appear in your REPL in real time.
-
-### 4. Participate in conversations
-
-The REPL has two modes:
-
-**Lobby** (`broker>` prompt):
-- `list` — show all conversations with unread counts
-- `create <topic>` — start a new conversation (prompts for an optional seed message)
-- `join <id>` — enter a conversation
-- `exit` — quit
-
-**Conversation** (`<id>>` prompt):
-- `read` — show message history
-- `members` — show who's in the conversation
-- `leave` — leave the conversation and return to lobby
-- `close` — close the conversation (read-only for everyone)
-- `back` — return to lobby without leaving (you still receive messages)
-- Anything else is sent as a message
-
-Incoming messages from agents print automatically when you're in a conversation — no need to poll.
-
-### 5. Connect from a separate terminal (client mode)
-
-You can also join from another terminal without running the server:
+Each agent has the broker skill loaded (see `skills/broker/SKILL.md`), which defines a tight set of patterns. The canonical loop is "send a message, then block on your inbox until a reply arrives or the conversation goes quiet":
 
 ```bash
-python scripts/broker_cli.py --identity observer
+# Agent inside the proposit-server workspace
+broker whoami
+# proposit-server  (from /Users/you/code/proposit-server)
+
+broker send --to "@proposit/shared" "QUESTION: which schema version for v1.3?"
+# msg-4ab12c
+
+broker follow --idle-timeout 120
+# 2026-04-30T18:30:01Z [@proposit_shared] DECISION: stick with v2 schema
 ```
 
-This connects to the running broker server as a client with the same REPL interface.
+Multi-party threads use `reply-all` against a captured message ID — no recipient list to retype:
 
-### System messages
-
-The broker tracks conversation membership. When someone joins or leaves a conversation, a system message is broadcast to all members:
-
+```bash
+MID=$(broker send --to "@proposit/shared,@proposit/core" "QUESTION: validate(schema) or validate(obj)?")
+broker follow --idle-timeout 180
+broker reply-all --to-message "$MID" "DECISION: validate(schema) wins."
 ```
-  * agent_a joined
-  * agent_b left
+
+An orchestrator does the same thing in reverse: it dispatches work, then watches its inbox for status updates from every agent it spawned. A single `broker follow` on the orchestrator's identity captures every reply, every broadcast, and every reply-all that includes it — no per-room follow, no fan-in bookkeeping:
+
+```bash
+broker server   # in an orchestrator terminal, with --identity orchestrator + token
+
+broker> emit-messages on   # tail every routed message in real time
+broker> send proposit-server "TASK: cut release branch for v1.3"
+broker> send "@proposit/shared" "TASK: bump shared to v1.2.3"
+# replies stream back into the same REPL inbox.
 ```
 
 ### CLI reference
 
 | Command | Description |
 |---------|-------------|
-| `broker create --identity NAME TOPIC [--content MSG]` | Start a new conversation, optionally with a seed message (auto-joins) |
-| `broker send --identity NAME CONV_ID CONTENT` | Send a message (auto-joins) |
-| `broker read --identity NAME CONV_ID` | Read messages you haven't seen yet |
-| `broker join --identity NAME CONV_ID` | Explicitly join a conversation |
-| `broker leave --identity NAME CONV_ID` | Leave a conversation |
-| `broker list --identity NAME [--status open\|closed]` | List conversations |
-| `broker members --identity NAME CONV_ID` | See who's in a conversation |
-| `broker close --identity NAME CONV_ID` | Mark a conversation as read-only |
+| `broker server` | Start the socket server with an interactive DM REPL |
+| `broker whoami` | Print the identity derived from the current cwd |
+| `broker send --to a,b "<text>"` | DM one or more identities |
+| `broker broadcast "<text>"` | Fan out to every registered identity |
+| `broker reply-all --to-message MID "<text>"` | Reply to every recipient of a prior DM, excluding self |
+| `broker read` | Drain new inbox lines and advance the cursor |
+| `broker history [--from X] [--since ISO] [--sent]` | Read inbox (or outbox) without advancing the cursor |
+| `broker follow [--idle-timeout N]` | Drain backlog + tail new inbox lines, exit on idle |
+| `broker clients` | List identities currently connected to the broker |
+
+For full pattern and troubleshooting docs, see `skills/broker/SKILL.md` and the files in `skills/broker/docs/`.
 
 ## How Skills Work
 

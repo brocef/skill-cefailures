@@ -24,105 +24,15 @@ def sock_path():
 
 
 @pytest.mark.asyncio
-async def test_client_connect_and_create(tmp_path, sock_path):
-    """BrokerClient can connect and create a conversation."""
-    storage_dir = tmp_path / "convs"
-    server = BrokerServer(storage_dir=storage_dir)
+async def test_client_connect_and_disconnect(tmp_path, sock_path):
+    """BrokerClient can connect and cleanly disconnect."""
+    server = BrokerServer(root_dir=tmp_path)
     srv = await start_server(server, sock_path)
 
     try:
         client = BrokerClient(identity="alice", sock_path=sock_path)
         await client.connect()
-
-        result = await client.create_conversation("Test topic")
-        assert "conversation_id" in result
-        assert result["topic"] == "Test topic"
-
         await client.close()
-    finally:
-        srv.close()
-        await srv.wait_closed()
-
-
-@pytest.mark.asyncio
-async def test_client_send_and_receive(tmp_path, sock_path):
-    """Two BrokerClients can send and receive messages."""
-    storage_dir = tmp_path / "convs"
-    server = BrokerServer(storage_dir=storage_dir)
-    srv = await start_server(server, sock_path)
-
-    try:
-        alice = BrokerClient(identity="alice", sock_path=sock_path)
-        bob = BrokerClient(identity="bob", sock_path=sock_path)
-        await alice.connect()
-        await bob.connect()
-
-        result = await alice.create_conversation("Test")
-        cid = result["conversation_id"]
-        await bob.join_conversation(cid)
-
-        await alice.send_message(cid, "Hello bob")
-
-        # Give a moment for the push to arrive
-        await asyncio.sleep(0.05)
-
-        # Bob should have the message in his buffer
-        messages = bob.get_new_messages(cid)
-        assert len(messages) >= 1
-        content_msgs = [m for m in messages if m.get("message", {}).get("sender") != "system"]
-        assert any(m["message"]["content"] == "Hello bob" for m in content_msgs if "message" in m)
-
-        await alice.close()
-        await bob.close()
-    finally:
-        srv.close()
-        await srv.wait_closed()
-
-
-@pytest.mark.asyncio
-async def test_client_list_conversations(tmp_path, sock_path):
-    """BrokerClient can list conversations."""
-    storage_dir = tmp_path / "convs"
-    server = BrokerServer(storage_dir=storage_dir)
-    srv = await start_server(server, sock_path)
-
-    try:
-        client = BrokerClient(identity="alice", sock_path=sock_path)
-        await client.connect()
-        await client.create_conversation("Topic A")
-        await client.create_conversation("Topic B")
-
-        result = await client.list_conversations()
-        assert len(result["conversations"]) == 2
-
-        await client.close()
-    finally:
-        srv.close()
-        await srv.wait_closed()
-
-
-@pytest.mark.asyncio
-async def test_client_list_members(tmp_path, sock_path):
-    """BrokerClient can list conversation members."""
-    storage_dir = tmp_path / "convs"
-    server = BrokerServer(storage_dir=storage_dir)
-    srv = await start_server(server, sock_path)
-
-    try:
-        alice = BrokerClient(identity="alice", sock_path=sock_path)
-        bob = BrokerClient(identity="bob", sock_path=sock_path)
-        await alice.connect()
-        await bob.connect()
-
-        result = await alice.create_conversation("Test")
-        cid = result["conversation_id"]
-        await bob.join_conversation(cid)
-
-        members = await alice.list_members(cid)
-        assert sorted(members["members"]) == ["alice", "bob"]
-
-        await alice.close()
-        await bob.close()
     finally:
         srv.close()
         await srv.wait_closed()
@@ -130,7 +40,7 @@ async def test_client_list_members(tmp_path, sock_path):
 
 @pytest.mark.asyncio
 async def test_send_dm_round_trip(tmp_path, sock_path):
-    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server = BrokerServer(root_dir=tmp_path)
     srv = await start_server(server, sock_path)
 
     alice = BrokerClient("alice", sock_path); await alice.connect()
@@ -147,7 +57,7 @@ async def test_send_dm_round_trip(tmp_path, sock_path):
 
 @pytest.mark.asyncio
 async def test_broadcast_round_trip(tmp_path, sock_path):
-    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server = BrokerServer(root_dir=tmp_path)
     srv = await start_server(server, sock_path)
 
     alice = BrokerClient("alice", sock_path); await alice.connect()
@@ -163,7 +73,7 @@ async def test_broadcast_round_trip(tmp_path, sock_path):
 
 @pytest.mark.asyncio
 async def test_reply_all_round_trip(tmp_path, sock_path):
-    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server = BrokerServer(root_dir=tmp_path)
     srv = await start_server(server, sock_path)
 
     alice = BrokerClient("alice", sock_path); await alice.connect()
@@ -179,8 +89,44 @@ async def test_reply_all_round_trip(tmp_path, sock_path):
 
 
 @pytest.mark.asyncio
+async def test_client_with_token_connects_as_reserved_identity(tmp_path, sock_path):
+    """BrokerClient(token=...) lets a reserved identity connect when the token file matches."""
+    tokens_dir = tmp_path / "tokens"
+    tokens_dir.mkdir()
+    (tokens_dir / "orchestrator.token").write_text("ok\n")
+
+    server = BrokerServer(root_dir=tmp_path)
+    srv = await start_server(server, sock_path)
+    try:
+        client = BrokerClient(identity="orchestrator", sock_path=sock_path, token="ok")
+        await client.connect()
+        # If we got here without raising, connect() round-tripped successfully.
+        result = await client.list_clients()
+        assert "orchestrator" in result["clients"]
+        await client.close()
+    finally:
+        srv.close()
+        await srv.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_client_without_token_raises_on_reserved_identity(tmp_path, sock_path):
+    """BrokerClient.connect() surfaces the reserved-identity rejection as a ValueError."""
+    server = BrokerServer(root_dir=tmp_path)
+    srv = await start_server(server, sock_path)
+    try:
+        client = BrokerClient(identity="orchestrator", sock_path=sock_path)
+        with pytest.raises(ValueError, match="reserved"):
+            await client.connect()
+        await client.close()
+    finally:
+        srv.close()
+        await srv.wait_closed()
+
+
+@pytest.mark.asyncio
 async def test_history_inbox_and_read_inbox(tmp_path, sock_path):
-    server = BrokerServer(storage_dir=tmp_path / "conversations")
+    server = BrokerServer(root_dir=tmp_path)
     srv = await start_server(server, sock_path)
 
     alice = BrokerClient("alice", sock_path); await alice.connect()

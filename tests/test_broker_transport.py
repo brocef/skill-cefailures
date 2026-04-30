@@ -47,9 +47,9 @@ async def _recv(reader: asyncio.StreamReader) -> dict:
 
 
 @pytest.mark.asyncio
-async def test_socket_connect_and_create(storage_dir, sock_path):
-    """Client can connect via socket and create a conversation."""
-    server = BrokerServer(storage_dir=storage_dir)
+async def test_socket_connect_and_send_dm(storage_dir, sock_path):
+    """Client can connect via socket and send a DM."""
+    server = BrokerServer(root_dir=storage_dir)
     srv = await start_server(server, sock_path)
 
     try:
@@ -60,11 +60,11 @@ async def test_socket_connect_and_create(storage_dir, sock_path):
         assert resp["type"] == "response"
         assert resp["id"] == "r1"
 
-        await _send(writer, {"id": "r2", "type": "create_conversation", "topic": "Test"})
+        await _send(writer, {"id": "r2", "type": "send_dm", "to": ["bob"], "content": "hi"})
         resp = await _recv(reader)
         assert resp["type"] == "response"
         assert resp["id"] == "r2"
-        assert "conversation_id" in resp["data"]
+        assert "message_id" in resp["data"]
 
         writer.close()
         await writer.wait_closed()
@@ -74,9 +74,9 @@ async def test_socket_connect_and_create(storage_dir, sock_path):
 
 
 @pytest.mark.asyncio
-async def test_socket_message_push(storage_dir, sock_path):
-    """Messages are pushed to other connected members via socket."""
-    server = BrokerServer(storage_dir=storage_dir)
+async def test_socket_dm_pushes_to_recipient(storage_dir, sock_path):
+    """A DM sent over the socket pushes inbox_message to the connected recipient."""
+    server = BrokerServer(root_dir=storage_dir)
     srv = await start_server(server, sock_path)
 
     try:
@@ -88,28 +88,90 @@ async def test_socket_message_push(storage_dir, sock_path):
         await _send(w2, {"id": "r2", "type": "connect", "identity": "bob"})
         await _recv(r2)
 
-        await _send(w1, {"id": "r3", "type": "create_conversation", "topic": "Test"})
-        resp = await _recv(r1)
-        cid = resp["data"]["conversation_id"]
-
-        await _send(w2, {"id": "r4", "type": "join_conversation", "conversation_id": cid})
-        await _recv(r2)  # join response
-        # alice gets bob's join system message
-        sys_msg = await _recv(r1)
-        assert sys_msg["type"] == "system"
-
-        await _send(w1, {"id": "r5", "type": "send_message", "conversation_id": cid, "content": "Hello bob"})
+        await _send(w1, {"id": "r3", "type": "send_dm", "to": ["bob"], "content": "Hello bob"})
         await _recv(r1)  # send response
 
-        # Bob should receive the pushed message
         pushed = await _recv(r2)
-        assert pushed["type"] == "message"
-        assert pushed["message"]["content"] == "Hello bob"
+        assert pushed["type"] == "inbox_message"
+        assert "Hello bob" in pushed["line"]
 
         w1.close()
         w2.close()
         await w1.wait_closed()
         await w2.wait_closed()
+    finally:
+        srv.close()
+        await srv.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_socket_reserved_identity_without_token_returns_error(storage_dir, sock_path):
+    """Connecting as a reserved identity without a token returns a clean error response."""
+    server = BrokerServer(root_dir=storage_dir)
+    srv = await start_server(server, sock_path)
+    try:
+        reader, writer = await _connect_client(sock_path)
+        await _send(writer, {"id": "r1", "type": "connect", "identity": "orchestrator"})
+        resp = await _recv(reader)
+        assert resp["type"] == "error"
+        assert resp["id"] == "r1"
+        assert "reserved" in resp["message"].lower()
+        writer.close()
+        await writer.wait_closed()
+    finally:
+        srv.close()
+        await srv.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_socket_reserved_identity_with_valid_token_connects(storage_dir, sock_path):
+    """Connecting as a reserved identity with a matching token succeeds."""
+    tokens_dir = storage_dir / "tokens"
+    tokens_dir.mkdir(parents=True)
+    (tokens_dir / "orchestrator.token").write_text("secret-value\n")
+
+    server = BrokerServer(root_dir=storage_dir)
+    srv = await start_server(server, sock_path)
+    try:
+        reader, writer = await _connect_client(sock_path)
+        await _send(writer, {
+            "id": "r1", "type": "connect",
+            "identity": "orchestrator", "token": "secret-value",
+        })
+        resp = await _recv(reader)
+        assert resp["type"] == "response"
+        assert resp["id"] == "r1"
+
+        await _send(writer, {"id": "r2", "type": "list_clients"})
+        resp = await _recv(reader)
+        assert resp["type"] == "response"
+        writer.close()
+        await writer.wait_closed()
+    finally:
+        srv.close()
+        await srv.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_socket_reserved_identity_with_wrong_token_returns_error(storage_dir, sock_path):
+    """Wrong token for a reserved identity returns a clean error response."""
+    tokens_dir = storage_dir / "tokens"
+    tokens_dir.mkdir(parents=True)
+    (tokens_dir / "orchestrator.token").write_text("real-token\n")
+
+    server = BrokerServer(root_dir=storage_dir)
+    srv = await start_server(server, sock_path)
+    try:
+        reader, writer = await _connect_client(sock_path)
+        await _send(writer, {
+            "id": "r1", "type": "connect",
+            "identity": "orchestrator", "token": "wrong",
+        })
+        resp = await _recv(reader)
+        assert resp["type"] == "error"
+        assert "reserved" in resp["message"].lower()
+        writer.close()
+        await writer.wait_closed()
     finally:
         srv.close()
         await srv.wait_closed()

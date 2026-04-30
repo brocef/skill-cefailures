@@ -17,7 +17,7 @@ def live_broker(tmp_path: Path):
     sock = Path(f"/tmp/broker_dm_e2e_{uuid.uuid4().hex[:8]}.sock")
     env = {
         "MCP_BROKER_SOCK": str(sock),
-        "MCP_BROKER_STORAGE": str(tmp_path / "conversations"),
+        "MCP_BROKER_ROOT": str(tmp_path),
         "PATH": Path(sys.executable).parent.as_posix(),
     }
     proc = subprocess.Popen(

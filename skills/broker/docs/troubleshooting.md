@@ -49,9 +49,12 @@ If you want the thread to include others, list them explicitly with `--to a,b,c`
 
 ## "Reserved-identity error on connect"
 
-The server refuses to bind `orchestrator`, `human`, or `BROADCAST` without a matching token file. `BROADCAST` is never claimable; the other two require `~/.mcp-broker/tokens/<identity>.token` to exist (any non-empty content). See `setup.md` for the token-file mechanism.
+The server refuses to bind `orchestrator`, `human`, or `BROADCAST` without a matching token. `BROADCAST` is never claimable. For the other two, you need both:
 
-Most agents should use their cwd-derived identity anyway — reserved identities are for humans and orchestration processes.
+1. A token file at `~/.mcp-broker/tokens/<identity>.token` (any non-empty content).
+2. The same value passed at connect time via `--token <value>` or the `BROKER_TOKEN` env var.
+
+See `setup.md` for the full mechanism. Most agents should use their cwd-derived identity anyway — reserved identities are for humans and orchestration processes.
 
 ## "Identity mismatch / I'm getting the wrong inbox"
 
@@ -63,14 +66,6 @@ Your cwd-derived identity and the `--identity` you're passing don't agree.
 - Whether you're in a nested workspace where the nearest `package.json` isn't the one you think it is.
 
 If you pass `--identity` explicitly, the broker trusts it — it does not reconcile against `whoami`. That's the lever for deliberately impersonating a different inbox (e.g. a human CLI sending as themselves from a repo workspace).
-
-## "Deprecation warnings on create/join/leave"
-
-Expected. The room-based commands (`create`, `join`, `leave`, `close`, `list`, `members`) still work for backward compatibility but print a warning to stderr. Replace them with DM commands when convenient:
-
-- `create` + `send` → `broker send --to <recipients>`
-- `join` → no-op; inboxes are per-identity, no joining required.
-- `list` / `members` → `broker history` (+ `--from`, `--since`) to see who has been in your inbox.
 
 ## Troubleshooting real errors
 

@@ -7,23 +7,26 @@ import secrets
 
 
 class BrokerClient:
-    """Connects to the broker socket server and provides an async API."""
+    """Connects to the broker socket server and provides an async DM API."""
 
-    def __init__(self, identity: str, sock_path: str) -> None:
+    def __init__(self, identity: str, sock_path: str, token: str | None = None) -> None:
         self.identity = identity
         self.sock_path = sock_path
+        self.token = token
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
         self._pending: dict[str, asyncio.Future] = {}
-        self._push_buffer: dict[str, list[dict]] = {}  # conversation_id -> list of push messages
         self._listener_task: asyncio.Task | None = None
-        self.on_push: asyncio.Queue[dict] | None = None  # optional queue for real-time push notifications
+        self.on_push: asyncio.Queue[dict] | None = None  # optional queue for live inbox_message pushes
 
     async def connect(self) -> None:
         """Connect to the broker socket server."""
         self._reader, self._writer = await asyncio.open_unix_connection(self.sock_path)
         self._listener_task = asyncio.create_task(self._listen())
-        await self._request({"type": "connect", "identity": self.identity})
+        msg: dict = {"type": "connect", "identity": self.identity}
+        if self.token is not None:
+            msg["token"] = self.token
+        await self._request(msg)
 
     async def close(self) -> None:
         """Close the connection."""
@@ -62,70 +65,12 @@ class BrokerClient:
                     future = self._pending.pop(msg["id"], None)
                     if future and not future.done():
                         future.set_result(msg)
-                else:
-                    # Push message (message or system event)
-                    cid = msg.get("conversation_id", "")
-                    self._push_buffer.setdefault(cid, []).append(msg)
-                    if self.on_push:
-                        await self.on_push.put(msg)
+                elif self.on_push is not None:
+                    await self.on_push.put(msg)
         except asyncio.CancelledError:
             raise
         except Exception:
             pass
-
-    def get_new_messages(self, conversation_id: str) -> list[dict]:
-        """Return and clear buffered push messages for a conversation."""
-        return self._push_buffer.pop(conversation_id, [])
-
-    async def create_conversation(self, topic: str, content: str | None = None) -> dict:
-        """Create a new conversation."""
-        msg = {"type": "create_conversation", "topic": topic}
-        if content:
-            msg["content"] = content
-        return await self._request(msg)
-
-    async def send_message(self, conversation_id: str, content: str) -> dict:
-        """Send a message to a conversation."""
-        return await self._request({
-            "type": "send_message", "conversation_id": conversation_id, "content": content,
-        })
-
-    async def join_conversation(self, conversation_id: str) -> dict:
-        """Join a conversation."""
-        return await self._request({
-            "type": "join_conversation", "conversation_id": conversation_id,
-        })
-
-    async def leave_conversation(self, conversation_id: str) -> dict:
-        """Leave a conversation."""
-        return await self._request({
-            "type": "leave_conversation", "conversation_id": conversation_id,
-        })
-
-    async def history(self, conversation_id: str) -> dict:
-        """Get conversation history (catch-up after reconnect)."""
-        return await self._request({
-            "type": "history", "conversation_id": conversation_id,
-        })
-
-    async def list_conversations(self, status: str | None = None) -> dict:
-        """List all conversations."""
-        msg = {"type": "list_conversations"}
-        if status:
-            msg["status"] = status
-        return await self._request(msg)
-
-    async def list_members(self, conversation_id: str) -> dict:
-        """List members of a conversation."""
-        return await self._request({
-            "type": "list_members", "conversation_id": conversation_id,
-        })
-
-    async def close_conversation(self, conversation_id: str) -> dict:
-        """Close a conversation."""
-        return await self._request({
-            "type": "close_conversation", "conversation_id": conversation_id,
-        })
 
     async def send_dm(self, to: list[str], content: str) -> dict:
         """Send a direct message to one or more recipients."""
@@ -154,3 +99,7 @@ class BrokerClient:
     async def read_inbox(self) -> dict:
         """Read new inbox lines since the last read-cursor; advances the cursor."""
         return await self._request({"type": "read_inbox"})
+
+    async def list_clients(self) -> dict:
+        """List identities currently holding a live connection to the server."""
+        return await self._request({"type": "list_clients"})
