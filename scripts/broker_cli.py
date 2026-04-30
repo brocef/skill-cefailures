@@ -622,7 +622,13 @@ class _VersionAction(argparse.Action):
             help=help,
         )
 
-    def __call__(self, parser, namespace, values, option_string=None) -> None:
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: object,
+        option_string: str | None = None,
+    ) -> None:
         try:
             version = _read_plugin_version(_resolve_repo_root())
         except _VersionUnavailable:

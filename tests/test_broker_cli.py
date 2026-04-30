@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -773,7 +774,6 @@ def _build_fake_repo_with_symlink(tmp_path: Path, plugin_version: str | None) ->
     Returns the path to the bin/broker symlink. Set plugin_version=None to skip
     creating plugin.json (forces the missing-file failure path).
     """
-    import shutil
     fake_repo = tmp_path / "fake-repo"
     fake_scripts = fake_repo / "scripts"
     real_scripts = Path(__file__).parent.parent / "scripts"
