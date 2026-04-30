@@ -311,13 +311,17 @@ class _VersionAction(argparse.Action):
 def _validate_identity_arg(value: str) -> str:
     """Argparse type validator for --identity.
 
-    Rejects identity strings that look like a malformed orchestrator name
-    (start with `@orchestrator` but don't full-match the strict pattern).
-    All other identities pass through unchanged — peer identity strings
-    are unauthenticated, so we don't validate them here.
+    Rejects identity strings that look like a malformed orchestrator name —
+    bare `@orchestrator` (no scope), or anything matching `@orchestrator/...`
+    that doesn't fully validate as `@orchestrator/<scope>`. Other identities
+    starting with `@orchestrator` (e.g. `@orchestrators/foo`, a peer identity
+    that happens to share a prefix) pass through unchanged.
+
+    Peer identity strings are unauthenticated, so we don't validate them here.
     """
-    from broker_constants import _ORCHESTRATOR_RE
-    if value.startswith("@orchestrator") and not _ORCHESTRATOR_RE.fullmatch(value):
+    from broker_constants import ORCHESTRATOR_RE
+    is_orchestrator_shaped = value == "@orchestrator" or value.startswith("@orchestrator/")
+    if is_orchestrator_shaped and not ORCHESTRATOR_RE.fullmatch(value):
         raise argparse.ArgumentTypeError(
             f"'--identity {value}' is reserved-prefix-shaped but not a valid orchestrator identity. "
             f"Use --identity @orchestrator/<scope> where <scope> matches [A-Za-z0-9._-]{{1,64}}."

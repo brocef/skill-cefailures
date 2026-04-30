@@ -6,7 +6,7 @@ import re
 BROADCAST = "BROADCAST"
 
 # Static reserved names that match exactly. The orchestrator namespace is
-# matched separately via _ORCHESTRATOR_RE because it's a pattern, not a literal.
+# matched separately via ORCHESTRATOR_RE because it's a pattern, not a literal.
 RESERVED_IDENTITIES: frozenset[str] = frozenset({
     "human",
     "BROADCAST",
@@ -16,7 +16,7 @@ RESERVED_IDENTITIES: frozenset[str] = frozenset({
 # matches [A-Za-z0-9._-]{1,64}. Bare 'orchestrator' is NOT reserved (v1.5.0
 # breaking change). Empty scope, slashes inside scope, or other special chars
 # do not match — those identities fall through to peer-mode.
-_ORCHESTRATOR_RE = re.compile(r"^@orchestrator/[A-Za-z0-9._-]{1,64}$")
+ORCHESTRATOR_RE = re.compile(r"^@orchestrator/[A-Za-z0-9._-]{1,64}$")
 
 
 def is_reserved(identity: str) -> bool:
@@ -27,4 +27,4 @@ def is_reserved(identity: str) -> bool:
     """
     if identity in RESERVED_IDENTITIES:
         return True
-    return bool(_ORCHESTRATOR_RE.fullmatch(identity))
+    return bool(ORCHESTRATOR_RE.fullmatch(identity))

@@ -265,3 +265,29 @@ def test_cli_accepts_well_formed_orchestrator_identity(broker) -> None:
     # Make sure the failure is the reserved-identity rejection, not the validator.
     assert "scope" not in result.stderr.lower()
     assert "reserved" in result.stderr.lower()
+
+
+def test_cli_rejects_orchestrator_with_scope_too_long(broker) -> None:
+    """Scope > 64 chars is rejected at parse time."""
+    env = broker["env"]
+    long_scope = "x" * 65
+    result = subprocess.run(
+        CLI + ["send", "--identity", f"@orchestrator/{long_scope}", "--to", "alice", "ping"],
+        env=env, capture_output=True, text=True,
+    )
+    assert result.returncode != 0
+    assert "scope" in result.stderr.lower()
+
+
+def test_cli_passes_through_orchestrators_plural_as_peer(broker) -> None:
+    """`@orchestrators/foo` (plural typo) is a valid peer identity, not a reserved one.
+    The validator must NOT reject it. The send may fail for other reasons (no broker token, etc.)
+    but the rejection should NOT mention 'scope' or 'reserved-prefix-shaped'."""
+    env = broker["env"]
+    result = subprocess.run(
+        CLI + ["send", "--identity", "@orchestrators/foo", "--to", "alice", "ping"],
+        env=env, capture_output=True, text=True,
+    )
+    # The send may succeed (peer mode). If it fails, it must not be due to validator.
+    assert "scope" not in result.stderr.lower()
+    assert "reserved-prefix-shaped" not in result.stderr.lower()
