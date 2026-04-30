@@ -245,3 +245,21 @@ def test_reserved_identity_unconnected_rejected_on_request(tmp_path: Path) -> No
     })
     assert result["type"] == "error"
     assert "reserved" in result["message"].lower()
+
+
+def test_read_token_handles_namespaced_identity(tmp_path: Path) -> None:
+    """Token file for @orchestrator/foo is read via the encoded-identity path."""
+    tokens_dir = tmp_path / "tokens"
+    tokens_dir.mkdir()
+    (tokens_dir / "@orchestrator_foo.token").write_text("ok")
+
+    server = BrokerServer(root_dir=tmp_path)
+    # Direct _read_token call — bypasses connect() so this is a unit test of
+    # the path-slugging behavior, independent of when is_reserved() gets wired
+    # in.
+    assert server._read_token("@orchestrator/foo") == "ok"
+
+
+def test_read_token_returns_none_for_missing_file(tmp_path: Path) -> None:
+    server = BrokerServer(root_dir=tmp_path)
+    assert server._read_token("@orchestrator/missing") is None

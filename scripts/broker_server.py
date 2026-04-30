@@ -46,8 +46,9 @@ class BrokerServer:
         self.registry.touch(identity, now=self._timestamp(), wrote=False)
 
     def _read_token(self, identity: str) -> str | None:
-        """Read the contents of <root_dir>/tokens/<identity>.token, or None if missing."""
-        path = self.root_dir / "tokens" / f"{identity}.token"
+        """Read the contents of <root_dir>/tokens/<encoded-identity>.token, or None if missing."""
+        from broker_storage import encode_identity
+        path = self.root_dir / "tokens" / f"{encode_identity(identity)}.token"
         if not path.exists():
             return None
         return path.read_text().strip()
