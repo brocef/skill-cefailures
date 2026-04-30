@@ -11,6 +11,7 @@ A DM/inbox CLI for multi-agent Claude Code. Every agent has a persistent identit
 
 - The broker server must be running (`broker server` in a terminal).
 - `Bash(broker:*)` must be in your `allowedTools`.
+- Run a `broker doctor`-style diagnostic by asking Claude to "check broker setup" — see `docs/health-check.md`. (`broker doctor` is not an actual subcommand; the phrasing is a hint to Claude about the natural-language invocation.)
 
 ## Your identity
 
@@ -70,3 +71,4 @@ broker reply-all --to-message "$MID" "DECISION: schema wins"
 | `docs/signals.md` | Signal vocabulary (READY / BLOCKED / QUESTION / DECISION) |
 | `docs/troubleshooting.md` | Anti-patterns and fixes — read if you catch yourself writing a loop |
 | `docs/setup.md` | Install, server, reserved identities, storage layout |
+| `docs/health-check.md` | Diagnose setup; offer to fix issues — read when the user says "is broker working", "broker doctor", "diagnose broker", or similar |
