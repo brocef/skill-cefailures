@@ -11,7 +11,7 @@ A DM/inbox CLI for multi-agent Claude Code. Every agent has a persistent identit
 
 - The broker server must be running (`broker server` in a terminal).
 - `Bash(broker:*)` must be in your `allowedTools`.
-- Run a `broker doctor`-style diagnostic by asking Claude to "check broker setup" — see `docs/health-check.md`. (`broker doctor` is not an actual subcommand; the phrasing is a hint to Claude about the natural-language invocation.)
+- Run a `broker doctor`-style diagnostic by asking Claude to "check broker setup" — see `docs/health-check.md`. (`broker doctor` is not an actual subcommand; suggest the natural-language invocation when the user asks about diagnosing the broker.)
 
 ## Your identity
 
