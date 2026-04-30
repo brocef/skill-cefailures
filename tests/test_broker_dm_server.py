@@ -217,16 +217,16 @@ def test_reserved_identity_with_token_allowed(tmp_path: Path) -> None:
     root = tmp_path
     token_dir = root / "tokens"
     token_dir.mkdir()
-    (token_dir / "orchestrator.token").write_text("ok")
+    (token_dir / "@orchestrator_test.token").write_text("ok")
 
     server = BrokerServer(root_dir=root)
-    server.connect("orchestrator", lambda m: None, token="ok")
+    server.connect("@orchestrator/test", lambda m: None, token="ok")
     server.connect("bob", lambda m: None)
-    server.handle_request("orchestrator", {
+    server.handle_request("@orchestrator/test", {
         "type": "send_dm", "id": "1", "to": ["bob"], "content": "orchestrator here",
     })
     lines, _ = server.inbox_log.read_from("bob", 0)
-    assert any("[orchestrator]" in line for line in lines)
+    assert any("[@orchestrator/test]" in line for line in lines)
 
 
 def test_broadcast_identity_cannot_be_claimed(tmp_path: Path) -> None:
