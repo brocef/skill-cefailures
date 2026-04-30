@@ -3,55 +3,65 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
-from broker_constants import is_reserved
+from broker_constants import ORCHESTRATOR_RE
 
 
-def test_human_is_reserved() -> None:
-    assert is_reserved("human") is True
+def _matches(identity: str) -> bool:
+    return bool(ORCHESTRATOR_RE.fullmatch(identity))
 
 
-def test_broadcast_is_reserved() -> None:
-    assert is_reserved("BROADCAST") is True
+def test_namespaced_orchestrator_matches() -> None:
+    assert _matches("@orchestrator/myorg")
+    assert _matches("@orchestrator/team-frontend")
+    assert _matches("@orchestrator/a")
 
 
-def test_bare_orchestrator_is_not_reserved() -> None:
-    """v1.5.0: bare 'orchestrator' is no longer reserved; only namespaced forms are."""
-    assert is_reserved("orchestrator") is False
+def test_bare_orchestrator_does_not_match() -> None:
+    assert not _matches("orchestrator")
+    assert not _matches("@orchestrator")
+    assert not _matches("@orchestrator/")
 
 
-def test_namespaced_orchestrator_is_reserved() -> None:
-    assert is_reserved("@orchestrator/myorg") is True
-    assert is_reserved("@orchestrator/team-frontend") is True
-    assert is_reserved("@orchestrator/a") is True
+def test_invalid_chars_rejected() -> None:
+    assert not _matches("@orchestrator/foo/bar")
+    assert not _matches("@orchestrator/foo bar")
+    assert not _matches("@orchestrator/foo\nbar")
+    assert not _matches("@orchestrator/../etc")
 
 
-def test_orchestrator_with_empty_scope_is_not_reserved() -> None:
-    assert is_reserved("@orchestrator/") is False
+def test_pure_dot_scope_rejected() -> None:
+    assert not _matches("@orchestrator/.")
+    assert not _matches("@orchestrator/..")
+    assert not _matches("@orchestrator/...")
 
 
-def test_orchestrator_with_no_scope_is_not_reserved() -> None:
-    assert is_reserved("@orchestrator") is False
+def test_leading_special_char_rejected() -> None:
+    assert not _matches("@orchestrator/.foo")
+    assert not _matches("@orchestrator/-foo")
+    assert not _matches("@orchestrator/_foo")
 
 
-def test_orchestrator_with_invalid_chars_is_not_reserved() -> None:
-    assert is_reserved("@orchestrator/foo/bar") is False
-    assert is_reserved("@orchestrator/foo bar") is False
-    assert is_reserved("@orchestrator/foo\nbar") is False
-    assert is_reserved("@orchestrator/../etc") is False
+def test_trailing_special_chars_allowed() -> None:
+    assert _matches("@orchestrator/foo.")
+    assert _matches("@orchestrator/foo-")
+    assert _matches("@orchestrator/foo_")
 
 
-def test_orchestrator_with_scope_too_long_is_not_reserved() -> None:
-    long_scope = "x" * 65
-    assert is_reserved(f"@orchestrator/{long_scope}") is False
+def test_single_char_must_be_alnum() -> None:
+    assert _matches("@orchestrator/a")
+    assert _matches("@orchestrator/Z")
+    assert _matches("@orchestrator/0")
+    assert not _matches("@orchestrator/.")
+    assert not _matches("@orchestrator/-")
+    assert not _matches("@orchestrator/_")
 
 
-def test_orchestrator_with_scope_at_max_length_is_reserved() -> None:
-    max_scope = "x" * 64
-    assert is_reserved(f"@orchestrator/{max_scope}") is True
+def test_scope_length_boundary() -> None:
+    assert _matches(f"@orchestrator/{'x' * 64}")
+    assert not _matches(f"@orchestrator/{'x' * 65}")
 
 
-def test_peer_identities_are_not_reserved() -> None:
-    assert is_reserved("alice") is False
-    assert is_reserved("@myorg/projectA") is False
-    assert is_reserved("projectA-server") is False
-    assert is_reserved("Proposit-App/proposit-mobile") is False
+def test_peer_identities_do_not_match() -> None:
+    assert not _matches("alice")
+    assert not _matches("@myorg/projectA")
+    assert not _matches("projectA-server")

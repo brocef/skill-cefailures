@@ -74,24 +74,9 @@ Agents will follow the patterns in `patterns.md` to wait for replies without wri
 
 ## Reserved identities
 
-`@orchestrator/<scope>`, `human`, and `BROADCAST` are reserved at the server level:
+`@orchestrator/<scope>` and `human` are conventional identity names with elevated authority per the skill's authority hierarchy. They are NOT authenticated — any process on the host can claim them. See `docs/authority.md`.
 
-- **`BROADCAST`** — never claimable. It's the pseudo-recipient on `broker broadcast` fan-outs.
-- **`@orchestrator/<scope>`** — namespaced reserved coordinator identities. Multiple may coexist on one host (e.g., `@orchestrator/myorg`, `@orchestrator/team-frontend`); each requires its own token file. `<scope>` must match `[A-Za-z0-9._-]{1,64}`.
-
-  ```bash
-  mkdir -p ~/.mcp-broker/tokens
-  echo "secret-value" > ~/.mcp-broker/tokens/@orchestrator_myorg.token
-
-  # Per-call:
-  broker send --identity @orchestrator/myorg --token secret-value --to alice "hi"
-
-  # Or via env var:
-  export BROKER_TOKEN=secret-value
-  broker send --identity @orchestrator/myorg --to alice "hi"
-  ```
-
-  In practice, most agents use their cwd-derived identity and leave reserved identities for humans and orchestration processes.
+`BROADCAST` is permanently reserved as the broadcast pseudo-recipient and cannot be claimed.
 
 ## Multi-workspace note
 
@@ -102,7 +87,29 @@ Each workspace can have its own orchestrator by picking a different `<scope>`:
 @orchestrator/projectB-mobile
 ```
 
-Each gets its own token file at `~/.mcp-broker/tokens/@orchestrator_<scope>.token`. There's no shared per-host singleton; multiple `broker server --identity @orchestrator/<scope>` processes can coexist (one per scope).
+There's no shared per-host singleton; multiple `broker server --identity @orchestrator/<scope>` processes can coexist (one per scope).
+
+## Pinning a workspace identity
+
+By default, the broker derives your identity from cwd (nearest `package.json` `name`, then `<org>/<repo>` from git remote). To pin a fixed identity for a workspace, run `broker init` inside that directory:
+
+```
+broker init                         # uses cwd-derived identity
+broker init --identity @myorg/projectA   # explicit
+broker init --identity alice --force     # overwrite an existing pinned identity
+```
+
+This writes `.broker/config.json` in the **current** directory only — `broker init` does not walk up to find an existing config. If you want to update a parent workspace's pin, edit its `.broker/config.json` directly. Subsequent `broker` invocations from anywhere inside the pinned dir will use the pinned identity (the read-side walk-up search finds the nearest `.broker/config.json`).
+
+`.broker/config.json` is a small JSON file:
+
+```json
+{
+  "identity": "@myorg/projectA"
+}
+```
+
+Add `.broker/` to your project's `.gitignore` if you don't want to commit the pinned identity.
 
 ## Storage layout
 
@@ -113,6 +120,5 @@ Everything the broker persists lives under `~/.mcp-broker/`:
 - `cursors/<encoded-identity>.cursor` — byte offset into the inbox log, advanced by `broker read`.
 - `identities.json` — registry of known identities (first/last seen, canonical form).
 - `messages/<message-id>.json` — raw records used by `reply-all` to recover recipient sets.
-- `tokens/<identity>.token` — per-host tokens for reserved identities.
 
 Identity encoding: `/` becomes `_` in filenames (`@myorg/projectA` → `@myorg_projectA.log`).

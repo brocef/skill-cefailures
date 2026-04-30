@@ -162,3 +162,17 @@ def test_resolve_identity_explicit_arg_wins_over_env(tmp_path: Path, monkeypatch
     monkeypatch.setenv("BROKER_IDENTITY", "@myorg/from-env")
     monkeypatch.chdir(tmp_path)
     assert _resolve_identity("alice") == "alice"
+
+
+def test_resolve_identity_warns_on_malformed_BROKER_IDENTITY(tmp_path: Path, monkeypatch, capsys) -> None:
+    """Malformed orchestrator-shaped BROKER_IDENTITY warns and falls through to derivation."""
+    sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+    from broker_cli import _resolve_identity
+    monkeypatch.setenv("BROKER_IDENTITY", "@orchestrator/foo bar")
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "package.json").write_text('{"name": "fallback"}')
+    monkeypatch.setenv("HOME", str(tmp_path.parent))
+    assert _resolve_identity(None) == "fallback"
+    err = capsys.readouterr().err
+    assert "@orchestrator/foo bar" in err
+    assert "BROKER_IDENTITY" in err

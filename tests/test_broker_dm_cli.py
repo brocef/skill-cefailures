@@ -63,51 +63,6 @@ def test_send_dm_multi_recipient(broker) -> None:
     assert (broker["tmp"] / "inbox" / "carol.log").exists()
 
 
-def test_send_with_token_for_reserved_identity(broker) -> None:
-    """`broker send --token X --identity @orchestrator/test ...` works when the token file matches."""
-    env = broker["env"]
-    tokens_dir = broker["tmp"] / "tokens"
-    tokens_dir.mkdir(parents=True, exist_ok=True)
-    (tokens_dir / "@orchestrator_test.token").write_text("ok\n")
-
-    result = subprocess.run(
-        CLI + ["send", "--token", "ok", "--identity", "@orchestrator/test", "--to", "alice", "ping"],
-        env=env, capture_output=True, text=True,
-    )
-    assert result.returncode == 0, result.stderr
-    inbox = broker["tmp"] / "inbox" / "alice.log"
-    assert inbox.exists()
-    assert "[@orchestrator/test]" in inbox.read_text()
-
-
-def test_send_without_token_for_reserved_identity_fails_cleanly(broker) -> None:
-    """Connecting as a reserved identity without a token returns a non-zero exit and a JSON error."""
-    env = broker["env"]
-    result = subprocess.run(
-        CLI + ["send", "--identity", "@orchestrator/test", "--to", "alice", "nope"],
-        env=env, capture_output=True, text=True,
-    )
-    assert result.returncode != 0
-    # stderr should carry a structured error mentioning the reservation.
-    assert "reserved" in result.stderr.lower()
-
-
-def test_broker_token_env_var_is_used(broker) -> None:
-    """If --token is omitted, BROKER_TOKEN from the environment is used."""
-    env = dict(broker["env"])
-    tokens_dir = broker["tmp"] / "tokens"
-    tokens_dir.mkdir(parents=True, exist_ok=True)
-    (tokens_dir / "@orchestrator_test.token").write_text("env-tok\n")
-    env["BROKER_TOKEN"] = "env-tok"
-
-    result = subprocess.run(
-        CLI + ["send", "--identity", "@orchestrator/test", "--to", "alice", "from env"],
-        env=env, capture_output=True, text=True,
-    )
-    assert result.returncode == 0, result.stderr
-    assert "[@orchestrator/test]" in (broker["tmp"] / "inbox" / "alice.log").read_text()
-
-
 def test_broadcast_fans_out(broker) -> None:
     env = broker["env"]
     # Register alice and bob by each sending a DM to the other.
@@ -253,18 +208,17 @@ def test_cli_rejects_orchestrator_with_invalid_chars(broker) -> None:
 
 
 def test_cli_accepts_well_formed_orchestrator_identity(broker) -> None:
-    """Validator must not reject valid namespaced identities (this would have a token error,
-    but the parse-time check should pass)."""
+    """The validator must not reject valid namespaced identities. After option 3,
+    no token is required — the send simply succeeds."""
     env = broker["env"]
     result = subprocess.run(
         CLI + ["send", "--identity", "@orchestrator/test", "--to", "alice", "ping"],
         env=env, capture_output=True, text=True,
     )
-    # No token file, so connect rejects — that's a runtime error, not an argparse error.
-    assert result.returncode != 0
-    # Make sure the failure is the reserved-identity rejection, not the validator.
-    assert "scope" not in result.stderr.lower()
-    assert "reserved" in result.stderr.lower()
+    assert result.returncode == 0, result.stderr
+    inbox = broker["tmp"] / "inbox" / "alice.log"
+    assert inbox.exists()
+    assert "[@orchestrator/test]" in inbox.read_text()
 
 
 def test_cli_rejects_orchestrator_with_scope_too_long(broker) -> None:
@@ -415,3 +369,21 @@ def test_broker_init_rejects_invalid_orchestrator_identity(broker, tmp_path) -> 
         env=env, cwd=workdir, capture_output=True, text=True,
     )
     assert result.returncode != 0
+
+
+def test_whoami_honors_BROKER_IDENTITY_env(tmp_path: Path) -> None:
+    """`broker whoami` reports the env-var identity when BROKER_IDENTITY is set."""
+    import json as _json
+    (tmp_path / "package.json").write_text(_json.dumps({"name": "cwd-derived"}))
+    env = {
+        "BROKER_IDENTITY": "alice",
+        "HOME": str(tmp_path.parent),
+        "PATH": Path(sys.executable).parent.as_posix(),
+    }
+    result = subprocess.run(
+        CLI + ["whoami"],
+        cwd=tmp_path, env=env, capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "alice" in result.stdout
+    assert "cwd-derived" not in result.stdout

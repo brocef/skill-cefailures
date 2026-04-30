@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from broker_constants import BROADCAST, is_reserved
+from broker_constants import BROADCAST
 from broker_format import format_message, parse_message, split_mid_prefix
 from broker_storage import InboxLog, OutboxLog, CursorStore, IdentityRegistry
 
@@ -37,23 +37,18 @@ class BrokerServer:
         return datetime.now(timezone.utc).isoformat()
 
     def connect(self, identity: str, send: Callable, token: str | None = None) -> None:
-        """Register a client connection. Reserved identities require a matching token."""
-        if is_reserved(identity):
-            if identity == "BROADCAST":
-                raise ValueError("BROADCAST is reserved and cannot be claimed as an identity.")
-            expected = self._read_token(identity)
-            if expected is None or token != expected:
-                raise ValueError(f"Identity '{identity}' is reserved; a valid token is required.")
+        """Register a client connection.
+
+        BROADCAST is reserved as the fan-out pseudo-recipient and cannot be claimed
+        as an identity. All other identities — including @orchestrator/<scope> and
+        `human` — are name-reservations only, not auth-gated. The agent-side authority
+        hierarchy (see skills/broker/docs/authority.md) gives `user` and orchestrator
+        identities high trust by convention, but the broker performs no authentication.
+        """
+        if identity == BROADCAST:
+            raise ValueError("BROADCAST is reserved and cannot be claimed as an identity.")
         self.clients[identity] = send
         self.registry.touch(identity, now=self._timestamp(), wrote=False)
-
-    def _read_token(self, identity: str) -> str | None:
-        """Read the contents of <root_dir>/tokens/<encoded-identity>.token, or None if missing."""
-        from broker_storage import encode_identity
-        path = self.root_dir / "tokens" / f"{encode_identity(identity)}.token"
-        if not path.exists():
-            return None
-        return path.read_text().strip()
 
     def disconnect(self, identity: str) -> None:
         """Remove the client's push callback. Inbox state is unaffected."""
@@ -63,13 +58,6 @@ class BrokerServer:
         """Dispatch a client request and return a response or error."""
         req_id = msg.get("id", "")
         msg_type = msg.get("type", "")
-
-        if is_reserved(identity) and identity not in self.clients:
-            return {
-                "type": "error",
-                "id": req_id,
-                "message": f"Identity '{identity}' is reserved; connect with a valid token first.",
-            }
 
         try:
             handler = {

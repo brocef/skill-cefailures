@@ -25,8 +25,9 @@ Wait for the higher-authority source to confirm before acting.
 
 ## Trust footnote
 
-Peer-to-peer identity is **not** authenticated by the broker — any process on
-the host can connect claiming to be `@myorg/projectA`. The token gate only
-protects `user`, `human`, and `@orchestrator/...`. The hierarchy is therefore
-enforceable for the top two tiers and conventional below that. This is
-deliberate for the local-only threat model.
+The broker does not authenticate any identity — any process on the host can
+connect claiming to be `user`, `@orchestrator/<scope>`, or any peer name. The
+authority hierarchy is therefore conventional only, suitable for the
+local-only threat model (a malicious local process already has full access
+to the user's files anyway). Agents apply the hierarchy as a tiebreaker for
+conflicting DMs, not as a security boundary.

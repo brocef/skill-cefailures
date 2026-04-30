@@ -11,7 +11,6 @@ Everything lives under `~/.mcp-broker/`:
 - `cursors/<encoded-identity>.cursor` — byte offset into the inbox log; advanced by `broker read`.
 - `identities.json` — registry of known identities (`firstSeenAt`, `lastSeenAt`, `lastWriteAt`, `canonical`).
 - `messages/<message-id>.json` — raw records used by `reply-all` to look up recipient sets.
-- `tokens/<identity>.token` — per-host token files for reserved identities (`@orchestrator/<scope>`, `human`).
 - `broker.sock` — Unix socket the CLI talks to.
 
 **Identity encoding:** `/` becomes `_` in filenames. So `@myorg/projectA` → `inbox/@myorg_projectA.log`.
@@ -40,7 +39,7 @@ Content newlines are escaped as `\n`; backslashes as `\\`. That's it — there i
 broker whoami
 ```
 
-Print the identity derived from the current cwd using the 2-rule algorithm (package.json `name`, then `git remote origin`). Useful to confirm which inbox you'll write to before sending.
+Print the identity that the CLI will use from the current cwd. Resolution order: `BROKER_IDENTITY` env var (validated for `@orchestrator/...` shape), then `.broker/config.json` walking up from cwd, then `package.json` `name` field walking up, then `git remote origin`. Useful to confirm which inbox you'll write to before sending.
 
 Example:
 ```bash
@@ -171,10 +170,10 @@ user
 ### server — start the broker with an interactive REPL
 
 ```
-broker server [--identity <me>] [--root-dir <path>] [--token <value>]
+broker server [--identity <me>] [--root-dir <path>]
 ```
 
-Boot the broker server and drop into an interactive REPL on stdin. The REPL identity defaults to `user`; pass `--identity @orchestrator/<scope>` (with `--token`) to drive the broker as the workspace orchestrator. From the REPL:
+Boot the broker server and drop into an interactive REPL on stdin. The REPL identity defaults to `user`; pass `--identity @orchestrator/<scope>` to drive the broker as the workspace orchestrator. From the REPL:
 
 ```
 broker> who

@@ -202,6 +202,5 @@ This procedure deliberately does not:
 
 - Edit the user's shell rc files (`.bashrc` / `.zshrc` / `config.fish` / etc.).
 - Start the broker server from inside the session.
-- Verify token files for reserved identities.
 - Clean up stale plugin cache directories.
 - Provide a continuous monitor — it runs once when invoked, reports, and exits.

@@ -206,97 +206,35 @@ def test_read_inbox_advances_cursor_and_returns_only_new(tmp_path: Path) -> None
     assert third["data"]["lines"][0].endswith("two")
 
 
-def test_reserved_identity_requires_token(tmp_path: Path) -> None:
-    server = BrokerServer(root_dir=tmp_path)
-    server.connect("bob", lambda m: None)
-    with pytest.raises(ValueError, match="reserved"):
-        server.connect("@orchestrator/test", lambda m: None)
-
-
-def test_reserved_identity_with_token_allowed(tmp_path: Path) -> None:
-    root = tmp_path
-    token_dir = root / "tokens"
-    token_dir.mkdir()
-    (token_dir / "@orchestrator_test.token").write_text("ok")
-
-    server = BrokerServer(root_dir=root)
-    server.connect("@orchestrator/test", lambda m: None, token="ok")
-    server.connect("bob", lambda m: None)
-    server.handle_request("@orchestrator/test", {
-        "type": "send_dm", "id": "1", "to": ["bob"], "content": "orchestrator here",
-    })
-    lines, _ = server.inbox_log.read_from("bob", 0)
-    assert any("[@orchestrator/test]" in line for line in lines)
-
-
 def test_broadcast_identity_cannot_be_claimed(tmp_path: Path) -> None:
     server = BrokerServer(root_dir=tmp_path)
     with pytest.raises(ValueError, match="reserved"):
         server.connect("BROADCAST", lambda m: None)
 
 
-def test_reserved_identity_unconnected_rejected_on_request(tmp_path: Path) -> None:
-    """A reserved identity must go through privileged connect() before it can send."""
+def test_orchestrator_identity_can_be_claimed_without_token(tmp_path: Path) -> None:
+    """v1.5.0 option 3: orchestrator identities are name-reservations, not auth-gated."""
     server = BrokerServer(root_dir=tmp_path)
-    server.connect("bob", lambda m: None)
-    # Try to use '@orchestrator/test' in handle_request without connect().
-    result = server.handle_request("@orchestrator/test", {
-        "type": "send_dm", "id": "1", "to": ["bob"], "content": "spoofed",
-    })
-    assert result["type"] == "error"
-    assert "reserved" in result["message"].lower()
-
-
-def test_read_token_handles_namespaced_identity(tmp_path: Path) -> None:
-    """Token file for @orchestrator/foo is read via the encoded-identity path."""
-    tokens_dir = tmp_path / "tokens"
-    tokens_dir.mkdir()
-    (tokens_dir / "@orchestrator_foo.token").write_text("ok")
-
-    server = BrokerServer(root_dir=tmp_path)
-    # Direct _read_token call — bypasses connect() so this is a unit test of
-    # the path-slugging behavior, independent of when is_reserved() gets wired
-    # in.
-    assert server._read_token("@orchestrator/foo") == "ok"
-
-
-def test_read_token_returns_none_for_missing_file(tmp_path: Path) -> None:
-    server = BrokerServer(root_dir=tmp_path)
-    assert server._read_token("@orchestrator/missing") is None
-
-
-def test_bare_orchestrator_is_not_reserved_anymore(tmp_path: Path) -> None:
-    """v1.5.0: bare 'orchestrator' connects as a peer, no token required."""
-    server = BrokerServer(root_dir=tmp_path)
-    # Should NOT raise: bare 'orchestrator' is unprivileged in v1.5.0.
-    server.connect("orchestrator", lambda m: None)
-    assert "orchestrator" in server.clients
-
-
-def test_namespaced_orchestrator_requires_token_at_connect(tmp_path: Path) -> None:
-    """@orchestrator/<scope> must go through is_reserved() — no token = rejected."""
-    server = BrokerServer(root_dir=tmp_path)
-    with pytest.raises(ValueError, match="reserved"):
-        server.connect("@orchestrator/myorg", lambda m: None)
-
-
-def test_namespaced_orchestrator_with_token_succeeds(tmp_path: Path) -> None:
-    """@orchestrator/<scope> with a valid token connects fine."""
-    tokens_dir = tmp_path / "tokens"
-    tokens_dir.mkdir()
-    (tokens_dir / "@orchestrator_myorg.token").write_text("ok")
-
-    server = BrokerServer(root_dir=tmp_path)
-    server.connect("@orchestrator/myorg", lambda m: None, token="ok")
+    # No token file, no token argument — should still succeed.
+    server.connect("@orchestrator/myorg", lambda m: None)
     assert "@orchestrator/myorg" in server.clients
 
 
-def test_namespaced_orchestrator_handle_request_blocks_unconnected(tmp_path: Path) -> None:
-    """A request from a reserved-shaped identity that hasn't connected gets a clean error."""
+def test_human_identity_can_be_claimed_without_token(tmp_path: Path) -> None:
+    """`human` is a name-reservation; no token required after option 3."""
     server = BrokerServer(root_dir=tmp_path)
-    server.connect("bob", lambda m: None)
-    result = server.handle_request("@orchestrator/myorg", {
-        "type": "send_dm", "id": "1", "to": ["bob"], "content": "spoofed",
-    })
-    assert result["type"] == "error"
-    assert "reserved" in result["message"].lower()
+    server.connect("human", lambda m: None)
+    assert "human" in server.clients
+
+
+def test_message_id_length_matches_column_width(tmp_path: Path) -> None:
+    """If _generate_id ever changes, MID_COLUMN_WIDTH in broker_cli.py must update too."""
+    sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+    from broker_cli import MID_COLUMN_WIDTH
+
+    server = BrokerServer(root_dir=tmp_path)
+    mid = server._message_id()
+    assert len(mid) == MID_COLUMN_WIDTH, (
+        f"_message_id() produces {len(mid)}-char IDs but MID_COLUMN_WIDTH is "
+        f"{MID_COLUMN_WIDTH}. Update one or the other to match."
+    )

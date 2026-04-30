@@ -113,7 +113,7 @@ A single broker server runs as a Unix-domain-socket hub on the host. Every parti
                       │              broker server               │
                       │    ~/.mcp-broker/broker.sock (unix)      │
                       │    inbox/, outbox/, cursors/,            │
-                      │    identities.json, messages/, tokens/   │
+                      │    identities.json, messages/            │
                       └──────────────┬───────────────────────────┘
                                      │
        ┌─────────────────────────────┼─────────────────────────────┐
@@ -130,9 +130,9 @@ A single broker server runs as a Unix-domain-socket hub on the host. Every parti
 The DM model has no room/membership concept. Roles are conventions on top of identities, plus a small server-enforced reservation:
 
 - **User (`user`).** The default identity inside `broker server`. The human running the server interacts with the broker through the in-process REPL — sending DMs, broadcasting, reading their inbox. No token required.
-- **Orchestrator (`@orchestrator/<scope>`).** A reserved coordinator identity, namespaced so multiple coordinators can coexist on one host (one per scope, e.g. `@orchestrator/myorg`, `@orchestrator/team-frontend`). Used when a controlling process (often a parent Claude Code session) needs to dispatch work to per-repo agents and collect their replies in one inbox. Reserved means the broker server requires a matching token file at `~/.mcp-broker/tokens/@orchestrator_<scope>.token` and a `--token` value on connect.
-- **Individual agents.** Each Claude Code instance derives its identity from its workspace: the nearest `package.json` `name`, falling back to `<org>/<repo>` from `git remote origin`. The agent calls `broker whoami` to see what identity it will use; senders compute the same string to address it. No token required. Agents can also pin a workspace's identity explicitly with `broker init` (writes `.broker/config.json`).
-- **Reserved-but-token-gated.** `human` is also reserved (token-gated), for direct human-as-DM-recipient flows where you want a single canonical inbox regardless of which terminal you're typing from. `BROADCAST` is permanently reserved as the fan-out pseudo-recipient and cannot be claimed.
+- **Orchestrator (`@orchestrator/<scope>`).** A namespaced coordinator identity. Multiple coordinators can coexist on one host (one per scope, e.g. `@orchestrator/myorg`, `@orchestrator/team-frontend`). The name is a convention, not an authentication boundary — the broker does not verify identity claims for any non-`BROADCAST` identity. Agents that load the broker skill weight DMs by sender identity per the authority hierarchy in `skills/broker/docs/authority.md`.
+- **Individual agents.** Each Claude Code instance derives its identity from its workspace: the nearest `package.json` `name`, falling back to `<org>/<repo>` from `git remote origin`. The agent calls `broker whoami` to see what identity it will use; senders compute the same string to address it. Agents can also pin a workspace's identity explicitly with `broker init` (writes `.broker/config.json`).
+- **`human` and `BROADCAST`.** `human` is a conventional reserved identity for direct human-as-DM-recipient flows (no longer token-gated). `BROADCAST` is permanently reserved as the fan-out pseudo-recipient and cannot be claimed.
 
 Agents loading the broker skill apply an authority hierarchy when handling conflicting DMs: `user` > `@orchestrator/<your-scope>` > peer agents. See `skills/broker/docs/authority.md` for the full rule.
 
@@ -223,7 +223,7 @@ broker reply-all --to-message "$MID" "DECISION: validate(schema) wins."
 An `@orchestrator/<scope>` does the same thing in reverse: it dispatches work, then watches its inbox for status updates from every agent it spawned. A single `broker follow` on the orchestrator's identity captures every reply, every broadcast, and every reply-all that includes it — no per-room follow, no fan-in bookkeeping:
 
 ```bash
-broker server   # in an orchestrator terminal, with --identity @orchestrator/<scope> + token
+broker server   # in an orchestrator terminal, with --identity @orchestrator/<scope>
 
 broker> emit-messages on   # tail every routed message in real time
 broker> send projectA-server "TASK: cut release branch for v1.3"

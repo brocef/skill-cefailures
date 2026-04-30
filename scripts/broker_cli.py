@@ -36,11 +36,11 @@ class ServerREPL:
     server's audit_hook.
     """
 
-    def __init__(self, server: BrokerServer, identity: str, token: str | None = None) -> None:
+    def __init__(self, server: BrokerServer, identity: str) -> None:
         self.server = server
         self.identity = identity
         self._req_counter = 0
-        self.server.connect(identity, self._on_push, token=token)
+        self.server.connect(identity, self._on_push)
         self._emit_messages = False
         # Wire the audit hook so live messages can be tailed.
         self.server.audit_hook = self._audit
@@ -158,14 +158,14 @@ class ServerREPL:
 
 
 async def run_server_mode(
-    identity: str, root_dir: Path, sock_path: str, token: str | None = None,
+    identity: str, root_dir: Path, sock_path: str,
 ) -> None:
     """Start the socket server and run the REPL."""
     server = BrokerServer(root_dir=root_dir)
     srv = await start_server(server, sock_path)
     print(f"Broker server listening on {sock_path}")
 
-    repl = ServerREPL(server, identity, token=token)
+    repl = ServerREPL(server, identity)
     try:
         await asyncio.get_event_loop().run_in_executor(None, repl.lobby_loop)
     finally:
@@ -200,14 +200,13 @@ async def run_oneshot(
     identity: str,
     request_type: str,
     params: dict,
-    token: str | None = None,
 ) -> dict:
     """Connect, send one request, return the response data, disconnect.
 
     Raises ConnectionError if the broker server is unreachable.
     Raises ValueError if the server returns an error response.
     """
-    client = BrokerClient(identity=identity, sock_path=sock_path, token=token)
+    client = BrokerClient(identity=identity, sock_path=sock_path)
     try:
         await client.connect()
     except (ConnectionRefusedError, FileNotFoundError):
@@ -252,11 +251,10 @@ def _run_and_print(
     identity: str,
     request_type: str,
     params: dict,
-    token: str | None = None,
 ) -> None:
     """Run a one-shot request and print JSON result to stdout."""
     try:
-        result = asyncio.run(run_oneshot(sock_path, identity, request_type, params, token=token))
+        result = asyncio.run(run_oneshot(sock_path, identity, request_type, params))
         print(json.dumps(result, indent=2))
     except (ValueError, ConnectionError) as e:
         print(json.dumps({"error": str(e)}), file=sys.stderr)
@@ -265,7 +263,6 @@ def _run_and_print(
 
 DEFAULT_SOCKET = os.environ.get("MCP_BROKER_SOCK", str(Path.home() / ".mcp-broker" / "broker.sock"))
 DEFAULT_ROOT = Path(os.environ.get("MCP_BROKER_ROOT", str(Path.home() / ".mcp-broker")))
-DEFAULT_TOKEN = os.environ.get("BROKER_TOKEN")
 
 
 class _VersionUnavailable(Exception):
@@ -350,22 +347,26 @@ def _validate_identity_arg(value: str) -> str:
     return value
 
 
-def _add_token_arg(p: argparse.ArgumentParser) -> None:
-    """Add --token to a subparser, defaulting to BROKER_TOKEN env var if set."""
-    p.add_argument(
-        "--token",
-        default=DEFAULT_TOKEN,
-        help="Token for reserved identities (env: BROKER_TOKEN). Required only for orchestrator/human.",
-    )
-
-
 def _resolve_identity(explicit: str | None) -> str:
-    """Resolve identity: --identity arg > BROKER_IDENTITY env > .broker/config.json > cwd derivation."""
+    """Resolve identity: --identity arg > BROKER_IDENTITY env > .broker/config.json > cwd derivation.
+
+    Malformed orchestrator-shaped values from BROKER_IDENTITY are warned about
+    and skipped, mirroring the .broker/config.json path. The explicit `--identity`
+    flag is already validated by argparse so we trust it as-is.
+    """
     if explicit is not None:
         return explicit
     env_identity = os.environ.get("BROKER_IDENTITY")
     if env_identity:
-        return env_identity
+        from broker_constants import ORCHESTRATOR_RE
+        if env_identity.startswith("@orchestrator") and not ORCHESTRATOR_RE.fullmatch(env_identity):
+            print(
+                f"broker: ignoring malformed BROKER_IDENTITY={env_identity!r} "
+                f"(does not match @orchestrator/<scope> pattern); falling through to derivation.",
+                file=sys.stderr,
+            )
+        else:
+            return env_identity
     from broker_identity import derive_identity, IdentityDerivationError
     try:
         return derive_identity(Path.cwd())
@@ -385,7 +386,6 @@ def main() -> None:
     p_server.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
     p_server.add_argument("--root-dir", type=Path, default=DEFAULT_ROOT,
                           help="Broker root directory (env: MCP_BROKER_ROOT)")
-    _add_token_arg(p_server)
 
     p_send = subparsers.add_parser("send", help="Send a DM to one or more identities")
     p_send.add_argument("--identity", required=False, type=_validate_identity_arg,
@@ -393,14 +393,12 @@ def main() -> None:
     p_send.add_argument("--to", required=True, help="Comma-separated recipient identities")
     p_send.add_argument("content", help="Message content")
     p_send.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
-    _add_token_arg(p_send)
 
     p_bcast = subparsers.add_parser("broadcast", help="Broadcast to every registered identity")
     p_bcast.add_argument("--identity", required=False, type=_validate_identity_arg,
                          help="Sender identity (defaults to cwd-derived)")
     p_bcast.add_argument("content", help="Message content")
     p_bcast.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
-    _add_token_arg(p_bcast)
 
     p_ra = subparsers.add_parser("reply-all", help="Reply to all recipients of a prior DM (excluding self)")
     p_ra.add_argument("--identity", required=False, type=_validate_identity_arg,
@@ -408,7 +406,6 @@ def main() -> None:
     p_ra.add_argument("--to-message", required=True, help="Message ID of the original DM")
     p_ra.add_argument("content", help="Message content")
     p_ra.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
-    _add_token_arg(p_ra)
 
     p_read = subparsers.add_parser("read", help="Drain your DM inbox (advances the cursor)")
     p_read.add_argument("--identity", required=False, type=_validate_identity_arg,
@@ -416,7 +413,6 @@ def main() -> None:
     p_read.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
     p_read.add_argument("--show-ids", action="store_true",
                         help="Prefix each line with the message ID for use with reply-all.")
-    _add_token_arg(p_read)
 
     p_follow = subparsers.add_parser(
         "follow",
@@ -438,13 +434,11 @@ def main() -> None:
     p_hist.add_argument("--show-ids", action="store_true",
                         help="Prefix each line with the message ID.")
     p_hist.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
-    _add_token_arg(p_hist)
 
     p_clients = subparsers.add_parser("clients", help="List identities currently connected to the broker")
     p_clients.add_argument("--identity", required=False, type=_validate_identity_arg,
                            help="Your identity (defaults to cwd-derived)")
     p_clients.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
-    _add_token_arg(p_clients)
 
     subparsers.add_parser("whoami", help="Print the identity derived from cwd")
 
@@ -460,14 +454,14 @@ def main() -> None:
         parser.print_help()
         sys.exit(1)
     elif args.command == "server":
-        asyncio.run(run_server_mode(args.identity, args.root_dir, args.socket, token=args.token))
+        asyncio.run(run_server_mode(args.identity, args.root_dir, args.socket))
     elif args.command == "send":
         identity = _resolve_identity(args.identity)
         recipients = [r.strip() for r in args.to.split(",") if r.strip()]
         try:
             result = asyncio.run(run_oneshot(args.socket, identity, "send_dm", {
                 "to": recipients, "content": args.content,
-            }, token=args.token))
+            }))
         except (ValueError, ConnectionError) as e:
             print(json.dumps({"error": str(e)}), file=sys.stderr)
             sys.exit(1)
@@ -476,7 +470,7 @@ def main() -> None:
         identity = _resolve_identity(args.identity)
         try:
             result = asyncio.run(run_oneshot(args.socket, identity, "send_broadcast",
-                                             {"content": args.content}, token=args.token))
+                                             {"content": args.content}))
         except (ValueError, ConnectionError) as e:
             print(json.dumps({"error": str(e)}), file=sys.stderr)
             sys.exit(1)
@@ -486,7 +480,7 @@ def main() -> None:
         try:
             result = asyncio.run(run_oneshot(args.socket, identity, "reply_all", {
                 "to_message": args.to_message, "content": args.content,
-            }, token=args.token))
+            }))
         except (ValueError, ConnectionError) as e:
             print(json.dumps({"error": str(e)}), file=sys.stderr)
             sys.exit(1)
@@ -501,7 +495,7 @@ def main() -> None:
         if args.sent:
             params["sent"] = True
         try:
-            result = asyncio.run(run_oneshot(args.socket, identity, "history_inbox", params, token=args.token))
+            result = asyncio.run(run_oneshot(args.socket, identity, "history_inbox", params))
         except (ValueError, ConnectionError) as e:
             print(json.dumps({"error": str(e)}), file=sys.stderr)
             sys.exit(1)
@@ -510,7 +504,7 @@ def main() -> None:
     elif args.command == "read":
         identity = _resolve_identity(args.identity)
         try:
-            result = asyncio.run(run_oneshot(args.socket, identity, "read_inbox", {}, token=args.token))
+            result = asyncio.run(run_oneshot(args.socket, identity, "read_inbox", {}))
         except (ValueError, ConnectionError) as e:
             print(json.dumps({"error": str(e)}), file=sys.stderr)
             sys.exit(1)
@@ -522,31 +516,21 @@ def main() -> None:
     elif args.command == "clients":
         identity = _resolve_identity(args.identity)
         try:
-            result = asyncio.run(run_oneshot(args.socket, identity, "list_clients", {}, token=args.token))
+            result = asyncio.run(run_oneshot(args.socket, identity, "list_clients", {}))
         except (ValueError, ConnectionError) as e:
             print(json.dumps({"error": str(e)}), file=sys.stderr)
             sys.exit(1)
         for name in result.get("clients", []):
             print(name)
     elif args.command == "whoami":
-        from broker_identity import derive_identity, IdentityDerivationError
-        try:
-            identity = derive_identity(Path.cwd())
-        except IdentityDerivationError as e:
-            print(f"error: {e}", file=sys.stderr)
-            sys.exit(1)
+        identity = _resolve_identity(None)
         print(f"{identity}  (from {Path.cwd()})")
     elif args.command == "init":
         cfg_path = Path.cwd() / ".broker" / "config.json"
         if args.identity is not None:
             identity = args.identity
         else:
-            from broker_identity import derive_identity, IdentityDerivationError
-            try:
-                identity = derive_identity(Path.cwd())
-            except IdentityDerivationError as e:
-                print(f"error: {e}", file=sys.stderr)
-                sys.exit(1)
+            identity = _resolve_identity(None)
         # Idempotent / overwrite handling.
         if cfg_path.exists():
             try:

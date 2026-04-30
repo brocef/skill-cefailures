@@ -49,7 +49,7 @@ broker broadcast "DECISION: mobile release cut → 2026-03-05 at 18:00 UTC"
 
 ## Why these signals matter
 
-Orchestrators and humans scan their inbox for signal prefixes to decide what to route, unblock, or escalate. A message like "I guess we could maybe do X or Y" is invisible; "QUESTION: @orchestrator should we do X or Y?" in the orchestrator's inbox is actionable.
+Orchestrators and humans scan their inbox for signal prefixes to decide what to route, unblock, or escalate. A message like "I guess we could maybe do X or Y" is invisible; "QUESTION: @orchestrator/myorg should we do X or Y?" in the orchestrator's inbox is actionable.
 
 ## Matching patterns
 
