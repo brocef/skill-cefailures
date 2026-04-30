@@ -562,6 +562,13 @@ DEFAULT_SOCKET = os.environ.get("MCP_BROKER_SOCK", str(Path.home() / ".mcp-broke
 DEFAULT_STORAGE = Path(os.environ.get("MCP_BROKER_STORAGE", str(Path.home() / ".mcp-broker" / "conversations")))
 
 
+def _read_plugin_version(repo_root: Path) -> str:
+    """Read the version field from <repo_root>/.claude-plugin/plugin.json."""
+    plugin_json = repo_root / ".claude-plugin" / "plugin.json"
+    data = json.loads(plugin_json.read_text(encoding="utf-8"))
+    return data["version"]
+
+
 def main() -> None:
     """Parse CLI args and dispatch to the appropriate mode."""
     parser = argparse.ArgumentParser(

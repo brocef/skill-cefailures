@@ -688,3 +688,20 @@ async def test_broker_list_status_all(sock_path, tmp_path):
     finally:
         srv.close()
         await srv.wait_closed()
+
+
+# ---------------------------------------------------------------------------
+# _read_plugin_version helper
+# ---------------------------------------------------------------------------
+
+def test_read_plugin_version_happy_path(tmp_path: Path) -> None:
+    """_read_plugin_version reads the version field from plugin.json under repo_root."""
+    from broker_cli import _read_plugin_version
+
+    repo = tmp_path / "fake-repo"
+    (repo / ".claude-plugin").mkdir(parents=True)
+    (repo / ".claude-plugin" / "plugin.json").write_text(
+        '{"version": "9.9.9", "name": "fake"}', encoding="utf-8",
+    )
+
+    assert _read_plugin_version(repo) == "9.9.9"
