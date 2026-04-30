@@ -80,3 +80,20 @@ def parse_message(line: str, viewer: str) -> ParsedMessage:
         recipients = [viewer if r == "you" else r for r in recipients]
         return ParsedMessage(timestamp, sender, recipients, False, content)
     return ParsedMessage(timestamp, meta, [viewer], False, content)
+
+
+def split_mid_prefix(line: str) -> tuple[str | None, str]:
+    """Return (mid, display_line). Pre-v1.5.0 lines have no MID column.
+
+    v1.5.0+ inbox/outbox lines have the form `<MID>\\t<timestamp> [<header>] <content>`.
+    Legacy lines have the form `<timestamp> [<header>] <content>` and are detected
+    by the leading character being a digit (timestamps always start with a year digit).
+    For legacy lines the MID is returned as None and `display_line` is the full input.
+    """
+    if not line or line[0].isdigit():
+        return None, line
+    mid, sep, rest = line.partition("\t")
+    if not sep:
+        # No tab: doesn't match either format. Return as-is, no MID.
+        return None, line
+    return mid, rest

@@ -7,9 +7,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 from broker_format import (
     escape_content,
-    unescape_content,
     format_message,
     parse_message,
+    split_mid_prefix,
+    unescape_content,
     ParsedMessage,
 )
 
@@ -109,3 +110,32 @@ def test_parse_rejects_malformed() -> None:
 def test_parse_unescapes_content() -> None:
     parsed = parse_message("2026-04-22T17:30:00Z [a] line1\\nline2", viewer="b")
     assert parsed.content == "line1\nline2"
+
+
+def test_split_mid_prefix_extracts_mid_from_new_format() -> None:
+    line = "msg-7f3a91\t2026-04-30T18:21:09Z [alice] hello"
+    mid, rest = split_mid_prefix(line)
+    assert mid == "msg-7f3a91"
+    assert rest == "2026-04-30T18:21:09Z [alice] hello"
+
+
+def test_split_mid_prefix_returns_none_for_legacy_line() -> None:
+    """Pre-v1.5.0 lines start with the timestamp digit, no MID column."""
+    line = "2026-04-30T18:21:09Z [alice] hello"
+    mid, rest = split_mid_prefix(line)
+    assert mid is None
+    assert rest == line
+
+
+def test_split_mid_prefix_handles_year_starting_with_2() -> None:
+    """Sanity: timestamps in 2099 still detected as legacy."""
+    line = "2099-12-31T23:59:59Z [alice] hello"
+    mid, rest = split_mid_prefix(line)
+    assert mid is None
+    assert rest == line
+
+
+def test_split_mid_prefix_handles_empty_line() -> None:
+    mid, rest = split_mid_prefix("")
+    assert mid is None
+    assert rest == ""
