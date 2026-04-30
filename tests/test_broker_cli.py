@@ -732,3 +732,85 @@ def test_read_plugin_version_failures(
 
     with pytest.raises(_VersionUnavailable):
         _read_plugin_version(repo)
+
+
+# ---------------------------------------------------------------------------
+# --version / -V CLI flag
+# ---------------------------------------------------------------------------
+
+def _expected_version_from_repo() -> str:
+    plugin_json = Path(__file__).parent.parent / ".claude-plugin" / "plugin.json"
+    return json.loads(plugin_json.read_text(encoding="utf-8"))["version"]
+
+
+def test_version_flag_long() -> None:
+    """`broker --version` reads .claude-plugin/plugin.json and prints `broker {version}`."""
+    expected = _expected_version_from_repo()
+    result = subprocess.run(
+        [sys.executable, BROKER_CLI, "--version"],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == f"broker {expected}\n"
+    assert result.stderr == ""
+
+
+def test_version_flag_short() -> None:
+    """`broker -V` is an alias for `--version`."""
+    expected = _expected_version_from_repo()
+    result = subprocess.run(
+        [sys.executable, BROKER_CLI, "-V"],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == f"broker {expected}\n"
+    assert result.stderr == ""
+
+
+def _build_fake_repo_with_symlink(tmp_path: Path, plugin_version: str | None) -> Path:
+    """Lay out <tmp>/fake-repo/{scripts,.claude-plugin}/ + a bin/broker symlink.
+
+    Returns the path to the bin/broker symlink. Set plugin_version=None to skip
+    creating plugin.json (forces the missing-file failure path).
+    """
+    import shutil
+    fake_repo = tmp_path / "fake-repo"
+    fake_scripts = fake_repo / "scripts"
+    real_scripts = Path(__file__).parent.parent / "scripts"
+    # Copy the entire scripts/ tree so broker_cli.py can import its siblings.
+    shutil.copytree(real_scripts, fake_scripts)
+    if plugin_version is not None:
+        (fake_repo / ".claude-plugin").mkdir()
+        (fake_repo / ".claude-plugin" / "plugin.json").write_text(
+            json.dumps({"version": plugin_version}), encoding="utf-8",
+        )
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    bin_link = bin_dir / "broker"
+    bin_link.symlink_to(fake_scripts / "broker_cli.py")
+    return bin_link
+
+
+def test_version_flag_via_symlink_chain(tmp_path: Path) -> None:
+    """Invoking `broker --version` via a bin/-symlink reads plugin.json from the
+    resolved repo root, not from the original install location."""
+    bin_link = _build_fake_repo_with_symlink(tmp_path, plugin_version="9.9.9")
+    result = subprocess.run(
+        [sys.executable, str(bin_link), "--version"],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "broker 9.9.9\n"
+    assert result.stderr == ""
+
+
+def test_version_flag_missing_plugin_json(tmp_path: Path) -> None:
+    """If plugin.json is absent, exit 1 with the canned stderr message and empty stdout."""
+    bin_link = _build_fake_repo_with_symlink(tmp_path, plugin_version=None)
+    result = subprocess.run(
+        [sys.executable, str(bin_link), "--version"],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert "broker: could not determine version" in result.stderr

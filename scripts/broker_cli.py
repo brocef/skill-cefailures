@@ -587,11 +587,57 @@ def _read_plugin_version(repo_root: Path) -> str:
     return version
 
 
+def _resolve_repo_root() -> Path:
+    """Walk from the resolved script path up one directory to the repo root.
+
+    Path(__file__).resolve() chases the install symlink (e.g. ~/.local/bin/broker
+    -> .../scripts/broker_cli.py), landing on the real script file inside the
+    repo's scripts/ directory. The parent of that is the repo root.
+    """
+    return Path(__file__).resolve().parent.parent
+
+
+class _VersionAction(argparse.Action):
+    """Print `broker {version}` and exit. Reads plugin.json on demand.
+
+    Defined as a custom action (rather than argparse's built-in
+    action="version") because Python evaluates the version= keyword expression
+    at add_argument call time. Calling _read_plugin_version() inline there
+    would crash every CLI invocation — including unrelated subcommands — if
+    plugin.json is unreadable. This action defers the read to flag-parse time.
+    """
+
+    def __init__(
+        self,
+        option_strings: list[str],
+        dest: str = argparse.SUPPRESS,
+        default: str = argparse.SUPPRESS,
+        help: str = "Print broker version and exit",
+    ) -> None:
+        super().__init__(
+            option_strings=option_strings,
+            dest=dest,
+            default=default,
+            nargs=0,
+            help=help,
+        )
+
+    def __call__(self, parser, namespace, values, option_string=None) -> None:
+        try:
+            version = _read_plugin_version(_resolve_repo_root())
+        except _VersionUnavailable:
+            print("broker: could not determine version", file=sys.stderr)
+            sys.exit(1)
+        print(f"broker {version}")
+        sys.exit(0)
+
+
 def main() -> None:
     """Parse CLI args and dispatch to the appropriate mode."""
     parser = argparse.ArgumentParser(
         description="Message broker for multi-agent conversations"
     )
+    parser.add_argument("-V", "--version", action=_VersionAction)
     subparsers = parser.add_subparsers(dest="command")
 
     # --- server ---
