@@ -174,6 +174,22 @@ async def run_server_mode(
         Path(sock_path).unlink(missing_ok=True)
 
 
+MID_COLUMN_WIDTH = 10  # fits "msg-XXXXXX"
+MID_GUTTER = "  "       # two spaces
+
+
+def _render_line(line: str, show_ids: bool) -> str:
+    """Render an inbox/outbox line for output, with or without the MID column."""
+    from broker_format import split_mid_prefix
+    mid, rest = split_mid_prefix(line)
+    if not show_ids:
+        return rest
+    if mid is None:
+        # Legacy line (pre-v1.5.0): no MID stored, render an em-dash placeholder.
+        return f"{'—':<{MID_COLUMN_WIDTH}}{MID_GUTTER}{rest}"
+    return f"{mid:<{MID_COLUMN_WIDTH}}{MID_GUTTER}{rest}"
+
+
 async def run_oneshot(
     sock_path: str,
     identity: str,
@@ -199,7 +215,7 @@ async def run_oneshot(
         await client.close()
 
 
-def cmd_follow_inbox(identity: str, idle_timeout: int) -> int:
+def cmd_follow_inbox(identity: str, idle_timeout: int, show_ids: bool) -> int:
     """Tail the per-identity DM inbox log, starting from cursor, exiting on idle."""
     import time
     from broker_storage import InboxLog, CursorStore
@@ -218,7 +234,7 @@ def cmd_follow_inbox(identity: str, idle_timeout: int) -> int:
         lines, new_offset = inbox.read_from(identity, offset)
         if lines:
             for line in lines:
-                print(line, flush=True)
+                print(_render_line(line, show_ids), flush=True)
             cursors.set(identity, new_offset)
             last_activity = time.monotonic()
         if idle_timeout > 0 and time.monotonic() - last_activity >= idle_timeout:
@@ -390,6 +406,8 @@ def main() -> None:
     p_read.add_argument("--identity", required=False, type=_validate_identity_arg,
                         help="Your identity (defaults to cwd-derived)")
     p_read.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
+    p_read.add_argument("--show-ids", action="store_true",
+                        help="Prefix each line with the message ID for use with reply-all.")
     _add_token_arg(p_read)
 
     p_follow = subparsers.add_parser(
@@ -400,6 +418,8 @@ def main() -> None:
                           help="Your identity (defaults to cwd-derived)")
     p_follow.add_argument("--idle-timeout", type=int, default=120,
                           help="Exit after N seconds of silence. 0 disables. Default: 120.")
+    p_follow.add_argument("--show-ids", action="store_true",
+                          help="Prefix each emitted line with the message ID.")
 
     p_hist = subparsers.add_parser("history", help="Read inbox (or outbox with --sent) without advancing cursor")
     p_hist.add_argument("--identity", required=False, type=_validate_identity_arg,
@@ -407,6 +427,8 @@ def main() -> None:
     p_hist.add_argument("--from", dest="from_filter", help="Only lines from this sender")
     p_hist.add_argument("--since", help="Only lines with timestamp >= this ISO8601 string")
     p_hist.add_argument("--sent", action="store_true", help="Read the sender's outbox instead of inbox")
+    p_hist.add_argument("--show-ids", action="store_true",
+                        help="Prefix each line with the message ID.")
     p_hist.add_argument("--socket", default=DEFAULT_SOCKET, help="Socket path")
     _add_token_arg(p_hist)
 
@@ -470,7 +492,7 @@ def main() -> None:
             print(json.dumps({"error": str(e)}), file=sys.stderr)
             sys.exit(1)
         for line in result.get("lines", []):
-            print(line)
+            print(_render_line(line, args.show_ids))
     elif args.command == "read":
         identity = _resolve_identity(args.identity)
         try:
@@ -479,10 +501,10 @@ def main() -> None:
             print(json.dumps({"error": str(e)}), file=sys.stderr)
             sys.exit(1)
         for line in result.get("lines", []):
-            print(line)
+            print(_render_line(line, args.show_ids))
     elif args.command == "follow":
         identity = _resolve_identity(args.identity)
-        sys.exit(cmd_follow_inbox(identity, args.idle_timeout))
+        sys.exit(cmd_follow_inbox(identity, args.idle_timeout, args.show_ids))
     elif args.command == "clients":
         identity = _resolve_identity(args.identity)
         try:

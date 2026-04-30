@@ -291,3 +291,58 @@ def test_cli_passes_through_orchestrators_plural_as_peer(broker) -> None:
     # The send may succeed (peer mode). If it fails, it must not be due to validator.
     assert "scope" not in result.stderr.lower()
     assert "reserved-prefix-shaped" not in result.stderr.lower()
+
+
+def test_read_without_show_ids_strips_mid_prefix(broker) -> None:
+    """Default `read` output does NOT include the MID column."""
+    env = broker["env"]
+    subprocess.run(
+        CLI + ["send", "--identity", "alice", "--to", "bob", "hello"],
+        env=env, capture_output=True, text=True,
+    )
+    result = subprocess.run(
+        CLI + ["read", "--identity", "bob"],
+        env=env, capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    out = result.stdout
+    assert "[alice]" in out
+    assert "hello" in out
+    assert "msg-" not in out  # MID column hidden by default
+
+
+def test_read_with_show_ids_prepends_mid_column(broker) -> None:
+    """`broker read --show-ids` prepends the message ID to each line."""
+    env = broker["env"]
+    sent = subprocess.run(
+        CLI + ["send", "--identity", "alice", "--to", "bob", "hello"],
+        env=env, capture_output=True, text=True,
+    )
+    msg_id = sent.stdout.strip()
+    result = subprocess.run(
+        CLI + ["read", "--identity", "bob", "--show-ids"],
+        env=env, capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    out = result.stdout.strip().splitlines()
+    assert len(out) == 1
+    assert out[0].startswith(msg_id)
+    assert "[alice]" in out[0]
+    assert "hello" in out[0]
+
+
+def test_history_with_show_ids(broker) -> None:
+    env = broker["env"]
+    subprocess.run(CLI + ["send", "--identity", "alice", "--to", "bob", "first"],
+                   env=env, capture_output=True, text=True)
+    subprocess.run(CLI + ["send", "--identity", "alice", "--to", "bob", "second"],
+                   env=env, capture_output=True, text=True)
+    result = subprocess.run(
+        CLI + ["history", "--identity", "bob", "--show-ids"],
+        env=env, capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    lines = [l for l in result.stdout.strip().splitlines() if l]
+    assert len(lines) == 2
+    for line in lines:
+        assert line.startswith("msg-")
