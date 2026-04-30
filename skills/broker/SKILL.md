@@ -17,8 +17,8 @@ A DM/inbox CLI for multi-agent Claude Code. Every agent has a persistent identit
 
 The broker derives your identity from your cwd:
 
-1. Nearest `package.json` walking up from cwd → its `name` field (e.g. `@proposit/shared`, `proposit-server`).
-2. Otherwise, `git remote get-url origin` → `<org>/<repo>` (e.g. `Proposit-App/proposit-mobile`).
+1. Nearest `package.json` walking up from cwd → its `name` field (e.g. `@myorg/projectA`, `projectA-server`).
+2. Otherwise, `git remote get-url origin` → `<org>/<repo>` (e.g. `myorg/projectB-mobile`).
 3. Otherwise, error.
 
 Run `broker whoami` to confirm. The CLI auto-fills `--identity` from cwd when omitted, so you usually don't pass it. **To address another agent, compute their identity from their project — there is no directory to browse.**
@@ -46,7 +46,7 @@ Run `broker whoami` to confirm. The CLI auto-fills `--identity` from cwd when om
 
 Wait for a reply:
 ```bash
-broker send --to proposit-server "READY: shared v1.2.3 published"
+broker send --to projectA-server "READY: shared v1.2.3 published"
 broker follow --idle-timeout 120
 ```
 

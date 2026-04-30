@@ -9,8 +9,8 @@ Short, structured prefixes agents put at the start of DMs and broadcasts to make
 An unblocking milestone has landed. Use when you've completed work other agents may be waiting on.
 
 ```bash
-broker broadcast "READY: @proposit/proposit-core v1.2.3 published to npm"
-broker send --to proposit-server "READY: /api/auth endpoint shipped behind X-Test-Mode"
+broker broadcast "READY: @myorg/projectB v1.2.3 published to npm"
+broker send --to projectA-server "READY: /api/auth endpoint shipped behind X-Test-Mode"
 ```
 
 ### `BLOCKED: <on-whom> <what>`
@@ -18,7 +18,7 @@ broker send --to proposit-server "READY: /api/auth endpoint shipped behind X-Tes
 You are stuck waiting on someone. Name them explicitly.
 
 ```bash
-broker send --to proposit-core "BLOCKED: TypeError from validate() on empty schemas"
+broker send --to projectB-core "BLOCKED: TypeError from validate() on empty schemas"
 broker send --to human "BLOCKED: which endpoint shape do you want — flat or nested?"
 ```
 
@@ -27,7 +27,7 @@ broker send --to human "BLOCKED: which endpoint shape do you want — flat or ne
 Open question that needs input. If the target is a specific agent, address them in `--to` and mention them in the content so reply-all threads read cleanly.
 
 ```bash
-broker send --to proposit-core "QUESTION: @proposit-core should validate() take a schema or a raw object?"
+broker send --to projectB-core "QUESTION: @projectB-core should validate() take a schema or a raw object?"
 broker send --to human "QUESTION: @human are we freezing main for the mobile cut tomorrow?"
 ```
 

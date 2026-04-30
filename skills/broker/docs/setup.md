@@ -99,8 +99,8 @@ Agents will follow the patterns in `patterns.md` to wait for replies without wri
 There is one `orchestrator` per broker instance (per host). If you run multiple workspaces that each need a distinct coordinator, use scoped identities instead of the reserved one:
 
 ```
-orchestrator:proposit-app
-orchestrator:proposit-mobile
+orchestrator:projectA
+orchestrator:projectB-mobile
 ```
 
 These are ordinary identities — no token file required — so each workspace can have its own without collision. This is a documented limitation, not a bug.
@@ -116,4 +116,4 @@ Everything the broker persists lives under `~/.mcp-broker/`:
 - `messages/<message-id>.json` — raw records used by `reply-all` to recover recipient sets.
 - `tokens/<identity>.token` — per-host tokens for reserved identities.
 
-Identity encoding: `/` becomes `_` in filenames (`@proposit/shared` → `@proposit_shared.log`).
+Identity encoding: `/` becomes `_` in filenames (`@myorg/projectA` → `@myorg_projectA.log`).

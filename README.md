@@ -119,7 +119,7 @@ A single broker server runs as a Unix-domain-socket hub on the host. Every parti
        ┌─────────────────────────────┼─────────────────────────────┐
        │                             │                             │
    Claude A                      Claude B                       Human
-  (proposit-server)         (@proposit/shared)             (user / human)
+  (projectA-server)         (@myorg/projectA)             (user / human)
    `broker send`              `broker send`                broker server REPL
    `broker follow`            `broker follow`              who / send / read
    `broker history`           `broker history`             emit-messages on
@@ -136,6 +136,14 @@ The DM model has no room/membership concept. Roles are conventions on top of ide
 
 ### Quick start
 
+The fastest path is to let Claude do the setup. Once the plugin is installed, ask Claude:
+
+> "check broker setup"
+
+This runs the broker health check (`skills/broker/docs/health-check.md`) — a 5-point diagnostic of `~/.local/bin` on `$PATH`, the `broker` symlink, server reachability, the `Bash(broker:*)` permission, and version drift between the running broker and the latest cached plugin. Three of the fixes (symlink, permission, version match) Claude can apply for you with your confirmation; PATH and starting the server are user actions.
+
+If you'd rather wire it up by hand:
+
 ```bash
 # 1. Symlink the CLI onto your $PATH.
 ln -s /path/to/skill-cefailures/scripts/broker_cli.py ~/.local/bin/broker
@@ -146,7 +154,7 @@ broker server
 #   Broker REPL — connected as 'user'. Type 'help' for commands.
 #   broker>
 
-# 3. (Optional) Add `Bash(broker:*)` to your Claude Code allowedTools so agents
+# 3. Add `Bash(broker:*)` to your Claude Code allowedTools so agents
 #    can call the broker without permission prompts.
 ```
 
@@ -157,18 +165,18 @@ While `broker server` is running, the REPL gives you a small set of DM-aware com
 ```
 broker> who
   alice
-  proposit-server
+  projectA-server
   user (you)
 
-broker> send proposit-server please publish v1.2.3
+broker> send projectA-server please publish v1.2.3
   sent msg-7f3a91
 
 broker> broadcast pausing publishes — npm registry is down
   broadcast msg-b12c04 to 4 identity(s)
 
 broker> read
-  2026-04-30T18:21:09Z [proposit-server] READY: shared v1.2.3 published
-  2026-04-30T18:23:44Z [@proposit_core → you, proposit-server] QUESTION: who owns the migration?
+  2026-04-30T18:21:09Z [projectA-server] READY: shared v1.2.3 published
+  2026-04-30T18:23:44Z [@myorg_projectB → you, projectA-server] QUESTION: who owns the migration?
 
 broker> emit-messages on
   emit-messages: on
@@ -181,7 +189,7 @@ broker> exit
 You can also use the same one-shot CLI agents use, from any other terminal — handy for scripts:
 
 ```bash
-broker send --to proposit-server "READY: shared v1.2.3 published"
+broker send --to projectA-server "READY: shared v1.2.3 published"
 broker history --since 2026-04-30T00:00:00Z
 broker follow --idle-timeout 60
 ```
@@ -191,21 +199,21 @@ broker follow --idle-timeout 60
 Each agent has the broker skill loaded (see `skills/broker/SKILL.md`), which defines a tight set of patterns. The canonical loop is "send a message, then block on your inbox until a reply arrives or the conversation goes quiet":
 
 ```bash
-# Agent inside the proposit-server workspace
+# Agent inside the projectA-server workspace
 broker whoami
-# proposit-server  (from /Users/you/code/proposit-server)
+# projectA-server  (from /Users/you/code/projectA-server)
 
-broker send --to "@proposit/shared" "QUESTION: which schema version for v1.3?"
+broker send --to "@myorg/projectA" "QUESTION: which schema version for v1.3?"
 # msg-4ab12c
 
 broker follow --idle-timeout 120
-# 2026-04-30T18:30:01Z [@proposit_shared] DECISION: stick with v2 schema
+# 2026-04-30T18:30:01Z [@myorg_projectA] DECISION: stick with v2 schema
 ```
 
 Multi-party threads use `reply-all` against a captured message ID — no recipient list to retype:
 
 ```bash
-MID=$(broker send --to "@proposit/shared,@proposit/core" "QUESTION: validate(schema) or validate(obj)?")
+MID=$(broker send --to "@myorg/projectA,@myorg/projectB" "QUESTION: validate(schema) or validate(obj)?")
 broker follow --idle-timeout 180
 broker reply-all --to-message "$MID" "DECISION: validate(schema) wins."
 ```
@@ -216,8 +224,8 @@ An orchestrator does the same thing in reverse: it dispatches work, then watches
 broker server   # in an orchestrator terminal, with --identity orchestrator + token
 
 broker> emit-messages on   # tail every routed message in real time
-broker> send proposit-server "TASK: cut release branch for v1.3"
-broker> send "@proposit/shared" "TASK: bump shared to v1.2.3"
+broker> send projectA-server "TASK: cut release branch for v1.3"
+broker> send "@myorg/projectA" "TASK: bump shared to v1.2.3"
 # replies stream back into the same REPL inbox.
 ```
 

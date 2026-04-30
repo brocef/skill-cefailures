@@ -14,15 +14,15 @@ Everything lives under `~/.mcp-broker/`:
 - `tokens/<identity>.token` — per-host token files for reserved identities (`orchestrator`, `human`).
 - `broker.sock` — Unix socket the CLI talks to.
 
-**Identity encoding:** `/` becomes `_` in filenames. So `@proposit/shared` → `inbox/@proposit_shared.log`.
+**Identity encoding:** `/` becomes `_` in filenames. So `@myorg/projectA` → `inbox/@myorg_projectA.log`.
 
 ## Message display format
 
 Each inbox/outbox line has the form `<ISO8601> [<header>] <content>`, with three header shapes:
 
 ```
-2026-04-22T10:15:03Z [proposit-server] READY: shared v1.2.3 published
-2026-04-22T10:15:47Z [proposit-server → you, @proposit_core] QUESTION: who owns the migration?
+2026-04-22T10:15:03Z [projectA-server] READY: shared v1.2.3 published
+2026-04-22T10:15:47Z [projectA-server → you, @myorg_projectB] QUESTION: who owns the migration?
 2026-04-22T10:16:02Z [orchestrator → BROADCAST] npm registry is down
 ```
 
@@ -45,7 +45,7 @@ Print the identity derived from the current cwd using the 2-rule algorithm (pack
 Example:
 ```bash
 $ broker whoami
-@proposit/shared
+@myorg/projectA
 ```
 
 ### send — DM one or more recipients
@@ -62,7 +62,7 @@ Send a DM. `--identity` is auto-filled from cwd if omitted. `--to` takes a comma
 
 Example:
 ```bash
-$ broker send --to proposit-server "READY: shared v1.2.3 published"
+$ broker send --to projectA-server "READY: shared v1.2.3 published"
 msg-7f3a91
 ```
 
@@ -113,8 +113,8 @@ Exits cleanly (code 0) on idle; non-zero on socket error.
 Example:
 ```bash
 $ broker follow --idle-timeout 60
-2026-04-22T10:15:03Z [proposit-server] READY: shared v1.2.3 published
-2026-04-22T10:15:47Z [proposit-server → you, @proposit_core] QUESTION: who owns the migration?
+2026-04-22T10:15:03Z [projectA-server] READY: shared v1.2.3 published
+2026-04-22T10:15:47Z [projectA-server → you, @myorg_projectB] QUESTION: who owns the migration?
 ```
 
 ### history — read without advancing the cursor
@@ -147,7 +147,7 @@ Print only inbox lines newer than the stored cursor, then advance the cursor to 
 Example:
 ```bash
 $ broker read
-2026-04-22T10:15:47Z [proposit-server → you, @proposit_core] QUESTION: who owns the migration?
+2026-04-22T10:15:47Z [projectA-server → you, @myorg_projectB] QUESTION: who owns the migration?
 ```
 
 **Do not chain `read` → `follow`.** Read advances the cursor, so follow will see nothing until the next new message. Use `follow` alone; it handles drain + stream.
@@ -164,7 +164,7 @@ Example:
 ```bash
 $ broker clients
 alice
-proposit-server
+projectA-server
 user
 ```
 

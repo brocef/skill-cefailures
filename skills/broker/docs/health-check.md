@@ -55,7 +55,7 @@ test -S "$HOME/.mcp-broker/broker.sock"
 
 Pass on exit 0. This is a file-existence check only; do not perform a round-trip. Detail on fail: `no socket at ~/.mcp-broker/broker.sock`.
 
-### Check 4: `Bash(broker:*)` permission active
+### Check 4: broker Bash permission active
 
 Read each of these files in order, stopping at the first match:
 
@@ -63,7 +63,7 @@ Read each of these files in order, stopping at the first match:
 2. `<cwd>/.claude/settings.json`
 3. `~/.claude/settings.json`
 
-In each file, look at the `permissions.allow` array (a list of strings). Pass if any entry starts with the literal prefix `Bash(broker:` — this matches `Bash(broker:*)`, `Bash(broker:read)`, `Bash(broker:send,broker:read)`, etc.
+In each file, look at the `permissions.allow` array (a list of strings). Pass if any entry starts with the literal prefix `Bash(broker:` **or** `Bash(broker ` (note the trailing space). The first matches the tool-name form (`Bash(broker:*)`, `Bash(broker:read)`, `Bash(broker:send,broker:read)`); the second matches the command-prefix form (`Bash(broker *)`, `Bash(broker send *)`). Either form authorizes the agent to call `broker`, so accept both.
 
 - Detail on pass: `found in <filename>` (the first file that matched).
 - Detail on fail: `not found in project or user settings`.
@@ -99,7 +99,7 @@ Once all five checks have results, print exactly this table, with one row per ch
 | ~/.local/bin on $PATH          |  <s>   | <d>                                 |
 | broker symlink valid           |  <s>   | <d>                                 |
 | broker server reachable        |  <s>   | <d>                                 |
-| Bash(broker:*) permission      |  <s>   | <d>                                 |
+| broker Bash permission         |  <s>   | <d>                                 |
 | broker version matches plugin  |  <s>   | <d>                                 |
 ```
 
@@ -121,7 +121,7 @@ For each `✗` row (not `—`), ask the user "Fix [check name]? (y/n)" one at a 
 
 1. PATH
 2. broker symlink
-3. `Bash(broker:*)` permission
+3. broker Bash permission
 4. broker server
 5. version drift
 
@@ -163,9 +163,9 @@ If the cache directory does not exist or is empty, the user is on a dev install.
 
 `ln -sf` is atomic-replace, so a stale symlink is overwritten cleanly.
 
-### `Bash(broker:*)` permission (auto-applied on yes via update-config)
+### broker Bash permission (auto-applied on yes via update-config)
 
-Invoke the existing `update-config` skill to add `Bash(broker:*)` to the `permissions.allow` array. Before invoking, ask the user whether to add it to:
+Invoke the existing `update-config` skill to add `Bash(broker:*)` to the `permissions.allow` array. Either form (`Bash(broker:*)` or `Bash(broker *)`) is accepted by Check 4, but the colon form is preferred when adding a new entry — it's the tool-name pattern Claude Code emits by default. Before invoking, ask the user whether to add it to:
 
 - Project settings: `<cwd>/.claude/settings.json` (default suggestion)
 - User settings: `~/.claude/settings.json`

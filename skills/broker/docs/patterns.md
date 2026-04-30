@@ -7,7 +7,7 @@ Canonical DM-model patterns. All commands auto-derive `--identity` from cwd unle
 Send, then block on your inbox. `broker follow` drains any backlog and streams new arrivals; it returns when the conversation goes quiet.
 
 ```bash
-broker send --to proposit-server "QUESTION: which schema version for v1.3?"
+broker send --to projectA-server "QUESTION: which schema version for v1.3?"
 broker follow --idle-timeout 120
 ```
 
@@ -28,7 +28,7 @@ Pitfall: broadcasts have no stable recipient set. Don't try to `reply-all` to on
 Capture the message ID from `send`, then use `reply-all` to address the same group without retyping `--to`. Reply-all automatically excludes yourself.
 
 ```bash
-MID=$(broker send --to proposit-server,proposit-core "QUESTION: validate(schema) or validate(obj)?")
+MID=$(broker send --to projectA-server,projectB-core "QUESTION: validate(schema) or validate(obj)?")
 broker follow --idle-timeout 180
 broker reply-all --to-message "$MID" "DECISION: validate(schema) wins; shared will expose the type."
 ```
