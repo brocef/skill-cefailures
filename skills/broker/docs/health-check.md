@@ -32,11 +32,20 @@ The `python3` one-liner is used instead of `readlink -f` because BSD `readlink` 
 
 Pass criteria: `test -L` succeeds AND the resolved path is a readable file ending in `broker_cli.py`.
 
-- If `test -L` fails: detail is `missing`.
-- If `test -L` succeeds but the resolved path does not exist: detail is `dangling: <resolved-path>`.
-- If the resolved path exists but does not end in `broker_cli.py`: detail is `wrong target: <resolved-path>`.
+`os.path.realpath` does **not** error on a dangling symlink — it returns the would-be target as a string regardless of whether it exists. After capturing the resolved path, verify it actually exists with a separate test:
 
-Capture the resolved path. Check 5 needs it.
+```bash
+python3 -c 'import os,sys; sys.exit(0 if os.path.isfile(sys.argv[1]) else 1)' "$RESOLVED"
+```
+
+Then map the four outcomes:
+
+- `test -L` fails → fail. Detail: `missing`.
+- `test -L` succeeds but the existence check fails → fail. Detail: `dangling: <resolved-path>`.
+- Existence check succeeds but the path does not end in `broker_cli.py` → fail. Detail: `wrong target: <resolved-path>`.
+- Existence check succeeds and the path ends in `broker_cli.py` → pass.
+
+Capture the resolved path on pass. Check 5 needs it.
 
 ### Check 3: broker server reachable
 
@@ -59,7 +68,7 @@ In each file, look at the `permissions.allow` array (a list of strings). Pass if
 - Detail on pass: `found in <filename>` (the first file that matched).
 - Detail on fail: `not found in project or user settings`.
 
-If a settings file exists but is not valid JSON, treat it as absent for matching but append `(<filename> malformed — skipped)` to the detail string for visibility.
+If a settings file exists but is not valid JSON, treat it as absent for matching purposes. Then, in the final detail string Claude prints (whichever path applies — pass detail or fail detail), append `(<filename> malformed — skipped)` so the user sees that the file was inspected but skipped.
 
 ### Check 5: broker version matches plugin cache
 
@@ -68,8 +77,12 @@ If a settings file exists but is not valid JSON, treat it as absent for matching
 Otherwise:
 
 1. Use the resolved path captured in Check 2. Call it `$RESOLVED`.
-2. Test `$RESOLVED` against the regex `^<HOME>/\.claude/plugins/cache/skill-cefailures/skill-cefailures/[^/]+/scripts/broker_cli\.py$` (with `$HOME` literally expanded). If it does not match, this check is skipped with status `—` and detail `dev install at <RESOLVED>`. (This is a passing skip, not a failure.)
-3. If it matches, capture the version segment as `running`.
+2. Test whether `$RESOLVED` looks like an installed-plugin path. The path qualifies if:
+   - it begins with the user's `$HOME` directory (expanded at runtime), AND
+   - the rest of the path matches the suffix `/.claude/plugins/cache/skill-cefailures/skill-cefailures/<ver>/scripts/broker_cli.py`, where `<ver>` is one path segment with no slashes.
+
+   If it does not match, this check is skipped with status `—` and detail `dev install at <RESOLVED>`. (This is a passing skip, not a failure.)
+3. If it matches, capture the `<ver>` segment as `running`.
 4. List sibling version directories at `~/.claude/plugins/cache/skill-cefailures/skill-cefailures/`. Sort lexicographically (e.g. `ls -1 ... | sort`). Take the last entry as `latest`.
 5. Compare. If `running == latest`: pass. Detail: `<running>`.
 6. If `running != latest`: fail. Detail: `running <running> ≠ latest cached <latest> (stale symlink)`.
@@ -83,12 +96,14 @@ Once all five checks have results, print exactly this table, with one row per ch
 ```
 | Check                          | Status | Detail                              |
 |--------------------------------|:------:|-------------------------------------|
-| ~/.local/bin on $PATH          |   ?    | …                                   |
-| broker symlink valid           |   ?    | …                                   |
-| broker server reachable        |   ?    | …                                   |
-| Bash(broker:*) permission      |   ?    | …                                   |
-| broker version matches plugin  |   ?    | …                                   |
+| ~/.local/bin on $PATH          |  <s>   | <d>                                 |
+| broker symlink valid           |  <s>   | <d>                                 |
+| broker server reachable        |  <s>   | <d>                                 |
+| Bash(broker:*) permission      |  <s>   | <d>                                 |
+| broker version matches plugin  |  <s>   | <d>                                 |
 ```
+
+`<s>` and `<d>` are placeholders. Replace `<s>` with one of `✓` / `✗` / `—` per the legend below; replace `<d>` with the per-check detail string.
 
 Status values:
 
@@ -96,7 +111,7 @@ Status values:
 - `✗` — fail
 - `—` — skipped (only Check 5 can be skipped, per its dependency rules)
 
-After the table, transition into Phase 2 with one question: name the failing checks in the order Phase 2 will offer to fix them (see below). Example: "Fix in order: broker symlink, then permission, then version drift?"
+After the table, transition into Phase 2 by previewing the order of fixes. Example: "I'll offer to fix these in order: broker symlink, then permission, then version drift." This is a preview, **not** a single combined yes/no question. Regardless of how the user reacts to the preview, proceed into Phase 2 and ask each failing check individually with its own `y/n` prompt.
 
 If there are no `✗` rows, skip Phase 2 entirely and tell the user "Setup looks healthy."
 
