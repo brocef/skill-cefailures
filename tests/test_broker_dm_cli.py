@@ -346,3 +346,17 @@ def test_history_with_show_ids(broker) -> None:
     assert len(lines) == 2
     for line in lines:
         assert line.startswith("msg-")
+
+
+def test_render_line_legacy_line_with_show_ids_uses_em_dash() -> None:
+    """Pre-v1.5.0 inbox lines (no MID prefix) render an em-dash placeholder when --show-ids is on."""
+    sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+    from broker_cli import _render_line, MID_COLUMN_WIDTH
+
+    legacy = "2026-04-30T12:00:00Z [alice] hi from before v1.5.0"
+    result = _render_line(legacy, show_ids=True)
+    assert result.startswith("—")
+    # The em-dash plus padding must occupy MID_COLUMN_WIDTH chars before the gutter.
+    assert legacy in result
+    # Default-off: returns the legacy line unchanged.
+    assert _render_line(legacy, show_ids=False) == legacy

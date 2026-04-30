@@ -179,7 +179,12 @@ MID_GUTTER = "  "       # two spaces
 
 
 def _render_line(line: str, show_ids: bool) -> str:
-    """Render an inbox/outbox line for output, with or without the MID column."""
+    """Render an inbox/outbox line for output, with or without the MID column.
+
+    The MID column width matches `msg-` (4 chars) + `secrets.token_hex(3)` (6 hex chars) = 10.
+    If `broker_server._generate_id` ever produces longer IDs, the alignment degrades but
+    output remains correct (Python's `:<10` left-pads but doesn't truncate).
+    """
     from broker_format import split_mid_prefix
     mid, rest = split_mid_prefix(line)
     if not show_ids:

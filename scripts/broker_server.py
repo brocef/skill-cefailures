@@ -26,6 +26,8 @@ class BrokerServer:
         self.registry = IdentityRegistry(root_dir / "identities.json")
 
     def _generate_id(self) -> str:
+        # 6 hex chars + "msg-" prefix = 10-char message ID. If you change this,
+        # update MID_COLUMN_WIDTH in broker_cli.py to match.
         return secrets.token_hex(3)
 
     def _message_id(self) -> str:
