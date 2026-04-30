@@ -27,20 +27,23 @@ The `broker` CLI is normally invoked via a symlink (e.g. `~/.local/bin/broker ->
 2. Walk up one directory (`scripts/` → repo root).
 3. Read `<repo-root>/.claude-plugin/plugin.json`, parse as JSON, return the `version` field as a string.
 
+The version reflects the repo containing the resolved script file. If `broker_cli.py` is *copied* (rather than symlinked) outside the repo, or run from a checked-out worktree whose `plugin.json` differs from what the user thinks is installed, the helper will read whatever's at the resolved location — or hit the missing-file path and report failure. This is acceptable: symlink installs (the documented setup in `skills/broker/docs/setup.md`) work correctly; non-symlink installs are out of scope.
+
 ## Failure handling
 
-The reader treats any of the following as "could not determine version":
+The reader treats **any exception during read or parse** as "could not determine version", plus the schema check that `version` is a non-empty string. Concretely, this covers at least:
 
-- `plugin.json` missing at the resolved path
-- File present but not valid JSON
-- JSON object missing the `version` key, or `version` is not a string
+- `plugin.json` missing at the resolved path (`FileNotFoundError`)
+- Permission denied on read (`PermissionError`)
+- File is not valid UTF-8 / JSON (`UnicodeDecodeError`, `json.JSONDecodeError`)
+- JSON object missing the `version` key, or `version` is not a string, or `version` is an empty string
 
-In every failure case: stdout stays empty, stderr gets `broker: could not determine version`, exit code is 1. We deliberately do not echo the underlying error (file-not-found, JSON parse error, etc.) — the message tells the user what went wrong from their perspective; deeper diagnostics are not the job of `--version`.
+In every failure case: stdout stays empty, stderr gets `broker: could not determine version`, exit code is 1. We deliberately do not echo the underlying error — the message tells the user what went wrong from their perspective; deeper diagnostics are not the job of `--version`.
 
 ## Implementation notes
 
 - A new module-level helper `_read_plugin_version() -> str` lives in `scripts/broker_cli.py`, near the existing `DEFAULT_SOCKET` / `DEFAULT_STORAGE` constants. It raises a single internal exception class (or returns a sentinel) on any failure; the caller maps that to the stderr-message-and-exit-1 path.
-- `argparse`'s built-in `action="version"` is **not** suitable, because it evaluates the version string eagerly when the argument is added to the parser. If the read fails, that would crash the entire CLI on every invocation — including `broker server`, `broker send`, etc. — not just `broker --version`.
+- `argparse`'s built-in `action="version"` is **not** suitable. Python evaluates the `version=` keyword expression at the `add_argument` call site, so passing `version=_read_plugin_version()` would call the reader at parser-construction time. If the read fails, that crashes the entire CLI on every invocation — including `broker server`, `broker send`, etc. — not just `broker --version`.
 - Instead, handle `--version` / `-V` with a custom argparse action whose `__call__` invokes `_read_plugin_version()`, prints the success line (or writes the stderr message) and calls `sys.exit(0 or 1)`. The action is added to the top-level parser in `main()` before subparsers are configured.
 - The flag belongs to the top-level parser only, not to subparsers. `broker send --version` is not a supported invocation; argparse will reject it as an unknown flag for the `send` subcommand, which is the right behavior.
 
@@ -48,10 +51,17 @@ In every failure case: stdout stays empty, stderr gets `broker: could not determ
 
 One new test file (or new tests in an existing file) at `tests/test_broker_cli.py`:
 
-1. **Success case:** read the expected version directly from `.claude-plugin/plugin.json`, invoke the broker CLI as a subprocess with `--version`, assert stdout equals `broker {expected}\n`, stderr is empty, exit code is 0. Repeat for `-V`.
-2. **Failure case:** invoke `_read_plugin_version()` (or the CLI) with a working directory / `__file__` arrangement where `plugin.json` is missing or malformed. Assert exit 1, empty stdout, stderr contains `broker: could not determine version`. Easiest setup: monkeypatch the helper's resolution path to point at a `tmp_path` that does not contain `plugin.json`, and at one that contains a JSON file with no `version` key.
+1. **Success case (real symlink path):** in a `tmp_path`, lay out a fake repo (`<tmp>/.claude-plugin/plugin.json` with a known version, `<tmp>/scripts/broker_cli.py` copied or symlinked from the real one), then create a symlink `<tmp>/bin/broker` pointing at `<tmp>/scripts/broker_cli.py`. Invoke that symlink as a subprocess with `--version`. Assert stdout equals `broker {expected}\n`, stderr is empty, exit code is 0. Repeat the assertion for `-V`. This is the only test that actually exercises the `Path(__file__).resolve()` symlink-following behavior — the riskiest part of the resolution path.
+2. **Failure cases:** drive `_read_plugin_version()` directly (with the resolution path pointed at a `tmp_path`) once per failure shape:
+   - missing `plugin.json`
+   - `plugin.json` exists but contains invalid JSON
+   - `plugin.json` parses but is missing the `version` key
+   - `plugin.json` has `version` set to a non-string (e.g. number)
+   - `plugin.json` has `version` set to an empty string
 
-No need to test every shape of malformed JSON — one missing-file case and one missing-key case is enough to cover the failure branch.
+   For each, assert the helper signals failure to the caller. Then add one end-to-end subprocess test for the missing-file case asserting exit 1, empty stdout, and stderr containing `broker: could not determine version` — that's enough to cover the CLI-level wiring.
+
+Permission-error and decoding-error cases do not need dedicated tests; they share the same "any exception → failure" branch and would be redundant.
 
 ## Out of scope
 
