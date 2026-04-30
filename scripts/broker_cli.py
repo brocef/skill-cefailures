@@ -569,9 +569,10 @@ class _VersionUnavailable(Exception):
 def _read_plugin_version(repo_root: Path) -> str:
     """Read the version field from <repo_root>/.claude-plugin/plugin.json.
 
-    Raises _VersionUnavailable on any read, parse, or schema failure. The
-    underlying error is chained via __cause__ for debuggers but is not surfaced
-    to the user.
+    Raises _VersionUnavailable on any read, parse, or schema failure. Read
+    and parse errors are chained via __cause__ for debuggers; schema failures
+    have no underlying exception to chain. In neither case is the cause
+    surfaced to the user.
     """
     plugin_json = repo_root / ".claude-plugin" / "plugin.json"
     try:
