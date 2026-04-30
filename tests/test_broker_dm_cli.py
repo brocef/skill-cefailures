@@ -360,3 +360,58 @@ def test_render_line_legacy_line_with_show_ids_uses_em_dash() -> None:
     assert legacy in result
     # Default-off: returns the legacy line unchanged.
     assert _render_line(legacy, show_ids=False) == legacy
+
+
+def test_broker_init_creates_config_with_explicit_identity(broker, tmp_path) -> None:
+    env = dict(broker["env"])
+    workdir = tmp_path / "workdir"
+    workdir.mkdir()
+    result = subprocess.run(
+        CLI + ["init", "--identity", "@myorg/projectA"],
+        env=env, cwd=workdir, capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    cfg = workdir / ".broker" / "config.json"
+    assert cfg.exists()
+    import json as _json
+    data = _json.loads(cfg.read_text())
+    assert data["identity"] == "@myorg/projectA"
+
+
+def test_broker_init_uses_cwd_identity_when_omitted(broker, tmp_path) -> None:
+    env = dict(broker["env"])
+    workdir = tmp_path / "workdir"
+    workdir.mkdir()
+    (workdir / "package.json").write_text('{"name": "auto-derived"}')
+    result = subprocess.run(
+        CLI + ["init"],
+        env=env, cwd=workdir, capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    import json as _json
+    data = _json.loads((workdir / ".broker" / "config.json").read_text())
+    assert data["identity"] == "auto-derived"
+
+
+def test_broker_init_idempotent_for_same_identity(broker, tmp_path) -> None:
+    env = dict(broker["env"])
+    workdir = tmp_path / "workdir"
+    workdir.mkdir()
+    subprocess.run(CLI + ["init", "--identity", "alice"], env=env, cwd=workdir, capture_output=True, text=True)
+    result = subprocess.run(
+        CLI + ["init", "--identity", "alice"],
+        env=env, cwd=workdir, capture_output=True, text=True,
+    )
+    assert result.returncode == 0
+    assert "no change" in result.stdout.lower() or "already" in result.stdout.lower()
+
+
+def test_broker_init_rejects_invalid_orchestrator_identity(broker, tmp_path) -> None:
+    env = dict(broker["env"])
+    workdir = tmp_path / "workdir"
+    workdir.mkdir()
+    result = subprocess.run(
+        CLI + ["init", "--identity", "@orchestrator/foo bar"],
+        env=env, cwd=workdir, capture_output=True, text=True,
+    )
+    assert result.returncode != 0

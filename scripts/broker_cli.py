@@ -448,6 +448,12 @@ def main() -> None:
 
     subparsers.add_parser("whoami", help="Print the identity derived from cwd")
 
+    p_init = subparsers.add_parser("init", help="Create .broker/config.json in the current directory")
+    p_init.add_argument("--identity", required=False, type=_validate_identity_arg,
+                        help="Identity to pin (defaults to cwd-derived)")
+    p_init.add_argument("--force", action="store_true",
+                        help="Overwrite an existing .broker/config.json without confirmation")
+
     args = parser.parse_args()
 
     if args.command is None:
@@ -530,6 +536,36 @@ def main() -> None:
             print(f"error: {e}", file=sys.stderr)
             sys.exit(1)
         print(f"{identity}  (from {Path.cwd()})")
+    elif args.command == "init":
+        cfg_path = Path.cwd() / ".broker" / "config.json"
+        if args.identity is not None:
+            identity = args.identity
+        else:
+            from broker_identity import derive_identity, IdentityDerivationError
+            try:
+                identity = derive_identity(Path.cwd())
+            except IdentityDerivationError as e:
+                print(f"error: {e}", file=sys.stderr)
+                sys.exit(1)
+        # Idempotent / overwrite handling.
+        if cfg_path.exists():
+            try:
+                existing = json.loads(cfg_path.read_text())
+            except (json.JSONDecodeError, OSError):
+                existing = {}
+            if existing.get("identity") == identity:
+                print(f"no change: .broker/config.json already pins identity {identity!r}.")
+                sys.exit(0)
+            if not args.force:
+                print(
+                    f"error: .broker/config.json already pins identity "
+                    f"{existing.get('identity')!r}. Re-run with --force to overwrite.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+        cfg_path.parent.mkdir(parents=True, exist_ok=True)
+        cfg_path.write_text(json.dumps({"identity": identity}, indent=2) + "\n")
+        print(f"wrote {cfg_path} (identity: {identity})")
 
 
 if __name__ == "__main__":
