@@ -27,10 +27,10 @@ Run all five checks below, then print one summary table of results. No action ta
 | # | Check | Pass criteria | Detail on fail |
 |---|-------|---------------|----------------|
 | 1 | `~/.local/bin` on `$PATH` | `case ":$PATH:" in *":$HOME/.local/bin:"*) echo ok;; esac` matches | "not on PATH" |
-| 2 | `broker` symlink valid | `test -L ~/.local/bin/broker` AND `readlink -f ~/.local/bin/broker` resolves to a readable file ending in `broker_cli.py` | "missing" or "dangling: <path>" or "wrong target: <path>" |
+| 2 | `broker` symlink valid | `test -L ~/.local/bin/broker` AND `python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' ~/.local/bin/broker` resolves to a readable file ending in `broker_cli.py` | "missing" or "dangling: <path>" or "wrong target: <path>" |
 | 3 | broker server reachable | `test -S ~/.mcp-broker/broker.sock` (file existence only — no round-trip) | "no socket at ~/.mcp-broker/broker.sock" |
-| 4 | `Bash(broker:*)` permission active | At least one entry in `permissions.allow[]` starts with `Bash(broker:` in any of: `.claude/settings.json`, `.claude/settings.local.json`, `~/.claude/settings.json` | "not found in project or user settings" |
-| 5 | broker version matches plugin cache | `broker --version` parses as `broker X.Y.Z`. If the resolved symlink target is under `~/.claude/plugins/cache/`, find the highest-versioned plugin cache dir for `skill-cefailures` and read its `plugin.json`; compare `version` strings. | `1.3.0 ≠ 1.3.1 (stale symlink — points at older cached plugin)`. If the resolved target is NOT under the plugin cache (e.g. dev symlink to a checked-out repo), report the broker version and explicitly skip the comparison: "drift check skipped (dev install at <path>)". |
+| 4 | `Bash(broker:*)` permission active | At least one entry in `permissions.allow[]` starts with `Bash(broker:` in any of (precedence order): `.claude/settings.local.json`, `.claude/settings.json`, `~/.claude/settings.json` | "not found in project or user settings" |
+| 5 | broker version matches plugin cache | The resolved symlink target (from Check 2) is under `~/.claude/plugins/cache/skill-cefailures/skill-cefailures/<ver>/scripts/broker_cli.py`. Extract `<ver>` from the path; list siblings under `~/.claude/plugins/cache/skill-cefailures/skill-cefailures/`; pass if `<ver>` equals the highest sibling. | `1.3.0 ≠ 1.3.1 (stale symlink — points at older cached plugin)`. If the resolved target is NOT under the plugin cache (e.g. dev symlink to a checked-out repo), explicitly skip the comparison: "drift check skipped (dev install at <path>)". |
 
 The summary table format:
 
@@ -79,13 +79,14 @@ If a settings file exists but is not valid JSON, treat it as if the file did not
 
 ## Version-drift detection details
 
+The drift check derives both versions from the filesystem layout — it does NOT call `broker --version`. The reasoning: `broker --version` resolves `Path(__file__).resolve().parent.parent` and reads that directory's `plugin.json`, which is functionally the same as extracting the version segment from the resolved symlink path. Using the path segment directly avoids a subprocess call and makes the comparison's two inputs (current version, latest version) come from the same source format (directory listing).
+
 For check 5:
 
-1. Run `broker --version`. Parse the line as `broker {version}`. If the command fails (exit non-zero, or output doesn't match), the check fails with "broker --version failed: <stderr first line>".
-2. Resolve the broker symlink with `readlink -f ~/.local/bin/broker`. If the resolved path matches the regex `~/.claude/plugins/cache/skill-cefailures/skill-cefailures/[^/]+/scripts/broker_cli.py`, extract the version segment and the plugin cache dir.
-3. List sibling version dirs at `~/.claude/plugins/cache/skill-cefailures/skill-cefailures/`. The "expected" version is the lexicographically highest entry (good enough for semver patch differences; the corner case where `1.10.0` < `1.9.0` lexicographically can be addressed in a future iteration if the project ever hits double-digit minors).
-4. Compare. If equal: pass. If different: fail with `running 1.3.0 ≠ latest cached 1.3.1 (stale symlink)`.
-5. If step 2's regex does not match (the symlink points elsewhere), skip the comparison. Report `drift check skipped (dev install at <resolved-path>)` and pass with a `—` status.
+1. Resolve the broker symlink: `python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" ~/.local/bin/broker`. Capture the result.
+2. If the resolved path matches the regex `<HOME>/.claude/plugins/cache/skill-cefailures/skill-cefailures/[^/]+/scripts/broker_cli.py`, extract the `<ver>` segment as the "running version." Otherwise, skip the comparison: report `drift check skipped (dev install at <resolved-path>)` with `—` status.
+3. List sibling version dirs at `~/.claude/plugins/cache/skill-cefailures/skill-cefailures/`. The "latest" is the lexicographically highest entry. This works for the project's current `1.x.y` release stream because `x` and `y` are single digits. **When the project reaches minor 10+ or patch 10+, switch the implementation to** `sorted(entries, key=lambda v: tuple(int(x) for x in v.split(".")))`. Naming the fix here so it isn't forgotten later.
+4. Compare running vs. latest. Equal → pass. Different → fail with `running <ver> ≠ latest cached <latest> (stale symlink)`.
 
 ## SKILL.md changes
 
