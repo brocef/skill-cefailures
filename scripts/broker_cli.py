@@ -562,11 +562,28 @@ DEFAULT_SOCKET = os.environ.get("MCP_BROKER_SOCK", str(Path.home() / ".mcp-broke
 DEFAULT_STORAGE = Path(os.environ.get("MCP_BROKER_STORAGE", str(Path.home() / ".mcp-broker" / "conversations")))
 
 
+class _VersionUnavailable(Exception):
+    """Raised when plugin.json cannot be read, parsed, or validated."""
+
+
 def _read_plugin_version(repo_root: Path) -> str:
-    """Read the version field from <repo_root>/.claude-plugin/plugin.json."""
+    """Read the version field from <repo_root>/.claude-plugin/plugin.json.
+
+    Raises _VersionUnavailable on any read, parse, or schema failure. The
+    underlying error is chained via __cause__ for debuggers but is not surfaced
+    to the user.
+    """
     plugin_json = repo_root / ".claude-plugin" / "plugin.json"
-    data = json.loads(plugin_json.read_text(encoding="utf-8"))
-    return data["version"]
+    try:
+        data = json.loads(plugin_json.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise _VersionUnavailable() from exc
+    if not isinstance(data, dict):
+        raise _VersionUnavailable()
+    version = data.get("version")
+    if not isinstance(version, str) or not version:
+        raise _VersionUnavailable()
+    return version
 
 
 def main() -> None:

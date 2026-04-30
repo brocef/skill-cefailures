@@ -705,3 +705,30 @@ def test_read_plugin_version_happy_path(tmp_path: Path) -> None:
     )
 
     assert _read_plugin_version(repo) == "9.9.9"
+
+
+@pytest.mark.parametrize(
+    "label, write_content",
+    [
+        ("missing-file", None),
+        ("invalid-json", "not json at all"),
+        ("missing-version-key", '{"name": "fake"}'),
+        ("non-string-version", '{"version": 1}'),
+        ("empty-string-version", '{"version": ""}'),
+    ],
+)
+def test_read_plugin_version_failures(
+    tmp_path: Path, label: str, write_content: str | None,
+) -> None:
+    """Every malformed plugin.json shape raises _VersionUnavailable."""
+    from broker_cli import _read_plugin_version, _VersionUnavailable
+
+    repo = tmp_path / "fake-repo"
+    (repo / ".claude-plugin").mkdir(parents=True)
+    if write_content is not None:
+        (repo / ".claude-plugin" / "plugin.json").write_text(
+            write_content, encoding="utf-8",
+        )
+
+    with pytest.raises(_VersionUnavailable):
+        _read_plugin_version(repo)
