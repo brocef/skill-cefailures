@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Callable
 
 from broker_constants import BROADCAST, is_reserved
-from broker_format import format_message, parse_message
+from broker_format import format_message, parse_message, split_mid_prefix
 from broker_storage import InboxLog, OutboxLog, CursorStore, IdentityRegistry
 
 
@@ -106,7 +106,7 @@ class BrokerServer:
 
         for recipient in to:
             line = format_message(timestamp, identity, to, content, viewer=recipient)
-            self.inbox_log.append(recipient, line)
+            self.inbox_log.append(recipient, message_id, line)
             if recipient in self.clients and recipient != identity:
                 self.clients[recipient]({
                     "type": "inbox_message",
@@ -116,7 +116,7 @@ class BrokerServer:
                 })
 
         sender_line = format_message(timestamp, identity, to, content, viewer=identity)
-        self.outbox_log.append(identity, sender_line)
+        self.outbox_log.append(identity, message_id, sender_line)
 
         if self.audit_hook is not None:
             self.audit_hook(sender_line)
@@ -134,7 +134,7 @@ class BrokerServer:
 
         for dest in self.registry.all():
             line = format_message(timestamp, identity, recipients, content, viewer=dest)
-            self.inbox_log.append(dest, line)
+            self.inbox_log.append(dest, message_id, line)
             if dest in self.clients and dest != identity:
                 self.clients[dest]({
                     "type": "inbox_message",
@@ -144,7 +144,7 @@ class BrokerServer:
                 })
 
         sender_line = format_message(timestamp, identity, recipients, content, viewer=identity)
-        self.outbox_log.append(identity, sender_line)
+        self.outbox_log.append(identity, message_id, sender_line)
 
         if self.audit_hook is not None:
             self.audit_hook(sender_line)
@@ -206,7 +206,8 @@ class BrokerServer:
             filtered: list[str] = []
             for line in lines:
                 try:
-                    parsed = parse_message(line, viewer=identity)
+                    _, display = split_mid_prefix(line)
+                    parsed = parse_message(display, viewer=identity)
                 except ValueError:
                     continue
                 if from_filter and parsed.sender != from_filter:
