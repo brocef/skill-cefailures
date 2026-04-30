@@ -1,0 +1,89 @@
+{
+  "_description": "Recommended Claude Code permission rules, organized by category. Use scripts/apply_permissions.py to merge into ~/.claude/settings.json.",
+  "permissions": {
+    "allow": {
+      "skills": [
+        "Read(~/.claude/skills/**)"
+      ],
+      "git": [
+        "Bash(git add *)",
+        "Bash(git branch*)",
+        "Bash(git checkout *)",
+        "Bash(git commit *)",
+        "Bash(git diff *)",
+        "Bash(git -C *)",
+        "Bash(git log *)",
+        "Bash(git merge-base *)",
+        "Bash(git mv *)",
+        "Bash(git rev-parse *)",
+        "Bash(git rm *)",
+        "Bash(git show *)",
+        "Bash(git stash *)",
+        "Bash(git status*)",
+        "Bash(git switch *)"
+      ],
+      "file_operations": [
+        "Bash(cat *)",
+        "Bash(cp *)",
+        "Bash(diff *)",
+        "Bash(echo *)",
+        "Bash(find *)",
+        "Bash(grep *)",
+        "Bash(head *)",
+        "Bash(ls *)",
+        "Bash(mkdir *)",
+        "Bash(mv *)",
+        "Bash(sed *)",
+        "Bash(sort)",
+        "Bash(sort *)",
+        "Bash(tail *)",
+        "Bash(wc *)",
+        "Bash(xxd *)"
+      ],
+      "shell": [
+        "Bash(cd *)",
+        "Bash(source *)",
+        "Bash(true)",
+        "Bash(which *)"
+      ],
+      "system": [
+        "Bash(brew *)"
+      ],
+      "node": [
+        "Bash(node *)",
+        "Bash(npm *)",
+        "Bash(npx *)"
+      ],
+      "pnpm": [
+        "Bash(pnpm check)",
+        "Bash(pnpm eslint *)",
+        "Bash(pnpm exec *)",
+        "Bash(pnpm lint)",
+        "Bash(pnpm prettier *)",
+        "Bash(pnpm prettify)",
+        "Bash(pnpm run *)",
+        "Bash(pnpm test *)",
+        "Bash(pnpm test:e2e *)"
+      ],
+      "databases": [
+        "Bash(pg_config *)"
+      ],
+      "mcp_broker": [
+        "mcp__broker__close_conversation",
+        "mcp__broker__create_conversation",
+        "mcp__broker__list_conversations",
+        "mcp__broker__read_new_messages",
+        "mcp__broker__send_message"
+      ]
+    },
+    "deny": {
+      "git": [
+        "Bash(git push *)"
+      ],
+      "publishing": [
+        "Bash(pnpm publish)",
+        "Bash(pnpm run publish)"
+      ]
+    }
+  }
+}
