@@ -1,1 +1,5 @@
 # Upcoming
+
+## Broker
+
+The `broker` CLI now supports `--version` / `-V`. Run `broker --version` to confirm which build you have installed — useful for telling whether a `git pull` actually swapped the broker behind your `~/.local/bin/broker` symlink. The version is read from the plugin's `plugin.json` at the resolved script location, so it always reflects the running code.
