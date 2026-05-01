@@ -779,3 +779,74 @@ def test_recv_exits_when_server_shuts_down(tmp_path: Path) -> None:
             pass
         if sock.exists():
             sock.unlink()
+
+
+def test_recv_after_server_restart_fails_then_resumable(tmp_path: Path) -> None:
+    """First recv succeeds; server stops + restarts; second recv (during the down
+    window) exits non-zero. After the second server is up, recv works again."""
+    sock = Path(f"/tmp/broker_recv_restart_{uuid.uuid4().hex[:8]}.sock")
+    env = {
+        "MCP_BROKER_SOCK": str(sock),
+        "MCP_BROKER_ROOT": str(tmp_path),
+        "PATH": Path(sys.executable).parent.as_posix(),
+    }
+
+    def start_server():
+        proc = subprocess.Popen(
+            CLI + ["server"],
+            env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        )
+        deadline = time.time() + 3
+        while time.time() < deadline:
+            if sock.exists():
+                return proc
+            time.sleep(0.05)
+        proc.terminate()
+        raise RuntimeError("server did not start")
+
+    server = start_server()
+    try:
+        # Pre-populate one message so first recv has work to do.
+        subprocess.run(
+            CLI + ["send", "--identity", "alice", "--to", "bob", "first"],
+            env=env, capture_output=True, text=True, timeout=3,
+        )
+        first = subprocess.run(
+            CLI + ["recv", "--identity", "bob", "--timeout", "5", "--burst-window", "0"],
+            env=env, capture_output=True, text=True, timeout=10,
+        )
+        assert first.returncode == 0, first.stderr
+        assert "first" in first.stdout
+
+        # Stop the server. Recv called now must fail fast.
+        server.terminate()
+        server.wait(timeout=3)
+        if sock.exists():
+            sock.unlink()
+        down = subprocess.run(
+            CLI + ["recv", "--identity", "bob", "--timeout", "1"],
+            env=env, capture_output=True, text=True, timeout=10,
+        )
+        assert down.returncode != 0
+        assert "Cannot connect to broker" in down.stderr
+
+        # Restart, and recv works again.
+        server = start_server()
+        subprocess.run(
+            CLI + ["send", "--identity", "alice", "--to", "bob", "second"],
+            env=env, capture_output=True, text=True, timeout=3,
+        )
+        second = subprocess.run(
+            CLI + ["recv", "--identity", "bob", "--timeout", "5", "--burst-window", "0"],
+            env=env, capture_output=True, text=True, timeout=10,
+        )
+        assert second.returncode == 0, second.stderr
+        assert "second" in second.stdout
+    finally:
+        try:
+            server.terminate()
+            server.wait(timeout=3)
+        except Exception:
+            pass
+        if sock.exists():
+            sock.unlink()
