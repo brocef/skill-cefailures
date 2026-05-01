@@ -40,7 +40,7 @@ class ServerREPL:
         self.server = server
         self.identity = identity
         self._req_counter = 0
-        self.server.connect(identity, self._on_push)
+        self.server.connect(identity, self._on_push, mode="follow")
         self._emit_messages = False
         # Wire the audit hook so live messages can be tailed.
         self.server.audit_hook = self._audit
@@ -97,13 +97,17 @@ class ServerREPL:
             return True
         if command == "who":
             data = self._request({"type": "list_clients"})
-            clients = data["clients"]
-            if not clients:
-                print("  (no clients connected)")
-            else:
-                for name in clients:
-                    marker = " (you)" if name == self.identity else ""
-                    print(f"  {name}{marker}")
+            live = data.get("live", [])
+            offline = data.get("offline", [])
+            if not live and not offline:
+                print("  (no live followers, no registered identities)")
+                return True
+            for entry in live:
+                marker = " (you)" if entry["identity"] == self.identity else ""
+                print(f"  {entry['identity']}       live, since {entry['since']}{marker}")
+            for entry in offline:
+                last_seen = entry.get("lastSeenAt", "—")
+                print(f"  {entry['identity']}       offline, last seen {last_seen}")
             return True
         if command == "send":
             if len(parts) < 2:

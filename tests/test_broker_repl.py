@@ -14,13 +14,38 @@ def _make_repl(tmp_path: Path) -> ServerREPL:
     return ServerREPL(server, identity="user")
 
 
-def test_who_lists_connected_identities(tmp_path: Path, capsys) -> None:
+def test_who_lists_live_followers_with_self_marker(tmp_path: Path, capsys) -> None:
     repl = _make_repl(tmp_path)
-    repl.server.connect("alice", lambda m: None)
-    repl.server.connect("bob", lambda m: None)
+    repl.server.connect("alice", lambda m: None, mode="follow")
+    repl.server.connect("bob", lambda m: None, mode="follow")
     assert repl._dispatch("who") is True
     out = capsys.readouterr().out
-    assert "alice" in out and "bob" in out and "user" in out
+    # REPL identity is "user" — it should appear as live with the (you) marker.
+    assert "user" in out and "(you)" in out
+    assert "alice" in out and "live" in out
+    assert "bob" in out
+
+
+def test_who_shows_offline_for_disconnected_identities(tmp_path: Path, capsys) -> None:
+    repl = _make_repl(tmp_path)
+    repl.server.connect("alice", lambda m: None, mode="oneshot")
+    repl.server.disconnect("alice")
+    assert repl._dispatch("who") is True
+    out = capsys.readouterr().out
+    assert "alice" in out and "offline" in out
+
+
+def test_who_empty_message(tmp_path: Path, capsys) -> None:
+    """If there are no live or offline identities besides 'user', who still shows the REPL itself.
+
+    Empty-state message only fires when both lists are empty, which never happens
+    while the REPL is running because the REPL itself is a follower.
+    """
+    server = BrokerServer(root_dir=tmp_path)
+    # Manually drive _handle_list_clients without REPL initialization to test the empty case.
+    data = server._handle_list_clients("system", {})
+    assert data["live"] == []
+    assert data["offline"] == []
 
 
 def test_send_dm_via_repl(tmp_path: Path, capsys) -> None:
