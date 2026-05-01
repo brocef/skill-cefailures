@@ -524,8 +524,15 @@ def main() -> None:
         except (ValueError, ConnectionError) as e:
             print(json.dumps({"error": str(e)}), file=sys.stderr)
             sys.exit(1)
-        for name in result.get("clients", []):
-            print(name)
+        live = result.get("live", [])
+        offline = result.get("offline", [])
+        if not live and not offline:
+            print("(no live followers, no registered identities)")
+        for entry in live:
+            print(f"{entry['identity']}       live, since {entry['since']}")
+        for entry in offline:
+            last_seen = entry.get("lastSeenAt", "—")
+            print(f"{entry['identity']}       offline, last seen {last_seen}")
     elif args.command == "whoami":
         identity = _resolve_identity(None)
         print(f"{identity}  (from {Path.cwd()})")

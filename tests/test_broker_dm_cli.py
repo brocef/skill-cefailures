@@ -387,3 +387,26 @@ def test_whoami_honors_BROKER_IDENTITY_env(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     assert "alice" in result.stdout
     assert "cwd-derived" not in result.stdout
+
+
+def test_broker_clients_subcommand_renders_live_and_offline(broker) -> None:
+    env = broker["env"]
+    # Trigger registry entries by sending a DM (oneshot connect on each side).
+    subprocess.run(CLI + ["send", "--identity", "alice", "--to", "bob", "seed"],
+                   env=env, capture_output=True, text=True)
+    subprocess.run(CLI + ["send", "--identity", "bob", "--to", "alice", "seed"],
+                   env=env, capture_output=True, text=True)
+    # Now query clients.
+    result = subprocess.run(
+        CLI + ["clients", "--identity", "system"],
+        env=env, capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    out = result.stdout
+    # The server REPL identity is whatever was passed to `broker server`. The
+    # broker fixture starts the server with default identity (cwd-derived). At
+    # minimum, alice and bob should appear as offline (their oneshot send
+    # touched the registry, then they disconnected).
+    assert "alice" in out
+    assert "bob" in out
+    assert "offline" in out
