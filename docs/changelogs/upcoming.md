@@ -1,1 +1,14 @@
 # Upcoming
+
+- feat(broker): `broker follow` opens a long-lived socket to the broker server
+  for presence; inbox delivery remains file-based.
+- feat(broker): `who` REPL command and `broker clients` subcommand return a
+  `{live, offline}` payload listing live followers and registered-but-offline
+  identities.
+- feat(broker): server rejects a second `broker follow` for the same identity
+  with `identity '<X>' already has an active follower`.
+- feat(broker): wire protocol gains a `mode: "follow" | "oneshot"` field on the
+  `connect` message; defaults to `oneshot` for backwards compatibility.
+- breaking: `broker follow` now requires the broker server to be running.
+- breaking: `list_clients` response changes from `{clients: [...]}` to
+  `{live: [...], offline: [...]}`.
