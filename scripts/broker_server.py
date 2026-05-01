@@ -19,6 +19,7 @@ class BrokerServer:
     def __init__(self, root_dir: Path, audit_hook: Callable[[str], None] | None = None) -> None:
         self.root_dir = root_dir
         self.clients: dict[str, Callable] = {}
+        self.followers: dict[str, dict] = {}
         self.audit_hook = audit_hook  # called once per routed message with the formatted line
         self.inbox_log = InboxLog(root_dir / "inbox")
         self.outbox_log = OutboxLog(root_dir / "outbox")
@@ -44,15 +45,21 @@ class BrokerServer:
         `human` — are name-reservations only, not auth-gated. The agent-side authority
         hierarchy (see skills/broker/docs/authority.md) gives `user` and orchestrator
         identities high trust by convention, but the broker performs no authentication.
+
+        `mode="follow"` also registers the identity in `self.followers` (presence registry).
+        `mode="oneshot"` only updates `self.clients`.
         """
         if identity == BROADCAST:
             raise ValueError("BROADCAST is reserved and cannot be claimed as an identity.")
         self.clients[identity] = send
+        if mode == "follow":
+            self.followers[identity] = {"since": self._timestamp()}
         self.registry.touch(identity, now=self._timestamp(), wrote=False)
 
     def disconnect(self, identity: str) -> None:
         """Remove the client's push callback. Inbox state is unaffected."""
         self.clients.pop(identity, None)
+        self.followers.pop(identity, None)
 
     def handle_request(self, identity: str, msg: dict) -> dict:
         """Dispatch a client request and return a response or error."""

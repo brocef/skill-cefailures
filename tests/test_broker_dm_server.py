@@ -238,3 +238,33 @@ def test_message_id_length_matches_column_width(tmp_path: Path) -> None:
         f"_message_id() produces {len(mid)}-char IDs but MID_COLUMN_WIDTH is "
         f"{MID_COLUMN_WIDTH}. Update one or the other to match."
     )
+
+
+def test_follow_connect_populates_followers(tmp_path: Path) -> None:
+    server = BrokerServer(root_dir=tmp_path)
+    server.connect("alice", lambda m: None, mode="follow")
+    assert "alice" in server.clients
+    assert "alice" in server.followers
+    assert "since" in server.followers["alice"]
+
+
+def test_oneshot_connect_does_not_populate_followers(tmp_path: Path) -> None:
+    server = BrokerServer(root_dir=tmp_path)
+    server.connect("alice", lambda m: None, mode="oneshot")
+    assert "alice" in server.clients
+    assert "alice" not in server.followers
+
+
+def test_default_mode_is_oneshot(tmp_path: Path) -> None:
+    server = BrokerServer(root_dir=tmp_path)
+    server.connect("alice", lambda m: None)
+    assert "alice" in server.clients
+    assert "alice" not in server.followers
+
+
+def test_disconnect_removes_from_both_maps(tmp_path: Path) -> None:
+    server = BrokerServer(root_dir=tmp_path)
+    server.connect("alice", lambda m: None, mode="follow")
+    server.disconnect("alice")
+    assert "alice" not in server.clients
+    assert "alice" not in server.followers
