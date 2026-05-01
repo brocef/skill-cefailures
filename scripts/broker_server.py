@@ -249,9 +249,7 @@ class BrokerServer:
             if canonical.lower() in live_keys_lower:
                 continue
             reg = self.registry.get(canonical) or {}
-            out = {"identity": canonical}
-            if "lastSeenAt" in reg:
-                out["lastSeenAt"] = reg["lastSeenAt"]
+            out = {"identity": canonical, "lastSeenAt": reg.get("lastSeenAt", "—")}
             if "lastWriteAt" in reg:
                 out["lastWriteAt"] = reg["lastWriteAt"]
             offline_entries.append(out)

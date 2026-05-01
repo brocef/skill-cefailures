@@ -1,3 +1,5 @@
+import os
+import signal
 import subprocess
 import sys
 import time
@@ -37,6 +39,27 @@ def broker(tmp_path: Path):
     proc.wait(timeout=3)
     if sock.exists():
         sock.unlink()
+
+
+def _wait_for_live_follower(env: dict, identity: str, deadline_seconds: float = 5.0) -> None:
+    """Poll `broker clients` until `identity` appears in the live list, or raise on timeout."""
+    deadline = time.monotonic() + deadline_seconds
+    result = None
+    while time.monotonic() < deadline:
+        result = subprocess.run(
+            CLI + ["clients", "--identity", "system"],
+            env=env, capture_output=True, text=True, timeout=3,
+        )
+        if result.returncode == 0:
+            for line in result.stdout.splitlines():
+                if line.startswith(identity) and "live" in line:
+                    return
+        time.sleep(0.05)
+    last_output = result.stdout if result is not None else ""
+    raise RuntimeError(
+        f"identity '{identity}' did not appear as live within {deadline_seconds}s. "
+        f"Last clients output: {last_output!r}"
+    )
 
 
 def test_send_dm_writes_to_recipient_inbox(broker) -> None:
@@ -436,8 +459,7 @@ def test_follow_exits_when_second_follower_for_same_identity(broker) -> None:
         CLI + ["follow", "--identity", "alice", "--idle-timeout", "10"],
         env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
     )
-    # Wait briefly so the first follower has registered.
-    time.sleep(0.5)
+    _wait_for_live_follower(env, "alice")
     try:
         second = subprocess.run(
             CLI + ["follow", "--identity", "alice", "--idle-timeout", "1"],
@@ -476,10 +498,76 @@ def test_follow_exits_when_server_shuts_down(tmp_path: Path) -> None:
         CLI + ["follow", "--identity", "alice", "--idle-timeout", "30"],
         env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
     )
-    time.sleep(0.5)  # let the follower establish its socket
+    _wait_for_live_follower(env, "alice")
     server_proc.terminate()
     server_proc.wait(timeout=3)
     rc = follow_proc.wait(timeout=5)
     assert rc != 0
     err = follow_proc.stderr.read().decode() if follow_proc.stderr else ""
     assert "server disconnected" in err.lower()
+
+
+def test_follow_kill_minus_9_clears_server_followers(broker) -> None:
+    """When a follower is SIGKILL'd, the server's _handle_client finally must clear it from `live`."""
+    env = broker["env"]
+    follower = subprocess.Popen(
+        CLI + ["follow", "--identity", "ghost", "--idle-timeout", "60"],
+        env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    )
+    _wait_for_live_follower(env, "ghost")
+
+    # SIGKILL — no chance for cleanup on the follower side.
+    os.kill(follower.pid, signal.SIGKILL)
+    follower.wait(timeout=3)
+
+    # Server side: poll until 'ghost' is no longer live.
+    deadline = time.monotonic() + 5.0
+    result = None
+    while time.monotonic() < deadline:
+        result = subprocess.run(
+            CLI + ["clients", "--identity", "system"],
+            env=env, capture_output=True, text=True, timeout=3,
+        )
+        ghost_live = any(
+            line.startswith("ghost") and "live" in line
+            for line in result.stdout.splitlines()
+        )
+        if not ghost_live:
+            return
+        time.sleep(0.1)
+    last_output = result.stdout if result is not None else ""
+    raise AssertionError(f"'ghost' still appeared as live 5s after SIGKILL. Output: {last_output!r}")
+
+
+def test_follow_collides_with_server_identity(tmp_path: Path) -> None:
+    """`broker follow` against the same identity the server REPL uses must be rejected."""
+    sock = Path(f"/tmp/broker_follow_collide_{uuid.uuid4().hex[:8]}.sock")
+    env = {
+        "MCP_BROKER_SOCK": str(sock),
+        "MCP_BROKER_ROOT": str(tmp_path),
+        "PATH": Path(sys.executable).parent.as_posix(),
+    }
+    server_proc = subprocess.Popen(
+        CLI + ["server", "--identity", "shared"], env=env,
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    )
+    deadline = time.time() + 3
+    while time.time() < deadline:
+        if sock.exists():
+            break
+        time.sleep(0.05)
+    else:
+        server_proc.terminate()
+        raise RuntimeError("broker server did not start")
+
+    try:
+        result = subprocess.run(
+            CLI + ["follow", "--identity", "shared", "--idle-timeout", "1"],
+            env=env, capture_output=True, text=True, timeout=5,
+        )
+        assert result.returncode != 0
+        combined = (result.stdout + result.stderr).lower()
+        assert "already has an active follower" in combined
+    finally:
+        server_proc.terminate()
+        server_proc.wait(timeout=3)
