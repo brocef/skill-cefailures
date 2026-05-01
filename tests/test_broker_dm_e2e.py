@@ -43,7 +43,7 @@ def live_broker(tmp_path: Path):
 
 
 def test_multi_party_dm_with_reply_all(live_broker) -> None:
-    """Alice DMs [bob, carol]; bob replies-all; carol follows and sees both messages."""
+    """Alice DMs [bob, carol]; bob replies-all; carol recvs and sees both messages."""
     env = live_broker["env"]
     def run(*args):
         return subprocess.run(CLI + list(args), env=env, capture_output=True, text=True, timeout=10)
@@ -54,9 +54,11 @@ def test_multi_party_dm_with_reply_all(live_broker) -> None:
     kickoff_id = sent.stdout.strip()
     assert kickoff_id.startswith("msg-")
 
-    # Carol starts a follow with a short idle-timeout.
-    follow = subprocess.Popen(
-        CLI + ["follow", "--identity", "carol", "--idle-timeout", "2"],
+    # Carol starts a recv with a short burst-window so it exits soon after the
+    # reply-all arrives. The kickoff message is already in carol's inbox, so
+    # recv emits it immediately and starts the burst window.
+    recv = subprocess.Popen(
+        CLI + ["recv", "--identity", "carol", "--timeout", "5", "--burst-window", "2"],
         env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
     )
     time.sleep(0.3)
@@ -65,7 +67,7 @@ def test_multi_party_dm_with_reply_all(live_broker) -> None:
     reply = run("reply-all", "--identity", "bob", "--to-message", kickoff_id, "replying to all")
     assert reply.returncode == 0, reply.stderr
 
-    stdout, stderr = follow.communicate(timeout=5)
+    stdout, stderr = recv.communicate(timeout=5)
     assert "kickoff message" in stdout, f"stdout={stdout!r} stderr={stderr!r}"
     assert "replying to all" in stdout, f"stdout={stdout!r} stderr={stderr!r}"
     # Bob should NOT see his own reply-all in his inbox (no self-echo).

@@ -240,7 +240,7 @@ def test_message_id_length_matches_column_width(tmp_path: Path) -> None:
     )
 
 
-def test_follow_connect_populates_followers(tmp_path: Path) -> None:
+def test_connect_with_mode_follow_populates_followers(tmp_path: Path) -> None:
     server = BrokerServer(root_dir=tmp_path)
     server.connect("alice", lambda m: None, mode="follow")
     assert "alice" in server.clients

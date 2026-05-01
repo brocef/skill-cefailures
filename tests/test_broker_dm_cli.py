@@ -177,29 +177,6 @@ def test_room_subcommands_are_gone(broker) -> None:
         assert "invalid choice" in result.stderr.lower(), f"{legacy}: {result.stderr}"
 
 
-def test_follow_tails_inbox_file(broker) -> None:
-    env = broker["env"]
-    # Pre-populate one message so follow has something to drain.
-    subprocess.run(
-        CLI + ["send", "--identity", "alice", "--to", "bob", "backlog msg"],
-        env=env, capture_output=True, text=True,
-    )
-    # Start follow in background. Short idle-timeout so it exits quickly.
-    follow = subprocess.Popen(
-        CLI + ["follow", "--identity", "bob", "--idle-timeout", "2"],
-        env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-    )
-    time.sleep(0.3)
-    # Send a live message while follow is running.
-    subprocess.run(
-        CLI + ["send", "--identity", "alice", "--to", "bob", "live msg"],
-        env=env, capture_output=True, text=True,
-    )
-    stdout, stderr = follow.communicate(timeout=5)
-    assert "backlog msg" in stdout, stderr
-    assert "live msg" in stdout, stderr
-
-
 def test_cli_rejects_bare_orchestrator_with_at_prefix(broker) -> None:
     """`--identity @orchestrator` (no scope) is rejected at parse time, not at connect."""
     env = broker["env"]
@@ -436,87 +413,16 @@ def test_broker_clients_subcommand_renders_live_and_offline(broker) -> None:
     assert "offline" in out
 
 
-def test_follow_exits_when_server_unreachable(tmp_path: Path) -> None:
-    """`broker follow` exits non-zero with a clear error when the socket doesn't exist."""
-    sock = Path(f"/tmp/broker_follow_{uuid.uuid4().hex[:8]}.sock")  # never created
-    env = {
-        "MCP_BROKER_SOCK": str(sock),
-        "MCP_BROKER_ROOT": str(tmp_path),
-        "PATH": Path(sys.executable).parent.as_posix(),
-    }
-    result = subprocess.run(
-        CLI + ["follow", "--identity", "alice", "--idle-timeout", "1"],
-        env=env, capture_output=True, text=True, timeout=5,
-    )
-    assert result.returncode != 0
-    assert "Cannot connect to broker" in result.stderr or "Cannot connect to broker" in result.stdout
-
-
-def test_follow_exits_when_second_follower_for_same_identity(broker) -> None:
-    """A second `broker follow` for an identity already followed exits non-zero."""
-    env = broker["env"]
-    first = subprocess.Popen(
-        CLI + ["follow", "--identity", "alice", "--idle-timeout", "10"],
-        env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-    )
-    _wait_for_live_follower(env, "alice")
-    try:
-        second = subprocess.run(
-            CLI + ["follow", "--identity", "alice", "--idle-timeout", "1"],
-            env=env, capture_output=True, text=True, timeout=5,
-        )
-        assert second.returncode != 0
-        combined = (second.stdout + second.stderr).lower()
-        assert "already has an active follower" in combined
-    finally:
-        first.terminate()
-        first.wait(timeout=3)
-
-
-def test_follow_exits_when_server_shuts_down(tmp_path: Path) -> None:
-    """When the broker server stops mid-follow, `broker follow` exits non-zero."""
-    sock = Path(f"/tmp/broker_follow_shutdown_{uuid.uuid4().hex[:8]}.sock")
-    env = {
-        "MCP_BROKER_SOCK": str(sock),
-        "MCP_BROKER_ROOT": str(tmp_path),
-        "PATH": Path(sys.executable).parent.as_posix(),
-    }
-    server_proc = subprocess.Popen(
-        CLI + ["server"], env=env,
-        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-    )
-    deadline = time.time() + 3
-    while time.time() < deadline:
-        if sock.exists():
-            break
-        time.sleep(0.05)
-    else:
-        server_proc.terminate()
-        raise RuntimeError("broker server did not start")
-
-    follow_proc = subprocess.Popen(
-        CLI + ["follow", "--identity", "alice", "--idle-timeout", "30"],
-        env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-    )
-    _wait_for_live_follower(env, "alice")
-    server_proc.terminate()
-    server_proc.wait(timeout=3)
-    rc = follow_proc.wait(timeout=5)
-    assert rc != 0
-    err = follow_proc.stderr.read().decode() if follow_proc.stderr else ""
-    assert "server disconnected" in err.lower()
-
-
-def test_follow_kill_minus_9_clears_server_followers(broker) -> None:
-    """When a follower is SIGKILL'd, the server's _handle_client finally must clear it from `live`."""
+def test_recv_kill_minus_9_clears_server_followers(broker) -> None:
+    """When a recv client is SIGKILL'd, the server's _handle_client finally must clear it from `live`."""
     env = broker["env"]
     follower = subprocess.Popen(
-        CLI + ["follow", "--identity", "ghost", "--idle-timeout", "60"],
+        CLI + ["recv", "--identity", "ghost", "--timeout", "60", "--burst-window", "60"],
         env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
     )
     _wait_for_live_follower(env, "ghost")
 
-    # SIGKILL — no chance for cleanup on the follower side.
+    # SIGKILL — no chance for cleanup on the recv side.
     os.kill(follower.pid, signal.SIGKILL)
     follower.wait(timeout=3)
 
@@ -576,9 +482,9 @@ def test_recv_empty_inbox_with_timeout_exits_after_timeout(broker) -> None:
     assert 0.8 <= elapsed <= 2.5, f"recv should wait ~1s, got {elapsed}"
 
 
-def test_follow_collides_with_server_identity(tmp_path: Path) -> None:
-    """`broker follow` against the same identity the server REPL uses must be rejected."""
-    sock = Path(f"/tmp/broker_follow_collide_{uuid.uuid4().hex[:8]}.sock")
+def test_recv_collides_with_server_identity(tmp_path: Path) -> None:
+    """`broker recv` against the same identity the server REPL uses must be rejected."""
+    sock = Path(f"/tmp/broker_recv_collide_{uuid.uuid4().hex[:8]}.sock")
     env = {
         "MCP_BROKER_SOCK": str(sock),
         "MCP_BROKER_ROOT": str(tmp_path),
@@ -599,7 +505,7 @@ def test_follow_collides_with_server_identity(tmp_path: Path) -> None:
 
     try:
         result = subprocess.run(
-            CLI + ["follow", "--identity", "shared", "--idle-timeout", "1"],
+            CLI + ["recv", "--identity", "shared", "--timeout", "1"],
             env=env, capture_output=True, text=True, timeout=5,
         )
         assert result.returncode != 0
