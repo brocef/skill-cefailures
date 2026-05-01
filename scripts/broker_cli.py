@@ -268,6 +268,15 @@ def cmd_follow_inbox(identity: str, idle_timeout: int, show_ids: bool) -> int:
             socket_closed.set()
             connected.set()
             return
+        except Exception as exc:
+            connect_error["msg"] = f"Cannot connect to broker at {sock_path}: {exc}"
+            try:
+                await client.close()
+            except Exception:
+                pass
+            socket_closed.set()
+            connected.set()
+            return
         connected.set()
         try:
             # Hold the socket open. _listen runs in the background; when it exits

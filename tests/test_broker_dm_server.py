@@ -343,3 +343,9 @@ def test_list_clients_sorted_by_identity(tmp_path: Path) -> None:
     data = server._handle_list_clients("system", {})
     live_ids = [e["identity"] for e in data["live"]]
     assert live_ids == ["alpha", "zeta"]
+
+
+def test_unknown_mode_rejected(tmp_path: Path) -> None:
+    server = BrokerServer(root_dir=tmp_path)
+    with pytest.raises(ValueError, match="unknown mode"):
+        server.connect("alice", lambda m: None, mode="bogus")
