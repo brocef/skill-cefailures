@@ -58,6 +58,15 @@ Your cwd-derived identity and the `--identity` you're passing don't agree.
 
 If you pass `--identity` explicitly, the broker trusts it — it does not reconcile against `whoami`. That's the lever for deliberately impersonating a different inbox (e.g. a human CLI sending as themselves from a repo workspace).
 
+## "`broker follow` exited with 'identity X already has an active follower'"
+
+Two `broker follow` processes resolved to the same identity (most often: two
+terminals in the same workspace, since identity is derived from cwd). Only one
+follower is allowed per identity at a time.
+
+**Fix.** Stop one of them, or pin a different identity for one workspace via
+`broker init --identity <other-name>`.
+
 ## Troubleshooting real errors
 
 ### "Cannot connect to broker at /…/broker.sock. Is the broker server running?"
@@ -70,4 +79,11 @@ broker server
 
 ### `broker follow` exited with code 1 and "socket closed unexpectedly"
 
-The server stopped or crashed mid-stream. On restart, your inbox log and cursor persist — call `broker follow` again to pick up where you left off.
+The server stopped or crashed mid-stream. With socketed follow, this is now the
+expected exit path: when the broker server goes away, every active `broker follow`
+exits non-zero so the agent learns that presence has dropped.
+
+On restart, your inbox log and cursor persist — call `broker follow` again to
+pick up where you left off. Any DMs sent while the server was down were rejected
+at the sender (the sender will have seen the same Cannot-connect error), so
+nothing is silently lost.

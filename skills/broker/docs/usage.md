@@ -157,14 +157,14 @@ $ broker read
 broker clients [--identity <me>]
 ```
 
-Print every identity currently holding a live socket connection to the broker. Useful for confirming who is online before sending a DM, or for sanity-checking that a remote agent registered.
+Print every known identity with their presence status. Live identities hold an active socket connection; offline identities are registered but not currently connected. Useful for confirming who is reachable before sending a DM.
 
 Example:
 ```bash
 $ broker clients
-alice
-projectA-server
-user
+  alpha       live, since 2026-05-01T15:30:12Z
+  user        live, since 2026-05-01T15:29:00Z (you)
+  zeta        offline, last seen 2026-04-29T10:00:00Z
 ```
 
 ### server — start the broker with an interactive REPL
@@ -183,5 +183,16 @@ broker> read | history
 broker> emit-messages on|off
 broker> help | exit
 ```
+
+The `who` command shows all known identities with their presence status:
+
+```
+broker> who
+  alpha       live, since 2026-05-01T15:30:12Z
+  user        live, since 2026-05-01T15:29:00Z (you)
+  zeta        offline, last seen 2026-04-29T10:00:00Z
+```
+
+Live identities hold an active presence socket; offline identities are registered but not currently connected.
 
 Toggling `emit-messages on` echoes a copy of every message the broker routes — handy when you want a live audit tail of what's flowing through.

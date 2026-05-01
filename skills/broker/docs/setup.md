@@ -35,6 +35,8 @@ broker server
 
 This starts the Unix domain socket server at `~/.mcp-broker/broker.sock`. Inboxes, outboxes, cursors, and the identity registry all live under `~/.mcp-broker/` (see "Storage layout" below).
 
+`broker follow` requires the server to be running — without it, follow exits immediately with `Cannot connect to broker at …`. All other subcommands (`send`, `history`, `read`, `whoami`) operate on the on-disk files and do not need the server.
+
 ## 3. Configure Claude Code permissions
 
 Add `Bash(broker:*)` to your allowedTools so agents can call the broker without permission prompts. In your Claude Code settings or project `CLAUDE.md`:

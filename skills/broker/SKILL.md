@@ -33,7 +33,7 @@ Run `broker whoami` to confirm. The CLI auto-fills `--identity` from cwd when om
 | `broker send --to a,b CONTENT` | DM one or more recipients |
 | `broker broadcast CONTENT` | Fan out to every registered identity |
 | `broker reply-all --to-message MID CONTENT` | Reply to all recipients of a prior DM, excluding self |
-| `broker follow [--idle-timeout N]` | Block, drain inbox, stream new DMs as they arrive |
+| `broker follow [--idle-timeout N]` | Block, drain inbox, stream new DMs as they arrive (requires the server; opens a presence socket) |
 | `broker history [--from X] [--since ISO] [--sent]` | Read inbox (or outbox) without advancing the cursor |
 | `broker read` | Advance cursor; print only new inbox lines since last read |
 
