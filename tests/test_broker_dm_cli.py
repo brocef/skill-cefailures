@@ -562,6 +562,20 @@ def test_recv_stub_exits_zero_on_empty_inbox(broker) -> None:
     assert result.stdout == ""
 
 
+def test_recv_empty_inbox_with_timeout_exits_after_timeout(broker) -> None:
+    """Empty inbox + --timeout=1 → blocks ~1 second then exits empty."""
+    env = broker["env"]
+    t0 = time.monotonic()
+    result = subprocess.run(
+        CLI + ["recv", "--identity", "alice", "--timeout", "1"],
+        env=env, capture_output=True, text=True, timeout=5,
+    )
+    elapsed = time.monotonic() - t0
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == ""
+    assert 0.8 <= elapsed <= 2.5, f"recv should wait ~1s, got {elapsed}"
+
+
 def test_follow_collides_with_server_identity(tmp_path: Path) -> None:
     """`broker follow` against the same identity the server REPL uses must be rejected."""
     sock = Path(f"/tmp/broker_follow_collide_{uuid.uuid4().hex[:8]}.sock")

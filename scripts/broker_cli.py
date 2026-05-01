@@ -229,8 +229,122 @@ def cmd_recv_inbox(
     burst_window: int,
     show_ids: bool,
 ) -> int:
-    """Receive the next batch of inbox messages. Stub — see Task 2 for behavior."""
-    return 0
+    """Receive the next batch of inbox messages.
+
+    Behavior:
+    - If the inbox already has unread backlog at startup, emit it and start the
+      burst window immediately, ignoring `timeout`.
+    - Otherwise wait up to `timeout` seconds for the first arrival. If
+      `timeout=0`, wait indefinitely. Exit cleanly (code 0) with empty stdout
+      if the timer expires with no traffic.
+    - On first arrival, continue tailing for `burst_window` seconds. New lines
+      arriving within the window are emitted. Exit when the window expires.
+    - `burst_window=0` exits as soon as the first arrival has been delivered;
+      a multi-line backlog at startup is emitted in one go (no waiting between
+      lines) before exit.
+    - Cursor advances per inbox-read batch (matches today's `broker follow`).
+    """
+    import time
+    import threading
+    from broker_storage import InboxLog, CursorStore
+
+    sock_path = os.environ.get("MCP_BROKER_SOCK", str(Path.home() / ".mcp-broker" / "broker.sock"))
+    root_dir = Path(os.environ.get(
+        "MCP_BROKER_ROOT", str(Path.home() / ".mcp-broker"),
+    ))
+    inbox = InboxLog(root_dir / "inbox")
+    cursors = CursorStore(root_dir / "cursors")
+
+    connected = threading.Event()
+    socket_closed = threading.Event()
+    connect_error: dict[str, str] = {}
+
+    async def run_socket() -> None:
+        client = BrokerClient(identity=identity, sock_path=sock_path, mode="follow")
+        try:
+            await client.connect()
+        except (ConnectionRefusedError, FileNotFoundError):
+            connect_error["msg"] = f"Cannot connect to broker at {sock_path}. Is the broker server running?"
+            try:
+                await client.close()
+            except Exception:
+                pass
+            socket_closed.set()
+            connected.set()
+            return
+        except ValueError as exc:
+            connect_error["msg"] = str(exc)
+            try:
+                await client.close()
+            except Exception:
+                pass
+            socket_closed.set()
+            connected.set()
+            return
+        except Exception as exc:
+            connect_error["msg"] = f"Cannot connect to broker at {sock_path}: {exc}"
+            try:
+                await client.close()
+            except Exception:
+                pass
+            socket_closed.set()
+            connected.set()
+            return
+        connected.set()
+        try:
+            if client._listener_task is not None:
+                await client._listener_task
+        finally:
+            socket_closed.set()
+            try:
+                await client.close()
+            except Exception:
+                pass
+
+    def thread_target() -> None:
+        asyncio.run(run_socket())
+
+    socket_thread = threading.Thread(target=thread_target, daemon=True)
+    socket_thread.start()
+
+    if not connected.wait(timeout=5):
+        print(
+            f"Cannot connect to broker at {sock_path} (handshake timeout). Is the broker server running?",
+            file=sys.stderr,
+        )
+        return 1
+    if connect_error:
+        print(connect_error["msg"], file=sys.stderr)
+        return 1
+
+    poll_interval = 0.2
+    start = time.monotonic()
+    first_arrival_at: float | None = None
+
+    while True:
+        if socket_closed.is_set():
+            print("[broker] server disconnected", file=sys.stderr)
+            return 1
+        offset = cursors.get(identity)
+        lines, new_offset = inbox.read_from(identity, offset)
+        if lines:
+            for line in lines:
+                print(_render_line(line, show_ids), flush=True)
+            cursors.set(identity, new_offset)
+            if first_arrival_at is None:
+                first_arrival_at = time.monotonic()
+                if burst_window == 0:
+                    return 0
+
+        now = time.monotonic()
+        if first_arrival_at is None:
+            if timeout > 0 and now - start >= timeout:
+                return 0
+        else:
+            if now - first_arrival_at >= burst_window:
+                return 0
+
+        time.sleep(poll_interval)
 
 
 def cmd_follow_inbox(identity: str, idle_timeout: int, show_ids: bool) -> int:
