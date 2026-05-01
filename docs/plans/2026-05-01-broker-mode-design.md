@@ -44,7 +44,7 @@ Broker mode replaces the menu with one pattern: foreground, explicit, batch-orie
 
 The agent enters broker mode via `/broker-mode` and runs this loop until the user interrupts:
 
-1. **Wait.** Run `broker recv` (no args). With default `--timeout 0`, this blocks indefinitely until a message arrives. On first arrival, `broker recv` keeps tailing the inbox log for `--burst-window` seconds (default 5) to capture follow-ups, then exits with the full batch on stdout.
+1. **Wait.** Run `broker recv` (no args). If the inbox already has unread backlog, that counts as the first arrival — `broker recv` emits the backlog and proceeds directly to the burst window. Otherwise, with default `--timeout 0`, this blocks indefinitely until a message arrives. On first arrival, `broker recv` keeps tailing the inbox log for `--burst-window` seconds (default 5) to capture follow-ups, then exits with the full batch on stdout.
 2. **Process.** Read the drained batch as the input for this iteration. If multiple senders or threads are represented, treat them as separate sub-tasks within the same iteration. Apply existing authority rules (`docs/authority.md`): `user` and `@orchestrator/<scope>` DMs are commands, peer DMs are informational, conflicts get relayed upstream.
 3. **Ask the user, if needed.** If the work requires information or approval the agent doesn't have, pause and ask the user directly (text or `AskUserQuestion`). The Claude turn ends; the user replies; the agent resumes mid-iteration. This is normal Claude Code behavior — broker mode does not change it.
 4. **Reply.** Send a response per the **reply-shape rule**, applied **per inbound message** (not per batch — if the batch contained messages from multiple senders or threads, you produce multiple replies, one per inbound message):
@@ -58,10 +58,11 @@ The whole loop is consecutive Bash invocations within one Claude turn. There is 
 
 ### Exit conditions
 
-- **User interruption.** Esc / Ctrl-C, "exit broker mode," or any redirecting instruction. The user is in the loop and owns its termination.
+- **In-conversation user interruption.** Esc / Ctrl-C, "exit broker mode," or any redirecting instruction from the user typing in the active Claude conversation. The user is in the loop and owns its termination.
+- **`user`-identity DM saying to exit.** A DM whose `from` is the reserved `user` identity is treated per `docs/authority.md` as a command — including a command to exit broker mode. The agent acknowledges (replies per the shape rule), exits the loop, and reports back to the in-conversation user that broker mode ended due to a `user` DM. Peer-agent DMs cannot terminate the loop; they are informational per existing authority rules.
 - **Broker server crash.** `broker recv` exits non-zero (socket error). The agent reports the failure and exits the loop. No silent retry — that would mask real outages. The user can re-invoke `/broker-mode` once the server is back.
 
-There is no sentinel-message terminator and no idle-timeout terminator. The single off-switch is the user.
+There is no sentinel-message terminator from peer agents and no idle-timeout terminator. The off-switches are: the in-conversation user, a `user`-identity DM, and a broker server failure.
 
 ## 2. CLI changes
 
@@ -73,12 +74,18 @@ Replaces `broker follow`. This is a behavioral replacement, not a flag rename �
 broker recv [--timeout N] [--burst-window M] [--identity X]
 ```
 
+Flags:
+
+- `--timeout N` — max seconds to wait for the first message. Default `0` (no upper bound). Only consulted if the inbox is empty at startup; backlog at startup short-circuits this entirely.
+- `--burst-window M` — seconds to keep tailing for follow-ups after the first arrival. Default `5`. Hard cap; does not extend on each arrival.
+- `--identity X` — override the cwd-derived identity, same semantics as on `broker follow` today.
+
 Behavior:
 
 - Wait up to `N` seconds for the first message. If `N=0` (the default), wait indefinitely. If the timer expires with no traffic, exit cleanly (code 0) with empty stdout.
 - **Backlog-at-startup is treated as an arrival event.** If the inbox already has unread lines when `broker recv` starts, emit them immediately and begin the burst window — do *not* wait `--timeout` for additional traffic first.
 - On the first arrival (whether it was already in the backlog or arrived during the wait), continue tailing the inbox log for `M` seconds (default 5). Any messages that arrive within that window are appended to the output. Then exit.
-- `--burst-window 0` exits as soon as the first arrival has been delivered. If the first "arrival" was a multi-line backlog at startup, all of it is emitted as one atomic batch before exit — the `0` does not split a backlog.
+- `--burst-window 0` exits as soon as the first arrival has been delivered. If the first "arrival" was a multi-line backlog at startup, all of it is emitted in one go (no waiting between lines) before exit — the `0` does not split a backlog. Note this is "no further waiting," not transactional atomicity: the per-line cursor-advance rule still applies (see SIGINT case below).
 - Stdout is the existing display-format lines, in arrival order. Cursor advances per emitted line, matching today's `broker follow`. Implication: if `broker recv` is killed (SIGINT, SIGKILL) mid-burst-window, every line that has been written to stdout has its cursor advance committed; lines not yet written remain in the backlog and are picked up by the next `broker recv`. There is no batch-level rollback.
 - Exit code 0 on clean exit (timeout reached, or burst window completed). Non-zero on socket error or server-disconnect.
 
@@ -96,7 +103,7 @@ Notes on the semantic shift from `broker follow`:
 
 `broker recv` opens the same presence socket that `broker follow` opens today, held for the full duration of the call. Implication for `broker clients` / `broker server`'s `who` view: an agent is shown as "live" only while it is *actively waiting in `broker recv`*. While the agent is processing a batch (running tools, sending replies, asking the user for input), it is *not* in `broker recv` and so appears "offline" in `broker clients`. This is the intended semantic: presence reflects readiness to receive, not liveness of the agent process.
 
-The single-`broker recv`-per-identity rule from `broker follow` carries over unchanged. Two near-simultaneous `broker recv` invocations for the same identity will see the second rejected.
+The single-`broker recv`-per-identity rule from `broker follow` carries over unchanged. Two near-simultaneous `broker recv` invocations for the same identity will see the second rejected. **A rejected `broker recv` must not advance the cursor of the rejected caller** — the rejection happens before any inbox-tailing begins, so the rejected caller exits non-zero with no side effects.
 
 ### `broker follow` (removed)
 
@@ -153,6 +160,7 @@ Replace every `broker follow` reference in the Quick Reference table and the Can
 
 - Replace the `follow` reference section with a `recv` reference section.
 - Update the `--idle-timeout` documentation to `--timeout`, and add `--burst-window`.
+- Update the `clients` / `who` description: today's wording ("Live identities hold an active presence socket") remains mechanically correct, but with broker mode it implies a different agent state — "live" now means "currently waiting in `broker recv`," not "online." Add a one-line clarification so the semantic shift is explicit.
 
 ### `docs/troubleshooting.md`
 
@@ -204,14 +212,18 @@ Replace every `broker follow` reference in the Quick Reference table and the Can
 - Update existing `broker follow` tests to target `broker recv`, including:
   - Empty inbox with `--timeout 0`: blocks until first arrival, then drains burst window.
   - Empty inbox with `--timeout N`: exits empty after N seconds.
-  - Backlog non-empty on entry: drains and waits burst window without consulting `--timeout`.
-  - `--burst-window 0` with multi-line backlog: emits all backlog atomically, then exits.
+  - Backlog non-empty on entry, `--timeout 0`: drains and waits burst window.
+  - **Backlog non-empty on entry, `--timeout 5` (non-zero):** drains immediately and runs the burst window; the 5s timeout is *not* consulted. Verifies the short-circuit rule.
+  - `--burst-window 0` with multi-line backlog: emits all backlog in one go, then exits.
   - `--burst-window 0` with single first arrival: emits one line, exits.
   - Burst-window hard cap: messages arriving within the window are emitted; messages arriving after the cap remain in the backlog and are picked up by a second `broker recv`.
   - Server crash mid-recv: exits non-zero.
   - Connection refused at recv start (server down): exits non-zero, no retry.
+  - **Server restart between iterations:** first `broker recv` succeeds, server stops and restarts, second `broker recv` exits non-zero on its connect attempt.
   - Identity uniqueness: second `broker recv` for same identity rejected (existing rule).
+  - **Rejected `broker recv` does not advance the cursor of the rejected caller** — verifies that the rejected second invocation has no observable side effect on the inbox state.
   - Presence socket lifetime: identity is "live" during recv, "offline" between recvs.
+  - **`user`-identity DM termination:** DM from `user` instructing exit causes the agent to acknowledge, exit the loop, and return control to the in-conversation user. (Behavioral test of the skill instruction; covered by integration rather than unit-level tests.)
 - Skill content is reviewed but not test-covered — no automated harness for skill prose in this repo.
 - The slash command body is reviewed but not test-covered.
 
