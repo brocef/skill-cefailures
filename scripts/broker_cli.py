@@ -252,11 +252,19 @@ def cmd_follow_inbox(identity: str, idle_timeout: int, show_ids: bool) -> int:
             await client.connect()
         except (ConnectionRefusedError, FileNotFoundError):
             connect_error["msg"] = f"Cannot connect to broker at {sock_path}. Is the broker server running?"
+            try:
+                await client.close()
+            except Exception:
+                pass
             socket_closed.set()
             connected.set()  # release main thread to read the error
             return
         except ValueError as exc:
             connect_error["msg"] = str(exc)
+            try:
+                await client.close()
+            except Exception:
+                pass
             socket_closed.set()
             connected.set()
             return
@@ -268,7 +276,10 @@ def cmd_follow_inbox(identity: str, idle_timeout: int, show_ids: bool) -> int:
                 await client._listener_task
         finally:
             socket_closed.set()
-            await client.close()
+            try:
+                await client.close()
+            except Exception:
+                pass
 
     def thread_target() -> None:
         asyncio.run(run_socket())
