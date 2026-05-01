@@ -927,3 +927,47 @@ def test_recv_rejection_does_not_advance_cursor(broker) -> None:
     finally:
         holder.terminate()
         holder.wait(timeout=5)
+
+
+def test_recv_presence_socket_lifetime(broker) -> None:
+    """Identity is 'live' during recv, 'offline' between calls."""
+    env = broker["env"]
+    # Pre-state: alice is not in any client list (registry knows nothing).
+    proc = subprocess.Popen(
+        CLI + ["recv", "--identity", "alice", "--timeout", "10", "--burst-window", "10"],
+        env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+    )
+    try:
+        _wait_for_live_follower(env, "alice")
+        clients = subprocess.run(
+            CLI + ["clients", "--identity", "system"],
+            env=env, capture_output=True, text=True, timeout=3,
+        )
+        assert clients.returncode == 0, clients.stderr
+        live_block = clients.stdout
+        live_for_alice = [
+            line for line in live_block.splitlines()
+            if line.lstrip().startswith("alice") and "live" in line
+        ]
+        assert live_for_alice, f"alice not shown as live: {live_block!r}"
+    finally:
+        proc.terminate()
+        proc.wait(timeout=5)
+
+    # After recv exits, alice must be offline (or absent from live list).
+    deadline = time.time() + 5
+    while time.time() < deadline:
+        clients = subprocess.run(
+            CLI + ["clients", "--identity", "system"],
+            env=env, capture_output=True, text=True, timeout=3,
+        )
+        live_for_alice = [
+            line for line in clients.stdout.splitlines()
+            if line.lstrip().startswith("alice") and "live" in line
+        ]
+        if not live_for_alice:
+            return
+        time.sleep(0.1)
+    raise AssertionError(
+        f"alice still shown as live after recv exited: {clients.stdout!r}"
+    )
