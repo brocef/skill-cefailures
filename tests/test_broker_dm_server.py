@@ -282,3 +282,16 @@ def test_oneshot_during_active_follow_allowed(tmp_path: Path) -> None:
     server.connect("alice", lambda m: None, mode="follow")
     server.connect("alice", lambda m: None, mode="oneshot")  # must not raise
     assert "alice" in server.followers  # follower slot intact
+
+
+def test_rejected_second_follow_preserves_first_callback(tmp_path: Path) -> None:
+    """A rejected second follow must not clobber the first follower's callback or `since`."""
+    server = BrokerServer(root_dir=tmp_path)
+    first = lambda m: None
+    second = lambda m: None
+    server.connect("alice", first, mode="follow")
+    since_before = server.followers["alice"]["since"]
+    with pytest.raises(ValueError):
+        server.connect("alice", second, mode="follow")
+    assert server.clients["alice"] is first
+    assert server.followers["alice"]["since"] == since_before
