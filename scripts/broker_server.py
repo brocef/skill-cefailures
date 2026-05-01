@@ -227,12 +227,34 @@ class BrokerServer:
         return {"lines": lines}
 
     def _handle_list_clients(self, identity: str, msg: dict) -> dict:
-        """Return the identities currently holding a live socket connection.
+        """Return live followers and offline registered identities.
 
-        This is presence (live push targets), not the registry (everyone the
-        broker has ever heard from). Sorted for stable output.
+        `live`: identities with an open follow socket (presence). Sorted by identity.
+        `offline`: identities in the registry that are not currently live, computed
+        case-insensitively against `self.followers` keys. Sorted by identity.
         """
-        return {"clients": sorted(self.clients.keys())}
+        live = [
+            {
+                "identity": identity_str,
+                "mode": "follow",
+                "since": entry["since"],
+            }
+            for identity_str, entry in sorted(self.followers.items())
+        ]
+        live_keys_lower = {entry["identity"].lower() for entry in live}
+        offline_entries: list[dict] = []
+        for canonical in self.registry.all():
+            if canonical.lower() in live_keys_lower:
+                continue
+            reg = self.registry.get(canonical) or {}
+            out = {"identity": canonical}
+            if "lastSeenAt" in reg:
+                out["lastSeenAt"] = reg["lastSeenAt"]
+            if "lastWriteAt" in reg:
+                out["lastWriteAt"] = reg["lastWriteAt"]
+            offline_entries.append(out)
+        offline_entries.sort(key=lambda e: e["identity"])
+        return {"live": live, "offline": offline_entries}
 
     def _record_dm(
         self,

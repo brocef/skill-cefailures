@@ -295,3 +295,51 @@ def test_rejected_second_follow_preserves_first_callback(tmp_path: Path) -> None
         server.connect("alice", second, mode="follow")
     assert server.clients["alice"] is first
     assert server.followers["alice"]["since"] == since_before
+
+
+def test_list_clients_live_only_followers(tmp_path: Path) -> None:
+    server = BrokerServer(root_dir=tmp_path)
+    server.connect("alice", lambda m: None, mode="follow")
+    server.connect("bob", lambda m: None, mode="oneshot")
+    data = server._handle_list_clients("alice", {})
+    live_ids = [e["identity"] for e in data["live"]]
+    offline_ids = [e["identity"] for e in data["offline"]]
+    assert live_ids == ["alice"]
+    assert "bob" in offline_ids
+    assert data["live"][0]["mode"] == "follow"
+    assert "since" in data["live"][0]
+    assert "alice" not in offline_ids
+
+
+def test_list_clients_offline_uses_registry(tmp_path: Path) -> None:
+    server = BrokerServer(root_dir=tmp_path)
+    server.connect("alice", lambda m: None, mode="oneshot")
+    server.disconnect("alice")
+    data = server._handle_list_clients("system", {})
+    offline_ids = [e["identity"] for e in data["offline"]]
+    assert "alice" in offline_ids
+    entry = next(e for e in data["offline"] if e["identity"] == "alice")
+    assert "lastSeenAt" in entry
+
+
+def test_list_clients_case_insensitive_difference(tmp_path: Path) -> None:
+    """Follower 'Alice' (mixed case) must not appear in offline as 'alice'."""
+    server = BrokerServer(root_dir=tmp_path)
+    server.connect("alice", lambda m: None, mode="oneshot")
+    server.disconnect("alice")
+    server.connect("Alice", lambda m: None, mode="follow")
+    data = server._handle_list_clients("system", {})
+    live_ids = [e["identity"] for e in data["live"]]
+    offline_ids = [e["identity"] for e in data["offline"]]
+    assert "Alice" in live_ids
+    # Despite registry holding 'alice' (lowercased key, canonical 'alice'), it must not be reported as offline.
+    assert all(i.lower() != "alice" for i in offline_ids)
+
+
+def test_list_clients_sorted_by_identity(tmp_path: Path) -> None:
+    server = BrokerServer(root_dir=tmp_path)
+    server.connect("zeta", lambda m: None, mode="follow")
+    server.connect("alpha", lambda m: None, mode="follow")
+    data = server._handle_list_clients("system", {})
+    live_ids = [e["identity"] for e in data["live"]]
+    assert live_ids == ["alpha", "zeta"]
