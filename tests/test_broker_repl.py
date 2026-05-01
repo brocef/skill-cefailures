@@ -35,17 +35,18 @@ def test_who_shows_offline_for_disconnected_identities(tmp_path: Path, capsys) -
     assert "alice" in out and "offline" in out
 
 
-def test_who_empty_message(tmp_path: Path, capsys) -> None:
-    """If there are no live or offline identities besides 'user', who still shows the REPL itself.
+def test_who_empty_message(tmp_path: Path, capsys, monkeypatch) -> None:
+    """REPL renders the empty-state message when both live and offline are empty.
 
-    Empty-state message only fires when both lists are empty, which never happens
-    while the REPL is running because the REPL itself is a follower.
+    The REPL itself is normally a follower (so `live` always has at least one
+    entry in practice), making this branch unreachable through normal flow.
+    Stub `_request` to return empty lists so the renderer's empty branch is exercised.
     """
-    server = BrokerServer(root_dir=tmp_path)
-    # Manually drive _handle_list_clients without REPL initialization to test the empty case.
-    data = server._handle_list_clients("system", {})
-    assert data["live"] == []
-    assert data["offline"] == []
+    repl = _make_repl(tmp_path)
+    monkeypatch.setattr(repl, "_request", lambda msg: {"live": [], "offline": []})
+    assert repl._dispatch("who") is True
+    out = capsys.readouterr().out
+    assert "(no live followers, no registered identities)" in out
 
 
 def test_send_dm_via_repl(tmp_path: Path, capsys) -> None:
