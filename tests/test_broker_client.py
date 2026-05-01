@@ -107,3 +107,28 @@ async def test_history_inbox_and_read_inbox(tmp_path, sock_path):
     finally:
         await alice.close(); await bob.close()
         srv.close(); await srv.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_client_forwards_mode_field(tmp_path, sock_path):
+    """BrokerClient.connect() includes the mode field in the connect message."""
+    server = BrokerServer(root_dir=tmp_path)
+    srv = await start_server(server, sock_path)
+    seen_modes: list[str] = []
+
+    # Wrap server.connect to capture the mode passed by the connect handler.
+    real_connect = server.connect
+    def spy(identity, send, mode="oneshot", token=None):
+        seen_modes.append(mode)
+        return real_connect(identity, send, mode=mode, token=token)
+    server.connect = spy
+
+    try:
+        client = BrokerClient(identity="alice", sock_path=sock_path, mode="follow")
+        await client.connect()
+        await client.close()
+    finally:
+        srv.close()
+        await srv.wait_closed()
+
+    assert seen_modes == ["follow"]

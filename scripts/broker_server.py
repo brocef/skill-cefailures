@@ -36,7 +36,7 @@ class BrokerServer:
     def _timestamp(self) -> str:
         return datetime.now(timezone.utc).isoformat()
 
-    def connect(self, identity: str, send: Callable, token: str | None = None) -> None:
+    def connect(self, identity: str, send: Callable, mode: str = "oneshot", token: str | None = None) -> None:
         """Register a client connection.
 
         BROADCAST is reserved as the fan-out pseudo-recipient and cannot be claimed
@@ -260,10 +260,11 @@ async def _handle_client(server: BrokerServer, reader: asyncio.StreamReader, wri
 
             if msg["type"] == "connect":
                 req_identity = msg["identity"]
+                req_mode = msg.get("mode", "oneshot")
                 def send(m, w=writer):
                     w.write(json.dumps(m).encode() + b"\n")
                 try:
-                    server.connect(req_identity, send, token=msg.get("token"))
+                    server.connect(req_identity, send, mode=req_mode, token=msg.get("token"))
                 except ValueError as exc:
                     error = {"type": "error", "id": msg.get("id", ""), "message": str(exc)}
                     writer.write(json.dumps(error).encode() + b"\n")

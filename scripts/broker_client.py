@@ -9,9 +9,10 @@ import secrets
 class BrokerClient:
     """Connects to the broker socket server and provides an async DM API."""
 
-    def __init__(self, identity: str, sock_path: str) -> None:
+    def __init__(self, identity: str, sock_path: str, mode: str = "oneshot") -> None:
         self.identity = identity
         self.sock_path = sock_path
+        self.mode = mode
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
         self._pending: dict[str, asyncio.Future] = {}
@@ -22,7 +23,7 @@ class BrokerClient:
         """Connect to the broker socket server."""
         self._reader, self._writer = await asyncio.open_unix_connection(self.sock_path)
         self._listener_task = asyncio.create_task(self._listen())
-        await self._request({"type": "connect", "identity": self.identity})
+        await self._request({"type": "connect", "identity": self.identity, "mode": self.mode})
 
     async def close(self) -> None:
         """Close the connection."""
