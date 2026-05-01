@@ -626,3 +626,29 @@ def test_recv_emits_first_arrival_and_exits_after_burst_window(broker) -> None:
     stdout, stderr = proc.communicate(timeout=5)
     assert proc.returncode == 0, stderr
     assert "live msg" in stdout, stderr
+
+
+def test_recv_backlog_short_circuits_timeout(broker) -> None:
+    """Backlog at startup → drain immediately, ignore --timeout, run burst window."""
+    env = broker["env"]
+    # Pre-populate two messages.
+    subprocess.run(
+        CLI + ["send", "--identity", "alice", "--to", "bob", "first"],
+        env=env, capture_output=True, text=True, timeout=3,
+    )
+    subprocess.run(
+        CLI + ["send", "--identity", "alice", "--to", "bob", "second"],
+        env=env, capture_output=True, text=True, timeout=3,
+    )
+    t0 = time.monotonic()
+    result = subprocess.run(
+        # --timeout=10 would normally block 10 seconds on empty inbox; with
+        # backlog it must short-circuit and exit ~ burst-window seconds.
+        CLI + ["recv", "--identity", "bob", "--timeout", "10", "--burst-window", "1"],
+        env=env, capture_output=True, text=True, timeout=5,
+    )
+    elapsed = time.monotonic() - t0
+    assert result.returncode == 0, result.stderr
+    assert "first" in result.stdout
+    assert "second" in result.stdout
+    assert elapsed < 3.0, f"backlog must short-circuit --timeout 10, got {elapsed}s"
