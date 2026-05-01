@@ -539,6 +539,29 @@ def test_follow_kill_minus_9_clears_server_followers(broker) -> None:
     raise AssertionError(f"'ghost' still appeared as live 5s after SIGKILL. Output: {last_output!r}")
 
 
+def test_recv_help_lists_subcommand(broker) -> None:
+    env = broker["env"]
+    result = subprocess.run(
+        CLI + ["recv", "--help"],
+        env=env, capture_output=True, text=True, timeout=5,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "--timeout" in result.stdout
+    assert "--burst-window" in result.stdout
+    assert "--identity" in result.stdout
+
+
+def test_recv_stub_exits_zero_on_empty_inbox(broker) -> None:
+    """Sanity: with --timeout=1 and an empty inbox, recv exits cleanly."""
+    env = broker["env"]
+    result = subprocess.run(
+        CLI + ["recv", "--identity", "alice", "--timeout", "1"],
+        env=env, capture_output=True, text=True, timeout=5,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == ""
+
+
 def test_follow_collides_with_server_identity(tmp_path: Path) -> None:
     """`broker follow` against the same identity the server REPL uses must be rejected."""
     sock = Path(f"/tmp/broker_follow_collide_{uuid.uuid4().hex[:8]}.sock")

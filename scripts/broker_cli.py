@@ -223,6 +223,16 @@ async def run_oneshot(
         await client.close()
 
 
+def cmd_recv_inbox(
+    identity: str,
+    timeout: int,
+    burst_window: int,
+    show_ids: bool,
+) -> int:
+    """Receive the next batch of inbox messages. Stub — see Task 2 for behavior."""
+    return 0
+
+
 def cmd_follow_inbox(identity: str, idle_timeout: int, show_ids: bool) -> int:
     """Tail the per-identity DM inbox log and hold an open socket for presence.
 
@@ -501,6 +511,19 @@ def main() -> None:
     p_follow.add_argument("--show-ids", action="store_true",
                           help="Prefix each emitted line with the message ID.")
 
+    p_recv = subparsers.add_parser(
+        "recv",
+        help="Receive the next batch of inbox messages. Blocks for the first arrival, then drains follow-ups for --burst-window seconds.",
+    )
+    p_recv.add_argument("--identity", required=False, type=_validate_identity_arg,
+                        help="Your identity (defaults to cwd-derived)")
+    p_recv.add_argument("--timeout", type=int, default=0,
+                        help="Max seconds to wait for the first message. 0 (default) waits indefinitely. Ignored if the inbox already has unread backlog at startup.")
+    p_recv.add_argument("--burst-window", type=int, default=5,
+                        help="Seconds to keep tailing for follow-ups after the first arrival. Default 5. 0 exits as soon as the first arrival has been delivered.")
+    p_recv.add_argument("--show-ids", action="store_true",
+                        help="Prefix each emitted line with the message ID.")
+
     p_hist = subparsers.add_parser("history", help="Read inbox (or outbox with --sent) without advancing cursor")
     p_hist.add_argument("--identity", required=False, type=_validate_identity_arg,
                         help="Your identity (defaults to cwd-derived)")
@@ -589,6 +612,9 @@ def main() -> None:
     elif args.command == "follow":
         identity = _resolve_identity(args.identity)
         sys.exit(cmd_follow_inbox(identity, args.idle_timeout, args.show_ids))
+    elif args.command == "recv":
+        identity = _resolve_identity(args.identity)
+        sys.exit(cmd_recv_inbox(identity, args.timeout, args.burst_window, args.show_ids))
     elif args.command == "clients":
         identity = _resolve_identity(args.identity)
         try:
