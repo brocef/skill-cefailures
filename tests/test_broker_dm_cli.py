@@ -652,3 +652,37 @@ def test_recv_backlog_short_circuits_timeout(broker) -> None:
     assert "first" in result.stdout
     assert "second" in result.stdout
     assert elapsed < 3.0, f"backlog must short-circuit --timeout 10, got {elapsed}s"
+
+
+def test_recv_burst_window_zero_with_single_arrival(broker) -> None:
+    """--burst-window=0 + a single arriving message → emit one line, exit."""
+    env = broker["env"]
+    proc = subprocess.Popen(
+        CLI + ["recv", "--identity", "bob", "--timeout", "5", "--burst-window", "0"],
+        env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+    )
+    time.sleep(0.3)
+    subprocess.run(
+        CLI + ["send", "--identity", "alice", "--to", "bob", "only msg"],
+        env=env, capture_output=True, text=True, timeout=3,
+    )
+    stdout, stderr = proc.communicate(timeout=3)
+    assert proc.returncode == 0, stderr
+    assert "only msg" in stdout, stderr
+
+
+def test_recv_burst_window_zero_with_multiline_backlog(broker) -> None:
+    """--burst-window=0 + multi-line backlog → emit ALL backlog in one go, then exit."""
+    env = broker["env"]
+    for i in range(3):
+        subprocess.run(
+            CLI + ["send", "--identity", "alice", "--to", "bob", f"msg-{i}"],
+            env=env, capture_output=True, text=True, timeout=3,
+        )
+    result = subprocess.run(
+        CLI + ["recv", "--identity", "bob", "--timeout", "5", "--burst-window", "0"],
+        env=env, capture_output=True, text=True, timeout=5,
+    )
+    assert result.returncode == 0, result.stderr
+    for i in range(3):
+        assert f"msg-{i}" in result.stdout, f"missing msg-{i}: {result.stdout!r}"
