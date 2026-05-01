@@ -719,3 +719,19 @@ def test_recv_burst_window_is_a_hard_cap(broker) -> None:
     )
     assert result2.returncode == 0, result2.stderr
     assert "msg-after-window" in result2.stdout
+
+
+def test_recv_exits_when_server_unreachable(tmp_path: Path) -> None:
+    """`broker recv` exits non-zero with a clear error when the socket doesn't exist."""
+    sock = Path(f"/tmp/broker_recv_{uuid.uuid4().hex[:8]}.sock")  # never created
+    env = {
+        "MCP_BROKER_SOCK": str(sock),
+        "MCP_BROKER_ROOT": str(tmp_path),
+        "PATH": Path(sys.executable).parent.as_posix(),
+    }
+    result = subprocess.run(
+        CLI + ["recv", "--identity", "alice", "--timeout", "1"],
+        env=env, capture_output=True, text=True, timeout=10,
+    )
+    assert result.returncode != 0
+    assert "Cannot connect to broker" in result.stderr
