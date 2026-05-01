@@ -1,6 +1,7 @@
 import subprocess
 import sys
 import time
+import uuid
 from pathlib import Path
 
 import pytest
@@ -410,3 +411,75 @@ def test_broker_clients_subcommand_renders_live_and_offline(broker) -> None:
     assert "alice" in out
     assert "bob" in out
     assert "offline" in out
+
+
+def test_follow_exits_when_server_unreachable(tmp_path: Path) -> None:
+    """`broker follow` exits non-zero with a clear error when the socket doesn't exist."""
+    sock = Path(f"/tmp/broker_follow_{uuid.uuid4().hex[:8]}.sock")  # never created
+    env = {
+        "MCP_BROKER_SOCK": str(sock),
+        "MCP_BROKER_ROOT": str(tmp_path),
+        "PATH": Path(sys.executable).parent.as_posix(),
+    }
+    result = subprocess.run(
+        CLI + ["follow", "--identity", "alice", "--idle-timeout", "1"],
+        env=env, capture_output=True, text=True, timeout=5,
+    )
+    assert result.returncode != 0
+    assert "Cannot connect to broker" in result.stderr or "Cannot connect to broker" in result.stdout
+
+
+def test_follow_exits_when_second_follower_for_same_identity(broker) -> None:
+    """A second `broker follow` for an identity already followed exits non-zero."""
+    env = broker["env"]
+    first = subprocess.Popen(
+        CLI + ["follow", "--identity", "alice", "--idle-timeout", "10"],
+        env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    )
+    # Wait briefly so the first follower has registered.
+    time.sleep(0.5)
+    try:
+        second = subprocess.run(
+            CLI + ["follow", "--identity", "alice", "--idle-timeout", "1"],
+            env=env, capture_output=True, text=True, timeout=5,
+        )
+        assert second.returncode != 0
+        combined = (second.stdout + second.stderr).lower()
+        assert "already has an active follower" in combined
+    finally:
+        first.terminate()
+        first.wait(timeout=3)
+
+
+def test_follow_exits_when_server_shuts_down(tmp_path: Path) -> None:
+    """When the broker server stops mid-follow, `broker follow` exits non-zero."""
+    sock = Path(f"/tmp/broker_follow_shutdown_{uuid.uuid4().hex[:8]}.sock")
+    env = {
+        "MCP_BROKER_SOCK": str(sock),
+        "MCP_BROKER_ROOT": str(tmp_path),
+        "PATH": Path(sys.executable).parent.as_posix(),
+    }
+    server_proc = subprocess.Popen(
+        CLI + ["server"], env=env,
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    )
+    deadline = time.time() + 3
+    while time.time() < deadline:
+        if sock.exists():
+            break
+        time.sleep(0.05)
+    else:
+        server_proc.terminate()
+        raise RuntimeError("broker server did not start")
+
+    follow_proc = subprocess.Popen(
+        CLI + ["follow", "--identity", "alice", "--idle-timeout", "30"],
+        env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    )
+    time.sleep(0.5)  # let the follower establish its socket
+    server_proc.terminate()
+    server_proc.wait(timeout=3)
+    rc = follow_proc.wait(timeout=5)
+    assert rc != 0
+    err = follow_proc.stderr.read().decode() if follow_proc.stderr else ""
+    assert "server disconnected" in err.lower()

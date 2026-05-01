@@ -224,20 +224,72 @@ async def run_oneshot(
 
 
 def cmd_follow_inbox(identity: str, idle_timeout: int, show_ids: bool) -> int:
-    """Tail the per-identity DM inbox log, starting from cursor, exiting on idle."""
+    """Tail the per-identity DM inbox log and hold an open socket for presence.
+
+    Delivery is file-based (the inbox log is the source of truth). The socket
+    exists only as a presence beacon: server-side `who` reflects open follow
+    connections. If the server stops or rejects the follow, this function exits
+    non-zero.
+    """
     import time
+    import threading
     from broker_storage import InboxLog, CursorStore
 
+    sock_path = os.environ.get("MCP_BROKER_SOCK", str(Path.home() / ".mcp-broker" / "broker.sock"))
     root_dir = Path(os.environ.get(
         "MCP_BROKER_ROOT", str(Path.home() / ".mcp-broker"),
     ))
     inbox = InboxLog(root_dir / "inbox")
     cursors = CursorStore(root_dir / "cursors")
 
+    connected = threading.Event()
+    socket_closed = threading.Event()
+    connect_error: dict[str, str] = {}
+
+    async def run_socket() -> None:
+        client = BrokerClient(identity=identity, sock_path=sock_path, mode="follow")
+        try:
+            await client.connect()
+        except (ConnectionRefusedError, FileNotFoundError):
+            connect_error["msg"] = f"Cannot connect to broker at {sock_path}. Is the broker server running?"
+            socket_closed.set()
+            connected.set()  # release main thread to read the error
+            return
+        except ValueError as exc:
+            connect_error["msg"] = str(exc)
+            socket_closed.set()
+            connected.set()
+            return
+        connected.set()
+        try:
+            # Hold the socket open. _listen runs in the background; when it exits
+            # (server EOF), set socket_closed so the file-tail loop can stop.
+            if client._listener_task is not None:
+                await client._listener_task
+        finally:
+            socket_closed.set()
+            await client.close()
+
+    def thread_target() -> None:
+        asyncio.run(run_socket())
+
+    socket_thread = threading.Thread(target=thread_target, daemon=True)
+    socket_thread.start()
+
+    # Wait for the socket to either connect or fail.
+    if not connected.wait(timeout=5):
+        print(f"Cannot connect to broker at {sock_path} (handshake timeout). Is the broker server running?", file=sys.stderr)
+        return 1
+    if connect_error:
+        print(connect_error["msg"], file=sys.stderr)
+        return 1
+
     poll_interval = 0.2
     last_activity = time.monotonic()
-
     while True:
+        if socket_closed.is_set():
+            print("[broker] server disconnected", file=sys.stderr)
+            return 1
         offset = cursors.get(identity)
         lines, new_offset = inbox.read_from(identity, offset)
         if lines:
