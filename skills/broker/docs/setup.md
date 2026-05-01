@@ -101,6 +101,8 @@ broker init --identity alice --force     # overwrite an existing pinned identity
 
 This writes `.broker/config.json` in the **current** directory only — `broker init` does not walk up to find an existing config. If you want to update a parent workspace's pin, edit its `.broker/config.json` directly. Subsequent `broker` invocations from anywhere inside the pinned dir will use the pinned identity (the read-side walk-up search finds the nearest `.broker/config.json`).
 
+**Monorepo precedence:** if you nest projects under an orchestrator that pins itself with `.broker/config.json` (e.g. `/org/.broker/config.json` for `@org`, with `/org/projectA/package.json` for `@org/projectA`), the project's `package.json` wins from inside `/org/projectA` because it's closer to cwd. The orchestrator root still resolves to `@org` because there's no `package.json` between cwd and the config. To override a project's `package.json`, drop a `.broker/config.json` in the project directory (same-dir ties go to the config file).
+
 `.broker/config.json` is a small JSON file:
 
 ```json

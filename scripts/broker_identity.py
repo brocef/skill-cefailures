@@ -80,37 +80,56 @@ def _identity_from_git_remote(cwd: Path) -> str | None:
 def derive_identity(cwd: Path) -> str:
     """Compute the canonical identity for an agent running at `cwd`.
 
+    Walk up from `cwd`, checking each directory for `.broker/config.json` and
+    `package.json`. Closest source wins. Within the same directory, a valid
+    `.broker/config.json` wins over `package.json` (it's an explicit pin).
+    The walk stops at `$HOME` for `.broker/config.json` so a stray config above
+    home doesn't apply to every workspace; `package.json` lookup continues to
+    the filesystem root for backward compatibility.
+
     Rules (in order):
-      1. `.broker/config.json` walking up from cwd, if present and well-formed.
-         The file's `identity` field is validated: malformed identities log a
-         stderr warning and fall through.
-      2. Nearest `package.json` going up; if its `name` field is a non-empty string, use it.
-      3. Otherwise, parse `git remote get-url origin` into `<org>/<repo>`.
-      4. Otherwise, raise `IdentityDerivationError`.
+      1. Closest `.broker/config.json` (within `$HOME`) or `package.json` going
+         up. Same-dir tie: `.broker/config.json` wins. The config file's
+         `identity` field is validated; malformed identities log a stderr
+         warning and fall through to that same directory's `package.json`,
+         then continue walking.
+      2. Otherwise, parse `git remote get-url origin` into `<org>/<repo>`.
+      3. Otherwise, raise `IdentityDerivationError`.
     """
     import sys as _sys
     from broker_constants import ORCHESTRATOR_RE
 
-    cfg_path = _find_nearest_broker_config(cwd)
-    if cfg_path is not None:
-        identity = _read_identity_from_config(cfg_path)
-        if identity is not None:
-            # Validate orchestrator-prefix-shaped identities the same way the
-            # CLI validator does — don't connect under a malformed name.
-            if identity.startswith("@orchestrator") and not ORCHESTRATOR_RE.fullmatch(identity):
-                print(
-                    f"broker: ignoring malformed identity {identity!r} in {cfg_path} "
-                    f"(does not match @orchestrator/<scope> pattern)",
-                    file=_sys.stderr,
-                )
-            else:
-                return identity
+    ceiling = Path.home().resolve()
+    current = cwd.resolve()
+    cfg_search_active = True
 
-    pkg = _find_nearest_package_json(cwd)
-    if pkg is not None:
-        name = _identity_from_package_json(pkg)
-        if name is not None:
-            return name
+    while True:
+        if cfg_search_active:
+            cfg = current / ".broker" / "config.json"
+            if cfg.is_file():
+                identity = _read_identity_from_config(cfg)
+                if identity is not None:
+                    if identity.startswith("@orchestrator") and not ORCHESTRATOR_RE.fullmatch(identity):
+                        print(
+                            f"broker: ignoring malformed identity {identity!r} in {cfg} "
+                            f"(does not match @orchestrator/<scope> pattern)",
+                            file=_sys.stderr,
+                        )
+                    else:
+                        return identity
+
+        pkg = current / "package.json"
+        if pkg.is_file():
+            name = _identity_from_package_json(pkg)
+            if name is not None:
+                return name
+
+        if current == ceiling:
+            cfg_search_active = False
+        if current.parent == current:
+            break
+        current = current.parent
+
     remote = _identity_from_git_remote(cwd)
     if remote is not None:
         return remote

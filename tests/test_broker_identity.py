@@ -176,3 +176,72 @@ def test_resolve_identity_warns_on_malformed_BROKER_IDENTITY(tmp_path: Path, mon
     err = capsys.readouterr().err
     assert "@orchestrator/foo bar" in err
     assert "BROKER_IDENTITY" in err
+
+
+# --- Closest-source precedence: a package.json closer to cwd than a parent's
+# .broker/config.json must win. Models the org/projectA monorepo layout where
+# /org/.broker/config.json pins @org and /org/projectA/package.json names @org/projectA.
+
+def test_cwd_package_json_beats_parent_broker_config(tmp_path: Path, monkeypatch) -> None:
+    """A package.json in cwd should win over a .broker/config.json one level up."""
+    org = tmp_path / "org"
+    project = org / "projectA"
+    project.mkdir(parents=True)
+    cfg = org / ".broker" / "config.json"
+    cfg.parent.mkdir()
+    cfg.write_text('{"identity": "@org"}')
+    (project / "package.json").write_text(json.dumps({"name": "@org/projectA"}))
+    monkeypatch.setenv("HOME", str(tmp_path))
+    assert derive_identity(project) == "@org/projectA"
+
+
+def test_orchestrator_root_still_resolves_to_config(tmp_path: Path, monkeypatch) -> None:
+    """At the orchestrator root, .broker/config.json still wins (no package.json there)."""
+    org = tmp_path / "org"
+    org.mkdir()
+    cfg = org / ".broker" / "config.json"
+    cfg.parent.mkdir()
+    cfg.write_text('{"identity": "@org"}')
+    (org / "projectA").mkdir()
+    (org / "projectA" / "package.json").write_text(json.dumps({"name": "@org/projectA"}))
+    monkeypatch.setenv("HOME", str(tmp_path))
+    assert derive_identity(org) == "@org"
+
+
+def test_subdir_finds_project_package_json_before_parent_config(tmp_path: Path, monkeypatch) -> None:
+    """Deep inside a project, the nearest package.json beats a parent's config."""
+    org = tmp_path / "org"
+    project = org / "projectA"
+    deep = project / "src" / "utils"
+    deep.mkdir(parents=True)
+    cfg = org / ".broker" / "config.json"
+    cfg.parent.mkdir()
+    cfg.write_text('{"identity": "@org"}')
+    (project / "package.json").write_text(json.dumps({"name": "@org/projectA"}))
+    monkeypatch.setenv("HOME", str(tmp_path))
+    assert derive_identity(deep) == "@org/projectA"
+
+
+def test_same_dir_broker_config_still_beats_package_json(tmp_path: Path, monkeypatch) -> None:
+    """When config and package.json sit in the same dir, config still wins (explicit pin)."""
+    cfg = tmp_path / ".broker" / "config.json"
+    cfg.parent.mkdir()
+    cfg.write_text('{"identity": "@myorg/pinned"}')
+    (tmp_path / "package.json").write_text(json.dumps({"name": "@myorg/derived"}))
+    monkeypatch.setenv("HOME", str(tmp_path.parent))
+    assert derive_identity(tmp_path) == "@myorg/pinned"
+
+
+def test_nested_broker_config_beats_outer_broker_config(tmp_path: Path, monkeypatch) -> None:
+    """An inner .broker/config.json beats an outer one (closest wins)."""
+    outer = tmp_path / "org"
+    inner = outer / "projectA"
+    inner.mkdir(parents=True)
+    outer_cfg = outer / ".broker" / "config.json"
+    outer_cfg.parent.mkdir()
+    outer_cfg.write_text('{"identity": "@org"}')
+    inner_cfg = inner / ".broker" / "config.json"
+    inner_cfg.parent.mkdir()
+    inner_cfg.write_text('{"identity": "@org/projectA-pinned"}')
+    monkeypatch.setenv("HOME", str(tmp_path))
+    assert derive_identity(inner) == "@org/projectA-pinned"

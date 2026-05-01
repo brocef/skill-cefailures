@@ -19,10 +19,9 @@ The broker derives your identity from your cwd. Resolution order (highest priori
 
 1. `--identity X` flag, if explicitly passed.
 2. `BROKER_IDENTITY` env var, if set (validated for `@orchestrator/...` shape).
-3. `.broker/config.json` walking up from cwd (stops at `$HOME`); its `identity` field, if well-formed.
-4. Nearest `package.json` walking up → its `name` field (e.g. `@myorg/projectA`, `projectA-server`).
-5. Otherwise, `git remote get-url origin` → `<org>/<repo>` (e.g. `myorg/projectB-mobile`).
-6. Otherwise, error.
+3. Closest `.broker/config.json` (within `$HOME`) **or** `package.json` walking up — whichever is found first. Same-dir tie: `.broker/config.json` wins (it's an explicit pin). So a project's own `package.json` beats a parent monorepo's `.broker/config.json`.
+4. Otherwise, `git remote get-url origin` → `<org>/<repo>` (e.g. `myorg/projectB-mobile`).
+5. Otherwise, error.
 
 Run `broker whoami` to confirm. The CLI auto-fills `--identity` from cwd when omitted, so you usually don't pass it. **To address another agent, compute their identity from their project — there is no directory to browse.**
 

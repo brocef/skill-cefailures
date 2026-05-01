@@ -39,7 +39,7 @@ Content newlines are escaped as `\n`; backslashes as `\\`. That's it — there i
 broker whoami
 ```
 
-Print the identity that the CLI will use from the current cwd. Resolution order: `BROKER_IDENTITY` env var (validated for `@orchestrator/...` shape), then `.broker/config.json` walking up from cwd, then `package.json` `name` field walking up, then `git remote origin`. Useful to confirm which inbox you'll write to before sending.
+Print the identity that the CLI will use from the current cwd. Resolution order: `BROKER_IDENTITY` env var (validated for `@orchestrator/...` shape), then a walk up looking for `.broker/config.json` (within `$HOME`) or `package.json` — whichever is closest to cwd wins (same-dir tie goes to `.broker/config.json`), then `git remote origin`. Useful to confirm which inbox you'll write to before sending.
 
 Example:
 ```bash
