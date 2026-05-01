@@ -850,3 +850,80 @@ def test_recv_after_server_restart_fails_then_resumable(tmp_path: Path) -> None:
             pass
         if sock.exists():
             sock.unlink()
+
+
+def test_recv_second_invocation_rejected_for_same_identity(broker) -> None:
+    """A second `broker recv` for an identity already-receiving exits non-zero."""
+    env = broker["env"]
+    first = subprocess.Popen(
+        CLI + ["recv", "--identity", "alice", "--timeout", "10", "--burst-window", "10"],
+        env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+    )
+    try:
+        _wait_for_live_follower(env, "alice")
+        result = subprocess.run(
+            CLI + ["recv", "--identity", "alice", "--timeout", "1"],
+            env=env, capture_output=True, text=True, timeout=10,
+        )
+        assert result.returncode != 0
+        combined = result.stderr + result.stdout
+        assert "already has an active follower" in combined, combined
+    finally:
+        first.terminate()
+        first.wait(timeout=5)
+
+
+def test_recv_rejection_does_not_advance_cursor(broker) -> None:
+    """A rejected recv must leave the cursor file untouched.
+
+    Strategy: pre-drain the inbox, snapshot the cursors directory, start a
+    long-burst holder, attempt a second recv (rejected). Because the inbox is
+    empty, the holder has nothing to advance — any cursor change between
+    snapshots must be the rejected recv's doing. The expected outcome is no
+    change.
+    """
+    env = broker["env"]
+    tmp = broker["tmp"]
+    cursors_dir = tmp / "cursors"
+
+    # Seed and drain so a cursor file exists in a known state.
+    subprocess.run(
+        CLI + ["send", "--identity", "bob", "--to", "alice", "seed"],
+        env=env, capture_output=True, text=True, timeout=3,
+    )
+    drain = subprocess.run(
+        CLI + ["recv", "--identity", "alice", "--burst-window", "0", "--timeout", "5"],
+        env=env, capture_output=True, text=True, timeout=10,
+    )
+    assert drain.returncode == 0, drain.stderr
+    assert "seed" in drain.stdout
+
+    before = {
+        p.name: p.read_bytes()
+        for p in cursors_dir.iterdir() if p.is_file()
+    }
+
+    # Hold an active recv so the next attempt is rejected. Inbox is empty;
+    # holder will not advance the cursor.
+    holder = subprocess.Popen(
+        CLI + ["recv", "--identity", "alice", "--timeout", "20", "--burst-window", "20"],
+        env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+    )
+    try:
+        _wait_for_live_follower(env, "alice")
+        rejected = subprocess.run(
+            CLI + ["recv", "--identity", "alice", "--timeout", "1"],
+            env=env, capture_output=True, text=True, timeout=5,
+        )
+        assert rejected.returncode != 0
+        combined = rejected.stderr + rejected.stdout
+        assert "already has an active follower" in combined, combined
+
+        after = {
+            p.name: p.read_bytes()
+            for p in cursors_dir.iterdir() if p.is_file()
+        }
+        assert before == after, f"cursors changed across rejection: {before} → {after}"
+    finally:
+        holder.terminate()
+        holder.wait(timeout=5)
