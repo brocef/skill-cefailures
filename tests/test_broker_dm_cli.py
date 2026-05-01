@@ -608,3 +608,21 @@ def test_follow_collides_with_server_identity(tmp_path: Path) -> None:
     finally:
         server_proc.terminate()
         server_proc.wait(timeout=3)
+
+
+def test_recv_emits_first_arrival_and_exits_after_burst_window(broker) -> None:
+    """Send a message during recv; recv emits it and exits after the burst window."""
+    env = broker["env"]
+    proc = subprocess.Popen(
+        CLI + ["recv", "--identity", "bob", "--timeout", "5", "--burst-window", "1"],
+        env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+    )
+    # Give recv a moment to start tailing.
+    time.sleep(0.3)
+    subprocess.run(
+        CLI + ["send", "--identity", "alice", "--to", "bob", "live msg"],
+        env=env, capture_output=True, text=True, timeout=3,
+    )
+    stdout, stderr = proc.communicate(timeout=5)
+    assert proc.returncode == 0, stderr
+    assert "live msg" in stdout, stderr
