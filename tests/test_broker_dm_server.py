@@ -268,3 +268,17 @@ def test_disconnect_removes_from_both_maps(tmp_path: Path) -> None:
     server.disconnect("alice")
     assert "alice" not in server.clients
     assert "alice" not in server.followers
+
+
+def test_second_follower_rejected(tmp_path: Path) -> None:
+    server = BrokerServer(root_dir=tmp_path)
+    server.connect("alice", lambda m: None, mode="follow")
+    with pytest.raises(ValueError, match="already has an active follower"):
+        server.connect("alice", lambda m: None, mode="follow")
+
+
+def test_oneshot_during_active_follow_allowed(tmp_path: Path) -> None:
+    server = BrokerServer(root_dir=tmp_path)
+    server.connect("alice", lambda m: None, mode="follow")
+    server.connect("alice", lambda m: None, mode="oneshot")  # must not raise
+    assert "alice" in server.followers  # follower slot intact

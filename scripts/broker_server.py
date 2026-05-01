@@ -51,6 +51,8 @@ class BrokerServer:
         """
         if identity == BROADCAST:
             raise ValueError("BROADCAST is reserved and cannot be claimed as an identity.")
+        if mode == "follow" and identity in self.followers:
+            raise ValueError(f"identity '{identity}' already has an active follower")
         self.clients[identity] = send
         if mode == "follow":
             self.followers[identity] = {"since": self._timestamp()}
