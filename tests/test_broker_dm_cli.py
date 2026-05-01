@@ -735,3 +735,47 @@ def test_recv_exits_when_server_unreachable(tmp_path: Path) -> None:
     )
     assert result.returncode != 0
     assert "Cannot connect to broker" in result.stderr
+
+
+def test_recv_exits_when_server_shuts_down(tmp_path: Path) -> None:
+    """When the broker server stops mid-recv, `broker recv` exits non-zero."""
+    sock = Path(f"/tmp/broker_recv_shutdown_{uuid.uuid4().hex[:8]}.sock")
+    env = {
+        "MCP_BROKER_SOCK": str(sock),
+        "MCP_BROKER_ROOT": str(tmp_path),
+        "PATH": Path(sys.executable).parent.as_posix(),
+    }
+    server_proc = subprocess.Popen(
+        CLI + ["server"],
+        env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    )
+    deadline = time.time() + 3
+    while time.time() < deadline:
+        if sock.exists():
+            break
+        time.sleep(0.05)
+    else:
+        server_proc.terminate()
+        raise RuntimeError("broker server did not start")
+    try:
+        recv_proc = subprocess.Popen(
+            CLI + ["recv", "--identity", "alice", "--timeout", "30"],
+            env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        )
+        _wait_for_live_follower(env, "alice")
+        server_proc.terminate()
+        rc = recv_proc.wait(timeout=5)
+        assert rc != 0
+        err = recv_proc.stderr.read() if recv_proc.stderr else ""
+        assert "server disconnected" in err or "socket closed" in err.lower(), err
+    finally:
+        try:
+            server_proc.terminate()
+        except Exception:
+            pass
+        try:
+            server_proc.wait(timeout=3)
+        except Exception:
+            pass
+        if sock.exists():
+            sock.unlink()
