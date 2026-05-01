@@ -686,3 +686,36 @@ def test_recv_burst_window_zero_with_multiline_backlog(broker) -> None:
     assert result.returncode == 0, result.stderr
     for i in range(3):
         assert f"msg-{i}" in result.stdout, f"missing msg-{i}: {result.stdout!r}"
+
+
+def test_recv_burst_window_is_a_hard_cap(broker) -> None:
+    """Messages arriving after the burst window stay in backlog for the next recv."""
+    env = broker["env"]
+    proc = subprocess.Popen(
+        CLI + ["recv", "--identity", "bob", "--timeout", "5", "--burst-window", "1"],
+        env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+    )
+    time.sleep(0.3)
+    subprocess.run(
+        CLI + ["send", "--identity", "alice", "--to", "bob", "msg-in-window"],
+        env=env, capture_output=True, text=True, timeout=3,
+    )
+    # Wait long enough for the burst window to expire.
+    time.sleep(1.5)
+    # This message arrives AFTER recv has exited.
+    subprocess.run(
+        CLI + ["send", "--identity", "alice", "--to", "bob", "msg-after-window"],
+        env=env, capture_output=True, text=True, timeout=3,
+    )
+    stdout, stderr = proc.communicate(timeout=3)
+    assert proc.returncode == 0, stderr
+    assert "msg-in-window" in stdout, stderr
+    assert "msg-after-window" not in stdout, "post-window message must NOT be in this batch"
+
+    # Second recv must pick it up from backlog.
+    result2 = subprocess.run(
+        CLI + ["recv", "--identity", "bob", "--timeout", "5", "--burst-window", "0"],
+        env=env, capture_output=True, text=True, timeout=5,
+    )
+    assert result2.returncode == 0, result2.stderr
+    assert "msg-after-window" in result2.stdout
