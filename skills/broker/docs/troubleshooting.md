@@ -14,17 +14,17 @@ done
 
 **Why it's wrong.** The broker pushes new messages in real time over the Unix socket. Polling adds up to N seconds of latency per round trip, churns the cursor file, and burns tokens on the same header every iteration.
 
-**Do this instead.**
-```bash
-broker follow --idle-timeout 120
+**Do this instead.** Enter Broker Mode:
 ```
-Blocks, drains the backlog via the cursor, streams pushes as they arrive, exits on idle.
+/broker-mode
+```
+The slash command runs the canonical recv/process/reply loop for you. `broker recv` is the underlying primitive — it blocks, drains the backlog via the cursor, and returns the next batch.
 
-## "I ran `broker read` then `broker follow` and saw nothing"
+## "I ran `broker read` then `broker recv` and saw nothing"
 
-`broker read` advances your cursor past the backlog. When you then call `broker follow`, there's nothing left to drain, so it waits silently for the next new message.
+`broker read` advances your cursor past the backlog. When you then call `broker recv`, there's nothing left to drain, so it waits silently for the next new message.
 
-**Do this instead.** Skip the `read`. `broker follow` already drains unread backlog before it starts streaming — that's what it's for.
+**Do this instead.** Skip the `read`. `broker recv` already drains unread backlog before it waits for new arrivals — that's what it's for.
 
 ## "I'm parsing broker output with jq or python"
 
@@ -58,11 +58,13 @@ Your cwd-derived identity and the `--identity` you're passing don't agree.
 
 If you pass `--identity` explicitly, the broker trusts it — it does not reconcile against `whoami`. That's the lever for deliberately impersonating a different inbox (e.g. a human CLI sending as themselves from a repo workspace).
 
-## "`broker follow` exited with 'identity X already has an active follower'"
+## "`broker recv` exited with 'identity X already has an active follower'"
 
-Two `broker follow` processes resolved to the same identity (most often: two
+Two `broker recv` processes resolved to the same identity (most often: two
 terminals in the same workspace, since identity is derived from cwd). Only one
-follower is allowed per identity at a time.
+follower is allowed per identity at a time. The `follower` wording in the
+server-side error string reflects the unchanged internal protocol mode; the
+user-facing primitive is `broker recv`.
 
 **Fix.** Stop one of them, or pin a different identity for one workspace via
 `broker init --identity <other-name>`.
@@ -77,13 +79,15 @@ The server isn't running. Start it:
 broker server
 ```
 
-### `broker follow` exited with code 1 and "socket closed unexpectedly"
+### `broker recv` exited with code 1 and "socket closed unexpectedly"
 
 The server stopped or crashed mid-stream. With socketed follow, this is now the
-expected exit path: when the broker server goes away, every active `broker follow`
+expected exit path: when the broker server goes away, every active `broker recv`
 exits non-zero so the agent learns that presence has dropped.
 
-On restart, your inbox log and cursor persist — call `broker follow` again to
+On restart, your inbox log and cursor persist — call `broker recv` again to
 pick up where you left off. Any DMs sent while the server was down were rejected
 at the sender (the sender will have seen the same Cannot-connect error), so
 nothing is silently lost.
+
+**Broker Mode does not retry on connection failure.** If the server is restarting when `broker recv` is called, `recv` exits non-zero, the agent reports the failure, and the loop ends. The user re-invokes `/broker-mode` once `broker server` is back. This is a deliberate trade — explicit failure beats hidden retries that could mask real outages.
