@@ -121,7 +121,7 @@ A single broker server runs as a Unix-domain-socket hub on the host. Every parti
    Claude A                      Claude B                       Human
   (projectA-server)         (@myorg/projectA)             (user / human)
    `broker send`              `broker send`                broker server REPL
-   `broker follow`            `broker follow`              who / send / read
+   `broker recv`              `broker recv`                who / send / read
    `broker history`           `broker history`             emit-messages on
 ```
 
@@ -193,12 +193,12 @@ You can also use the same one-shot CLI agents use, from any other terminal — h
 ```bash
 broker send --to projectA-server "READY: shared v1.2.3 published"
 broker history --since 2026-04-30T00:00:00Z
-broker follow --idle-timeout 60
+broker recv --burst-window 5
 ```
 
 ### Usage from an AI agent's perspective
 
-Each agent has the broker skill loaded (see `skills/broker/SKILL.md`), which defines a tight set of patterns. The canonical loop is "send a message, then block on your inbox until a reply arrives or the conversation goes quiet":
+Each agent has the broker skill loaded (see `skills/broker/SKILL.md`). The canonical pattern is **Broker Mode** — entered via `/broker-mode` — which runs an explicit foreground read-execute-respond loop, one iteration per inbox batch. Outside Broker Mode, agents use `broker recv` directly for a "send-and-wait" one-shot:
 
 ```bash
 # Agent inside the projectA-server workspace
@@ -208,7 +208,7 @@ broker whoami
 broker send --to "@myorg/projectA" "QUESTION: which schema version for v1.3?"
 # msg-4ab12c
 
-broker follow --idle-timeout 120
+broker recv --burst-window 5
 # 2026-04-30T18:30:01Z [@myorg_projectA] DECISION: stick with v2 schema
 ```
 
@@ -216,11 +216,11 @@ Multi-party threads use `reply-all` against a captured message ID — no recipie
 
 ```bash
 MID=$(broker send --to "@myorg/projectA,@myorg/projectB" "QUESTION: validate(schema) or validate(obj)?")
-broker follow --idle-timeout 180
+broker recv --burst-window 5
 broker reply-all --to-message "$MID" "DECISION: validate(schema) wins."
 ```
 
-An `@orchestrator/<scope>` does the same thing in reverse: it dispatches work, then watches its inbox for status updates from every agent it spawned. A single `broker follow` on the orchestrator's identity captures every reply, every broadcast, and every reply-all that includes it — no per-room follow, no fan-in bookkeeping:
+An `@orchestrator/<scope>` does the same thing in reverse: it dispatches work, then watches its inbox for status updates from every agent it spawned. Run `/broker-mode` and the orchestrator picks up every reply, broadcast, and reply-all that includes it — one batch per loop iteration, no per-room follow, no fan-in bookkeeping:
 
 ```bash
 broker server   # in an orchestrator terminal, with --identity @orchestrator/<scope>
@@ -242,8 +242,10 @@ broker> send "@myorg/projectA" "TASK: bump shared to v1.2.3"
 | `broker reply-all --to-message MID "<text>"` | Reply to every recipient of a prior DM, excluding self |
 | `broker read` | Drain new inbox lines and advance the cursor |
 | `broker history [--from X] [--since ISO] [--sent]` | Read inbox (or outbox) without advancing the cursor |
-| `broker follow [--idle-timeout N]` | Drain backlog + tail new inbox lines, exit on idle |
+| `broker recv [--timeout N] [--burst-window M]` | Receive the next batch of inbox messages (used inside Broker Mode) |
 | `broker clients` | List identities currently connected to the broker |
+
+The canonical agent-side pattern is `/broker-mode`, which runs the read-execute-respond loop using `broker recv` under the hood. See `skills/broker/SKILL.md`'s Broker Mode section.
 
 For full pattern and troubleshooting docs, see `skills/broker/SKILL.md` and the files in `skills/broker/docs/`.
 

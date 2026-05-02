@@ -245,7 +245,6 @@ def cmd_recv_inbox(
     - Cursor advances per inbox-read batch.
     """
     import time
-    import threading
     from broker_storage import InboxLog, CursorStore
 
     sock_path = os.environ.get("MCP_BROKER_SOCK", str(Path.home() / ".mcp-broker" / "broker.sock"))

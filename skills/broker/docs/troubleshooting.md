@@ -81,7 +81,7 @@ broker server
 
 ### `broker recv` exited with code 1 and "socket closed unexpectedly"
 
-The server stopped or crashed mid-stream. With socketed follow, this is now the
+The server stopped or crashed mid-stream. With the socketed presence model, this is now the
 expected exit path: when the broker server goes away, every active `broker recv`
 exits non-zero so the agent learns that presence has dropped.
 

@@ -534,6 +534,28 @@ def test_recv_emits_first_arrival_and_exits_after_burst_window(broker) -> None:
     assert "live msg" in stdout, stderr
 
 
+def test_recv_default_timeout_zero_blocks_until_first_arrival(broker) -> None:
+    """With --timeout omitted (default 0), recv blocks indefinitely until a message arrives."""
+    env = broker["env"]
+    proc = subprocess.Popen(
+        # No --timeout flag → default is 0 → blocks until arrival.
+        CLI + ["recv", "--identity", "bob", "--burst-window", "1"],
+        env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+    )
+    # Wait long enough that any non-zero default would have triggered.
+    time.sleep(0.5)
+    # recv should still be alive (no timeout fired).
+    assert proc.poll() is None, "recv exited prematurely on default --timeout"
+    # Now send; recv should pick it up.
+    subprocess.run(
+        CLI + ["send", "--identity", "alice", "--to", "bob", "delayed msg"],
+        env=env, capture_output=True, text=True, timeout=3,
+    )
+    stdout, stderr = proc.communicate(timeout=5)
+    assert proc.returncode == 0, stderr
+    assert "delayed msg" in stdout, stderr
+
+
 def test_recv_backlog_short_circuits_timeout(broker) -> None:
     """Backlog at startup → drain immediately, ignore --timeout, run burst window."""
     env = broker["env"]

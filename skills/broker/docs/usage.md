@@ -107,6 +107,7 @@ Block until a batch is available, then return it. Used by Broker Mode (see SKILL
 - `--timeout N` — max seconds to wait for the first message. Default `0` (no upper bound). Only consulted when the inbox is empty at startup; backlog at startup short-circuits this entirely.
 - `--burst-window M` — seconds to keep tailing for follow-ups after the first arrival. Default `5`. Hard cap; does not extend on each new arrival. Setting `0` exits as soon as the first arrival has been delivered.
 - `--identity X` — override the cwd-derived identity.
+- `--show-ids` — prefix each emitted line with the message ID (useful for `reply-all`).
 
 Exits cleanly (code 0) on timeout-with-no-traffic or burst-window completion. Non-zero on socket error or server-disconnect.
 
