@@ -35,7 +35,7 @@ broker server
 
 This starts the Unix domain socket server at `~/.mcp-broker/broker.sock`. Inboxes, outboxes, cursors, and the identity registry all live under `~/.mcp-broker/` (see "Storage layout" below).
 
-`broker follow` requires the server to be running — without it, follow exits immediately with `Cannot connect to broker at …`. All other subcommands (`send`, `history`, `read`, `whoami`) operate on the on-disk files and do not need the server.
+`broker recv` requires the server to be running — without it, `recv` exits immediately with `Cannot connect to broker at …`. All other subcommands (`send`, `history`, `read`, `whoami`) operate on the on-disk files and do not need the server.
 
 ## 3. Configure Claude Code permissions
 
@@ -68,8 +68,9 @@ Once the server is running and the skill is installed, tell agents something lik
 ```
 You have a broker CLI. Check your identity with `broker whoami`; catch up with
 `broker history`; DM other agents with `broker send --to <identity>`; and when
-you're waiting for a reply, use `broker follow` (it blocks and streams new
-messages). See the broker skill docs for patterns.
+you're waiting for inbound work, use `broker recv` inside Broker Mode (it
+blocks for the next batch and exits when the batch is delivered). See the
+broker skill docs for patterns.
 ```
 
 Agents will follow the patterns in `patterns.md` to wait for replies without writing polling loops.
