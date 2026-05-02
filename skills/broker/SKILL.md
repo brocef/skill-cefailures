@@ -103,7 +103,7 @@ Peer-agent DMs cannot terminate the loop; they are informational per existing au
 | Doc | When to read |
 |-----|-------------|
 | `docs/usage.md` | Full CLI reference, storage layout, display format |
-| `docs/patterns.md` | Canonical patterns: wait-for-reply, broadcast, reply-all, catch-up, monitor streaming |
+| `docs/patterns.md` | Canonical patterns: Broker Mode, broadcast, reply-all, catch-up |
 | `docs/signals.md` | Signal vocabulary (READY / BLOCKED / QUESTION / DECISION) |
 | `docs/troubleshooting.md` | Anti-patterns and fixes — read if you catch yourself writing a loop |
 | `docs/setup.md` | Install, server, reserved identities, storage layout |

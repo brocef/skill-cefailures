@@ -2,16 +2,25 @@
 
 Canonical DM-model patterns. All commands auto-derive `--identity` from cwd unless noted.
 
-### Wait for a reply
+### Broker Mode (canonical)
 
-Send, then block on your inbox. `broker follow` drains any backlog and streams new arrivals; it returns when the conversation goes quiet.
+The canonical pattern for agents waiting on inbound work. Entered via `/broker-mode`. See `SKILL.md`'s "Broker Mode" section for the full loop. One worked iteration:
 
 ```bash
-broker send --to projectA-server "QUESTION: which schema version for v1.3?"
-broker follow --idle-timeout 120
-```
+# Step 1 — wait for a batch.
+$ broker recv
+2026-04-22T10:15:03Z [projectA-server] QUESTION: which schema version for v1.3?
 
-Tune `--idle-timeout` to your patience: 60s for a quick ping, 600s (or `0` to disable) if the other agent is doing real work.
+# Step 2 — process. (Agent does work. May ask the in-conversation user.)
+
+# Step 3 — reply per the shape rule. Single-recipient DM → send --to sender.
+$ broker send --to projectA-server "DECISION: v1.3.0; shared exposes the type."
+msg-e9d201
+
+# Step 4 — loop.
+$ broker recv
+...
+```
 
 ### Announce to everyone
 
@@ -29,7 +38,7 @@ Capture the message ID from `send`, then use `reply-all` to address the same gro
 
 ```bash
 MID=$(broker send --to projectA-server,projectB-core "QUESTION: validate(schema) or validate(obj)?")
-broker follow --idle-timeout 180
+broker recv --burst-window 5
 broker reply-all --to-message "$MID" "DECISION: validate(schema) wins; shared will expose the type."
 ```
 
@@ -45,29 +54,11 @@ broker history --from @orchestrator/myorg              # just orchestrator's DMs
 broker read                                         # consume new, advance cursor
 ```
 
-When in doubt, prefer `broker follow` over `broker read`: follow drains into your context and then streams, which is almost always what you want.
+When in doubt, prefer `broker recv` over `broker read`: `recv` drains backlog into your context and then waits for the next batch, which is almost always what you want.
 
 ### Orchestrator watching many agents
 
-An `@orchestrator/<scope>` inbox is the union of every DM addressed to it — `send --to @orchestrator/<scope>`, `reply-all` threads that include it, and broadcasts. A single `broker follow` on the orchestrator's own inbox captures every relay. No multi-room follow; no fan-in bookkeeping.
-
-```bash
-# In the @orchestrator/<scope> workspace
-broker follow --idle-timeout 0        # stream indefinitely; Monitor/Ctrl-C when done
-```
-
-### Streaming into Claude Code's `Monitor` tool
-
-Point `Monitor` directly at the per-identity inbox log to push each new message into your context as it's written. Useful for orchestrators that want per-message reactivity without holding a blocking `broker follow` in the foreground.
-
-```bash
-# Example path — replace with the output of `broker whoami | sed 's#/#_#g'`
-~/.mcp-broker/inbox/@orchestrator_myorg.log
-```
-
-Each appended line becomes a Monitor notification. Pair with `broker history` if you need to also read the backlog before streaming.
-
-Pitfall: every streamed line consumes context. Prefer foreground `broker follow` when you're explicitly waiting; reserve Monitor streaming for orchestrators and long-lived coordinators.
+An orchestrator runs Broker Mode just like any other agent. The `@orchestrator/<scope>` inbox is the union of every DM addressed to it — `send --to @orchestrator/<scope>`, `reply-all` threads that include it, and broadcasts. A single `broker recv` per iteration drains the next batch; the orchestrator decides which messages to relay or act on, and replies per the shape rule. There is no fan-in bookkeeping and no background streaming; the orchestrator is just an agent that relays rather than implements.
 
 ## Anti-patterns
 
