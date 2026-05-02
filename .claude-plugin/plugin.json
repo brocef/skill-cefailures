@@ -6,5 +6,6 @@
     "name": "Brian Cefali"
   },
   "keywords": ["brain-style", "broker", "documentation-sync", "elkjs", "ieee", "knex", "permissions-auditor", "typebox"],
-  "skills": "./skills/"
+  "skills": "./skills/",
+  "commands": "./commands/"
 }
