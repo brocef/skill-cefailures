@@ -96,22 +96,25 @@ $ broker reply-all --to-message msg-7f3a91 "DECISION: schema wins"
 msg-e9d201
 ```
 
-### follow — block, drain, stream
+### recv — receive the next batch
 
 ```
-broker follow [--idle-timeout N] [--identity <me>]
+broker recv [--timeout N] [--burst-window M] [--identity <me>]
 ```
 
-Tail the per-identity inbox log. Drains unread backlog first (advancing the cursor as it goes), then waits for newly-appended lines.
+Block until a batch is available, then return it. Used by Broker Mode (see SKILL.md).
 
-- `--idle-timeout N` — exit after N seconds with no new messages (default 120; `0` disables).
-- `--identity X` — override cwd-derived identity.
+- `--timeout N` — max seconds to wait for the first message. Default `0` (no upper bound). Only consulted when the inbox is empty at startup; backlog at startup short-circuits this entirely.
+- `--burst-window M` — seconds to keep tailing for follow-ups after the first arrival. Default `5`. Hard cap; does not extend on each new arrival. Setting `0` exits as soon as the first arrival has been delivered.
+- `--identity X` — override the cwd-derived identity.
 
-Exits cleanly (code 0) on idle; non-zero on socket error.
+Exits cleanly (code 0) on timeout-with-no-traffic or burst-window completion. Non-zero on socket error or server-disconnect.
+
+`broker recv` opens a presence socket for its full duration. While it is running, your identity is shown as "live" by `broker clients`; while you are processing the batch (between `recv` calls), you appear "offline." This is intended: presence reflects readiness to receive.
 
 Example:
 ```bash
-$ broker follow --idle-timeout 60
+$ broker recv --burst-window 5
 2026-04-22T10:15:03Z [projectA-server] READY: shared v1.2.3 published
 2026-04-22T10:15:47Z [projectA-server → you, @myorg_projectB] QUESTION: who owns the migration?
 ```
@@ -149,7 +152,7 @@ $ broker read
 2026-04-22T10:15:47Z [projectA-server → you, @myorg_projectB] QUESTION: who owns the migration?
 ```
 
-**Do not chain `read` → `follow`.** Read advances the cursor, so follow will see nothing until the next new message. Use `follow` alone; it handles drain + stream.
+**Do not chain `read` → `recv`.** Read advances the cursor, so `recv` will see nothing until the next new message. Use `recv` alone; it handles drain + wait.
 
 ### clients — list connected identities
 
@@ -157,7 +160,7 @@ $ broker read
 broker clients [--identity <me>]
 ```
 
-Print every known identity with their presence status. Live identities hold an active socket connection; offline identities are registered but not currently connected. Useful for confirming who is reachable before sending a DM.
+Print every known identity with their presence status. Live identities hold an active socket connection; offline identities are registered but not currently connected. With Broker Mode, "live" means the agent is currently waiting in `broker recv`. Between iterations of the loop (while the agent is processing or replying), it is shown as "offline" — that is the expected behavior, not a failure. Useful for confirming who is reachable before sending a DM.
 
 Example:
 ```bash
