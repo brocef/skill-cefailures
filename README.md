@@ -53,52 +53,89 @@ This creates symlinks from `~/.claude/skills/<name>` to the skills in this repo.
 ```bash
 pip install -r requirements.txt
 
-# Using Claude CLI (default — no API key needed)
+# Using OpenAI (default — requires OPENAI_API_KEY)
 python scripts/create_skill.py --name knex --url "https://example.com/knex-docs.md"
 
 # Using Anthropic SDK (requires ANTHROPIC_API_KEY)
 python scripts/create_skill.py --name knex --url "https://example.com/knex-docs.md" --backend sdk
+
+# Using the local Claude CLI (no API key needed; requires Claude Code installed)
+python scripts/create_skill.py --name knex --url "https://example.com/knex-docs.md" --backend cli
 ```
 
-This fetches the documentation, uses Claude to analyze and split it into a SKILL.md routing layer plus topical reference docs, and writes everything to `skills/<name>/`.
+This fetches the documentation, uses an LLM to analyze and split it into a SKILL.md routing layer plus topical reference docs, and writes everything to `skills/<name>/`.
 
-By default, uses the `claude` CLI (requires [Claude Code](https://claude.com/claude-code)). Use `--backend sdk` for the Anthropic API directly (requires `pip install anthropic` and `ANTHROPIC_API_KEY`).
+Backend choices:
+
+- `--backend openai` (default) — uses the OpenAI API. Requires `pip install openai` and `OPENAI_API_KEY` (or `--api-key`).
+- `--backend sdk` — uses the Anthropic API directly. Requires `pip install anthropic` and `ANTHROPIC_API_KEY`.
+- `--backend cli` — shells out to the local `claude` CLI (requires [Claude Code](https://claude.com/claude-code)).
+
+Optional flags: `--model <id>` overrides the per-backend default model; `--force` overwrites an existing skill directory.
 
 ## Repo Structure
 
 ```
-skills/                       # Skills
-  <library>/
+.claude-plugin/
+  plugin.json                 # Plugin manifest (name, version, skills/commands paths)
+  marketplace.json            # Marketplace listing
+commands/
+  broker-mode.md              # /broker-mode slash command
+skills/                       # Eight skills, one directory each
+  brain-style/
+  broker/
+  documentation-sync/
+  elkjs/
+  ieee/
+  knex/
+  permissions-auditor/
+  typebox/
+  <name>/
     SKILL.md                  # Routing layer (loaded on invocation)
     docs/
       <topic>.md              # Detailed reference (read on demand)
-  broker/
-    SKILL.md                  # Broker skill routing layer
-    docs/
-      usage.md                # CLI reference
-      setup.md                # Installation instructions
 scripts/
   create_skill.py             # Generate skill from URL
   install_skill.py            # Symlink skills to ~/.claude/skills/
   analyze_permissions.py      # Analyze permission request logs
+  apply_permissions.py        # Apply curated permission lists to settings.json
   log-permission-requests.sh  # Permission logging hook script
   broker_server.py            # Broker server: state, routing, persistence
   broker_client.py            # Async socket client for the broker
-  broker_cli.py               # Broker CLI: server, REPL, and one-shot subcommands
-tests/
-  test_create_skill.py
-  test_install_skill.py
-  test_analyze_permissions.py
-  test_broker_client.py
-  test_broker_dm_cli.py
-  test_broker_dm_e2e.py
-  test_broker_dm_server.py
-  test_broker_format.py
-  test_broker_identity.py
-  test_broker_repl.py
-  test_broker_storage.py
-  test_broker_transport.py
+  broker_cli.py               # Broker CLI: server, REPL, one-shot subcommands
+  broker_constants.py         # Shared protocol constants
+  broker_format.py            # Message format helpers
+  broker_identity.py          # Identity resolution (workspace → identity)
+  broker_storage.py           # Persistence (inbox/outbox/cursors)
+tests/                        # pytest suite
+docs/
+  release-notes/              # Per-version user-facing notes (vX.Y.Z.md + upcoming.md)
+  changelogs/                 # Per-version developer changelogs
+  plans/                      # Design and implementation documents
+CLAUDE.md                     # Project instructions for Claude Code
+requirements.txt
 ```
+
+## Skills
+
+| Skill | Purpose |
+|-------|---------|
+| `brain-style` | Code style preferences across naming, types, CLAUDE.md structure, and architectural review. |
+| `broker` | DM/inbox CLI for multi-agent Claude Code coordination. See [Message Broker](#message-broker) below. |
+| `documentation-sync` | Evaluate trigger-based documentation update rules from a project's `CLAUDE.md` after code changes. |
+| `elkjs` | Automatic graph layout via the elkjs JavaScript port of the Eclipse Layout Kernel. |
+| `ieee` | IEEE editorial style, citation/reference formatting, mathematical notation, and TypeBox schema derivation for IEEE reference types. |
+| `knex` | Knex.js setup, configuration, connection behavior, and SQL dialect handling. |
+| `permissions-auditor` | Analyze Claude Code permission request logs and triage recurring patterns into allow/deny rules. Pairs with `scripts/log-permission-requests.sh`. |
+| `typebox` | Runtime type system with JSON Schema definitions that infer to TypeScript types. |
+
+## Slash Commands
+
+This plugin ships slash commands under `commands/` (registered via `plugin.json`):
+
+| Command | Purpose |
+|---------|---------|
+| `/broker-mode` | Enter Broker Mode — explicit foreground read-execute-respond loop, one iteration per inbox batch. The canonical pattern for agents waiting on inbound work. See [Message Broker](#message-broker). |
 
 ## Message Broker
 
@@ -223,7 +260,7 @@ broker reply-all --to-message "$MID" "DECISION: validate(schema) wins."
 An `@orchestrator/<scope>` does the same thing in reverse: it dispatches work, then watches its inbox for status updates from every agent it spawned. Run `/broker-mode` and the orchestrator picks up every reply, broadcast, and reply-all that includes it — one batch per loop iteration, no per-room follow, no fan-in bookkeeping:
 
 ```bash
-broker server   # in an orchestrator terminal, with --identity @orchestrator/<scope>
+broker server --identity "@orchestrator/<scope>"   # in an orchestrator terminal
 
 broker> emit-messages on   # tail every routed message in real time
 broker> send projectA-server "TASK: cut release branch for v1.3"
@@ -235,15 +272,17 @@ broker> send "@myorg/projectA" "TASK: bump shared to v1.2.3"
 
 | Command | Description |
 |---------|-------------|
-| `broker server` | Start the socket server with an interactive DM REPL |
+| `broker server [--identity ID]` | Start the socket server with an interactive DM REPL |
 | `broker whoami` | Print the identity derived from the current cwd |
+| `broker init [--identity ID] [--force]` | Pin a workspace's identity by writing `.broker/config.json` |
 | `broker send --to a,b "<text>"` | DM one or more identities |
 | `broker broadcast "<text>"` | Fan out to every registered identity |
 | `broker reply-all --to-message MID "<text>"` | Reply to every recipient of a prior DM, excluding self |
-| `broker read` | Drain new inbox lines and advance the cursor |
-| `broker history [--from X] [--since ISO] [--sent]` | Read inbox (or outbox) without advancing the cursor |
-| `broker recv [--timeout N] [--burst-window M]` | Receive the next batch of inbox messages (used inside Broker Mode) |
+| `broker read [--show-ids]` | Drain new inbox lines and advance the cursor |
+| `broker history [--from X] [--since ISO] [--sent] [--show-ids]` | Read inbox (or outbox) without advancing the cursor |
+| `broker recv [--timeout N] [--burst-window M] [--show-ids]` | Receive the next batch of inbox messages (used inside Broker Mode) |
 | `broker clients` | List identities currently connected to the broker |
+| `broker --version` | Print the broker version (also `-V`) |
 
 The canonical agent-side pattern is `/broker-mode`, which runs the read-execute-respond loop using `broker recv` under the hood. See `skills/broker/SKILL.md`'s Broker Mode section.
 
