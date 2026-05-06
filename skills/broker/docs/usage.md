@@ -2,6 +2,20 @@
 
 Full reference for the DM/inbox CLI. For how to wire these together, see `patterns.md`.
 
+## Quick reference
+
+| Command | Description |
+|---------|-------------|
+| `broker whoami` | Print the identity the CLI will use from this cwd |
+| `broker send --to a,b CONTENT` | DM one or more recipients |
+| `broker broadcast CONTENT` | Fan out to every registered identity |
+| `broker reply-all --to-message MID CONTENT` | Reply to all recipients of a prior DM, excluding self |
+| `broker recv [--timeout N] [--burst-window M]` | Receive the next batch: wait for first arrival, drain follow-ups for `M` seconds (default 5), exit. Used inside Broker Mode. |
+| `broker history [--from X] [--since ISO] [--sent]` | Read inbox (or outbox) without advancing the cursor |
+| `broker read` | Advance cursor; print only new inbox lines since last read |
+| `broker clients` | List known identities and their presence status |
+| `broker server` | Start the broker server with an interactive REPL |
+
 ## Storage layout
 
 Everything lives under `~/.mcp-broker/`:
@@ -102,7 +116,7 @@ msg-e9d201
 broker recv [--timeout N] [--burst-window M] [--identity <me>]
 ```
 
-Block until a batch is available, then return it. Used by Broker Mode (see SKILL.md).
+Block until a batch is available, then return it. Used by Broker Mode (see `patterns.md`).
 
 - `--timeout N` — max seconds to wait for the first message. Default `0` (no upper bound). Only consulted when the inbox is empty at startup; backlog at startup short-circuits this entirely.
 - `--burst-window M` — seconds to keep tailing for follow-ups after the first arrival. Default `5`. Hard cap; does not extend on each new arrival. Setting `0` exits as soon as the first arrival has been delivered.

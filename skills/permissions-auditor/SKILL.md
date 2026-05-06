@@ -5,18 +5,9 @@ description: Use when managing Claude Code permission rules, analyzing permissio
 
 # Permissions Auditor
 
-Analyze permission request logs to find recurring patterns, then triage them into allow/deny rules or mark them for continued manual review.
+Analyze permission request logs to find recurring patterns and triage them into allow/deny rules.
 
-## When to Use
-
-- User wants to install the permission logging hook
-- User wants to analyze which commands are triggering permission prompts
-- User wants to add commands to their allow or deny list
-- User wants to audit or manage their permission rules
-
-## Sub-Tasks
-
-| Task | Doc | When |
-|------|-----|------|
-| Install Hook | `docs/install.md` | Setting up permission logging for the first time |
-| Analyze & Triage | `docs/analyze.md` | Reviewing logged permissions and adding rules |
+| Doc | Scope |
+|-----|-------|
+| `docs/install.md` | Set up the permission logging hook for the first time |
+| `docs/analyze.md` | Review logged permissions and add allow/deny rules |

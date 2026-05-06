@@ -5,12 +5,10 @@ description: Use when writing or reviewing code in any project. Use when making 
 
 # brain-style
 
-Read the relevant doc based on your task:
+Code style preferences across naming, types, CLAUDE.md structure, and architectural review.
 
-| Sub-Style | Doc | Scope |
-|-----------|-----|-------|
-| TypeScript | `docs/typescript.md` | Naming conventions, casing rules, exemptions, type lint error fixing policy, and LSP usage |
-| CLAUDE.md | `docs/claude-md.md` | Structure, inline vs. route decisions, required sections |
-| Brain Review | `docs/brain-review.md` | Design architecture review — decomposition, file size, redundancy |
-
-Does not cover formatting decisions handled by automated tools (Prettier, etc.).
+| Doc | Scope |
+|-----|-------|
+| `docs/typescript.md` | Naming conventions, casing rules, exemptions, type lint error fixing policy, LSP usage |
+| `docs/claude-md.md` | CLAUDE.md structure, inline vs. route decisions, required sections |
+| `docs/brain-review.md` | Design architecture review — decomposition, file size, redundancy |
