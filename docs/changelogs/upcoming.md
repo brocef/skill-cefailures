@@ -1,1 +1,31 @@
 # Upcoming
+
+## Changed
+
+- All skill `SKILL.md` files minified to a 1-line overview plus routing table to `docs/`. Removed `When to Use` and `Key Patterns` sections; invocation criteria now lives in the frontmatter `description` field. Affected skills: `brain-style`, `broker`, `documentation-sync`, `elkjs`, `ieee`, `knex`, `permissions-auditor`, `typebox`.
+- `skills/broker/SKILL.md` reference content extracted into `docs/`:
+  - New `docs/critical-rules.md` (five critical rules)
+  - `docs/patterns.md` expanded with the Broker Mode loop and canonical patterns
+  - `docs/setup.md` gained identity resolution and prerequisites
+  - `docs/usage.md` gained the quick reference table
+- `skills/documentation-sync/SKILL.md` consolidated: section-format, evaluating-triggers, release-notes, and version-management content inlined directly into `SKILL.md` so they load with the skill.
+- `skills/documentation-sync/docs/setup.md` updated to reflect the new structure (no longer references the deleted subskill files).
+- `skills/brain-style/SKILL.md`: replaced default `creating or updating a CLAUDE.md file` trigger with an explicit-request-only trigger for `claude-md.md`.
+- `CLAUDE.md` (project root): added `## Documentation Sync` section listing `README.md`, `docs/release-notes/upcoming.md`, and `docs/changelogs/upcoming.md`. Replaced inline version-bump instructions with a pointer to the documentation-sync skill, retaining only the project-specific dual-manifest note (plugin.json + marketplace.json).
+
+## Added
+
+- `skills/documentation-sync/SKILL.md` Version Management section: ecosystem-agnostic bump rules, `upcoming.md` rotation, commit-and-tag ritual, with user confirmation required before rotating.
+- Section-template directive that instructs Claude to load the documentation-sync skill when the section is present in a project's CLAUDE.md.
+- Plan-time documentation-update task requirement.
+- Public-surface judgment paragraph for ambiguous Public-API decisions.
+- Migration table reframed as "Suggested migrations to offer" (always offered, never executed unilaterally).
+- Opt-in note clarifying that `release-notes/upcoming.md` and `changelogs/upcoming.md` apply only when listed in a project's `## Documentation Sync` section.
+
+## Removed
+
+- `skills/documentation-sync/docs/section-format.md`, `docs/evaluating-triggers.md`, `docs/release-notes.md` — content inlined into `SKILL.md`.
+
+## Documentation
+
+- `README.md`: updated the "How Skills Work" section to reflect the minified SKILL.md structure (description + routing table; reference docs hold the rest).

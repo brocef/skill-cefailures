@@ -253,6 +253,6 @@ For full pattern and troubleshooting docs, see `skills/broker/SKILL.md` and the 
 
 When Claude Code invokes a library skill:
 
-1. **SKILL.md** is loaded — gives Claude an overview, when-to-use triggers, a routing table of reference docs, and key patterns
+1. **SKILL.md** is loaded — gives Claude a brief overview and a routing table to reference docs in `docs/`. The frontmatter `description` field acts as the skill's invocation criteria.
 2. Claude **reads specific docs/** files based on the current task — only what's needed
 3. Reference docs contain full API details, examples, and troubleshooting
