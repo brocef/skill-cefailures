@@ -3,7 +3,15 @@
 ## Generic instructions
 
 - Git commit messages should not include any co-authoring content
-- After completing a major set of changes, offer to cut a new version by bumping the `version` field in both `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`. Use `patch` for most changes, `minor` for new skills or significant feature work, and `major` only when explicitly instructed. When versioning, rename `docs/release-notes/upcoming.md` to `docs/release-notes/v{version}.md` and `docs/changelogs/upcoming.md` to `docs/changelogs/v{version}.md`, then start fresh `upcoming.md` files for subsequent work. After the version bump commit, create a git tag at that commit: `git tag v{version}`.
+- After completing a major set of changes, offer to cut a new version following the `skill-cefailures:documentation-sync` skill's "Version Management" section. Project-specific note: the version is carried in **both** `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` — bump them together. Use `minor` (not just `patch`) for new skills or significant feature work.
+
+## Documentation Sync
+
+Before reporting any code change complete, invoke the `skill-cefailures:documentation-sync` skill to evaluate the entries below. When writing an implementation plan, include explicit documentation-update tasks for every entry whose trigger is expected to fire.
+
+- `README.md` [Public-API] — Public consumption, high-level, written for maximum human readability
+- `docs/release-notes/upcoming.md` [Public-API] — User-facing release notes; plain language, no jargon
+- `docs/changelogs/upcoming.md` [Any-Code-Change] — Developer changelog with commit hash ranges
 
 ## Project Overview
 
