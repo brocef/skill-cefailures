@@ -12,6 +12,7 @@ Before reporting any code change complete, invoke the `skill-cefailures:document
 - `README.md` [Public-API] — Public consumption, high-level, written for maximum human readability
 - `docs/release-notes/upcoming.md` [Public-API] — User-facing release notes; plain language, no jargon
 - `docs/changelogs/upcoming.md` [Any-Code-Change] — Developer changelog with commit hash ranges
+- `docs/FOLLOWUPS.md` [Any-Code-Change] — Standing log of deferred follow-up items; prepend an entry (commit range, branch, date) when feature work leaves code-related TODOs; annotate items as completed (strikethrough + date) when finished — do not delete
 
 ## Project Overview
 
