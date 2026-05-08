@@ -1,6 +1,6 @@
 ---
 name: capabilities-sdlc
-description: Use when authoring or updating user-capability documentation (`capabilities.md` files) co-located with route folders, screen components, feature folders, or API endpoints. Use when planning, brainstorming, or specifying any user-facing feature change — the first step in feature planning is to describe the new, updated, or deleted capabilities. Use when reviewing whether a `capabilities.md` is in sync with the code it describes.
+description: Use when authoring or updating user-capability documentation (`capabilities.md` files) co-located with route folders, screen components, feature folders, or API endpoints. Use when planning, brainstorming, or specifying any user-facing feature change. Use when reviewing whether a `capabilities.md` is in sync with the code it describes.
 ---
 
 # capabilities-sdlc
@@ -15,7 +15,7 @@ Documents the conventions for the Proposit capabilities-SDLC: how user-facing ca
 
 ## The planning gate (one-line summary)
 
-Every brainstorm, spec, plan, or briefing for user-facing work opens with a `## Capability changes` section as its first content section. See `docs/planning-gate.md` for the full rule, including the bug-fix exception.
+Every brainstorm, spec, plan, or briefing for user-facing work opens with a `## Capability changes` section as its first content section. See `docs/planning-gate.md` for the full rule, including the bug-fix carve-outs (regression vs. discovery vs. capability-change-disguised-as-bug-fix).
 
 ## Reference table
 

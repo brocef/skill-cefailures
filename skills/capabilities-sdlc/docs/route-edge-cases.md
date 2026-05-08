@@ -36,7 +36,7 @@ Intercepting routes (e.g., `(.)photo/[id]/`) render different content based on n
 
 ## API routes with multiple HTTP methods
 
-A `route.ts` exporting multiple HTTP methods produces multiple `## ...` headings in one `capabilities.md`. Use the form `## <METHOD>: <action>`:
+An API route's `capabilities.md` uses one or more `## <METHOD>: <action>` headings — at least one per HTTP method the route exports. A single method may have multiple headings (e.g., one `Supported` and one `Omitted`) when it's worth documenting both what the method does and what it deliberately does not do.
 
 ```markdown
 ## POST: Validate Google ID token and start session

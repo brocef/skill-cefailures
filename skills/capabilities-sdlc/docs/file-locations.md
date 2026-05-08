@@ -14,7 +14,7 @@ Route groups like `(nofooter)` and `(withfooter)` are pass-through and do **not*
 
 `proposit-server/src/app/api/<endpoint>/capabilities.md` next to each `route.ts`. The file describes what an API client can do, what the endpoint enforces, and what it explicitly does not do — capturing contract *semantics* on top of the TypeBox request/response schemas (which live in `@proposit/shared`).
 
-A `route.ts` exporting multiple HTTP methods produces multiple `## ...` headings in a single `capabilities.md` (one per method) — see `docs/exemplars/server-api-endpoint.md`.
+An API route's `capabilities.md` uses one or more `## <METHOD>: <action>` headings — at least one per HTTP method the route exports, plus additional `Omitted` headings to declare what the endpoint deliberately does not do. See `docs/exemplars/server-api-endpoint.md`.
 
 ## Mobile (`proposit-mobile`)
 

@@ -12,3 +12,13 @@
   - `docs/route-edge-cases.md` — server route enumeration (route groups, layouts, dynamic segments, etc.).
   - `docs/exemplars/{server-user-route,server-api-endpoint,mobile-feature-folder,mobile-screen}.md` — fully-written gold-standard files.
 - `capabilities-sdlc` added to `plugin.json` keywords array.
+
+## Changed
+
+- `capabilities-sdlc` proofread refinements after self-review:
+  - `SKILL.md` description tightened — dropped a workflow-summary clause that risked the skill body being skipped (per writing-skills CSO guidance).
+  - `format.md` / `file-locations.md` / `route-edge-cases.md` — multi-method API rule clarified: a single HTTP method may have multiple `## METHOD: ...` headings (e.g., one `Supported`, one `Omitted`) when documenting both what a method does and what it deliberately does not do. Resolves a contradiction with the multi-`POST` exemplar.
+  - `format.md` — same-repo-only constraint on `<path>#<heading-slug>` references moved into the opening sentence of "Reference style" so the scope is stated upfront rather than buried in "What is *not* part of the format."
+  - `SKILL.md` — bug-fix carve-out summary widened from "exception" (singular) to "carve-outs" (plural) covering regression / discovery / disguised-bug-fix.
+  - `planning-gate.md` — replaced the imprecise "this skill auto-loads" wording with language that matches how skills are actually surfaced (description-matched, agent-invoked).
+  - `broker-protocol.md` — removed two references to undefined "Phase 1 / Phase 2" terminology in favor of self-explanatory wording.

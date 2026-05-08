@@ -53,10 +53,10 @@ If the broker is unreachable (the agent is running outside a brokered session, o
 
 3. **Surface the uncertainty in the human review summary** when reporting work complete. List each capability that carries the TODO marker and the reason (broker unavailable).
 
-The orchestrator reconciles wording in Phase 2 (post-Phase-1 review), removing the TODO marker once product-layer wording is confirmed.
+The orchestrator reconciles wording at its next session-boundary reconciliation, removing the TODO marker once product-layer wording is confirmed.
 
 ## What this protocol is *not*
 
 - **Not a remote read.** The agent does not gain access to `proposit-orchestration/docs/capabilities/` files. It receives only what the orchestrator chooses to relay.
 - **Not a synchronous block.** The agent does not pause indefinitely waiting for an answer. If the broker round-trip exceeds a reasonable wait (judgment call), proceed with the unavailable-fallback.
-- **Not a substitute for review.** Even capabilities that get clean broker answers are subject to human review during Phase 2.
+- **Not a substitute for review.** Even capabilities that get clean broker answers are subject to human review.

@@ -48,7 +48,7 @@ Capabilities files are only as useful as their accuracy. If features ship withou
 
 ## Enforcement
 
-This skill auto-loads in any agent context where the trigger description matches — including planning, brainstorming, or specifying user-facing changes. When the skill loads, it states the gate prominently. Beyond that, enforcement is convention:
+This skill is surfaced to agents whose context matches the trigger description — including planning, brainstorming, or specifying user-facing changes. When an agent invokes the skill, the gate is stated prominently. Beyond that, enforcement is convention:
 
 1. The skill document.
 2. The orchestration repo's `CLAUDE.md` requires that briefings and overview specs open with `## Capability changes`.
