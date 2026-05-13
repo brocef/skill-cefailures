@@ -1,8 +1,8 @@
 # skill-cefailures
 
-A Claude Code plugin providing skills for specific libraries, plus tooling to create new skills from online documentation.
+Agent skills for specific libraries, plus tooling to create new skills from online documentation. The skills can be used from Claude Code and Codex.
 
-Each library gets a skill that provides API/pattern knowledge and debugging/troubleshooting guidance to Claude Code.
+Each library gets a skill that provides API/pattern knowledge and debugging/troubleshooting guidance to an AI coding agent.
 
 ## Installation
 
@@ -33,6 +33,12 @@ pip install -r requirements.txt
 # Install a single skill
 python scripts/install_skill.py knex
 
+# Install a single skill for Codex
+python scripts/install_skill.py --agent codex knex
+
+# Install all skills for both Claude Code and Codex
+python scripts/install_skill.py --agent all --all
+
 # Install all skills
 python scripts/install_skill.py --all
 
@@ -46,7 +52,7 @@ python scripts/install_skill.py --remove knex
 python scripts/install_skill.py --remove-all
 ```
 
-This creates symlinks from `~/.claude/skills/<name>` to the skills in this repo.
+By default, this creates symlinks from `~/.claude/skills/<name>` to the skills in this repo. Use `--agent codex` to target `~/.codex/skills/<name>`, or `--agent all` to install both.
 
 ## Creating a new skill
 
@@ -96,7 +102,7 @@ skills/                       # Eight skills, one directory each
       <topic>.md              # Detailed reference (read on demand)
 scripts/
   create_skill.py             # Generate skill from URL
-  install_skill.py            # Symlink skills to ~/.claude/skills/
+  install_skill.py            # Symlink skills to ~/.claude/skills/ and/or ~/.codex/skills/
   analyze_permissions.py      # Analyze permission request logs
   apply_permissions.py        # Apply curated permission lists to settings.json
   log-permission-requests.sh  # Permission logging hook script
@@ -112,7 +118,8 @@ docs/
   release-notes/              # Per-version user-facing notes (vX.Y.Z.md + upcoming.md)
   changelogs/                 # Per-version developer changelogs
   plans/                      # Design and implementation documents
-CLAUDE.md                     # Project instructions for Claude Code
+AGENTS.md                     # Project instructions for Codex and compatible agents
+CLAUDE.md                     # Symlink to AGENTS.md for Claude Code compatibility
 requirements.txt
 ```
 
@@ -290,8 +297,8 @@ For full pattern and troubleshooting docs, see `skills/broker/SKILL.md` and the 
 
 ## How Skills Work
 
-When Claude Code invokes a library skill:
+When an agent invokes a library skill:
 
-1. **SKILL.md** is loaded — gives Claude a brief overview and a routing table to reference docs in `docs/`. The frontmatter `description` field acts as the skill's invocation criteria.
-2. Claude **reads specific docs/** files based on the current task — only what's needed
+1. **SKILL.md** is loaded — gives the agent a brief overview and a routing table to reference docs in `docs/`. The frontmatter `description` field acts as the skill's invocation criteria.
+2. The agent **reads specific docs/** files based on the current task — only what's needed
 3. Reference docs contain full API details, examples, and troubleshooting

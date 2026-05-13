@@ -21,6 +21,14 @@ def skill_dirs(tmp_path, monkeypatch):
     target_dir.mkdir()
     monkeypatch.setattr(install_skill, "SKILLS_DIR", skills_dir)
     monkeypatch.setattr(install_skill, "TARGET_DIR", target_dir)
+    monkeypatch.setattr(
+        install_skill,
+        "AGENT_TARGETS",
+        {
+            "claude": target_dir,
+            "codex": tmp_path / "codex-target",
+        },
+    )
     return skills_dir, target_dir
 
 
@@ -166,6 +174,31 @@ def test_install_all(skill_dirs, monkeypatch):
 
     assert (target_dir / "lib-a").is_symlink()
     assert (target_dir / "lib-b").is_symlink()
+
+
+def test_install_codex_target(skill_dirs, monkeypatch):
+    """Verify --agent codex installs to the Codex skill directory."""
+    skills_dir, _ = skill_dirs
+    _create_skill(skills_dir, "mylib")
+    codex_target = install_skill.AGENT_TARGETS["codex"]
+
+    monkeypatch.setattr("sys.argv", ["install_skill.py", "--agent", "codex", "mylib"])
+    install_skill.main()
+
+    assert (codex_target / "mylib").is_symlink()
+
+
+def test_install_all_agents(skill_dirs, monkeypatch):
+    """Verify --agent all installs into every configured agent target."""
+    skills_dir, target_dir = skill_dirs
+    _create_skill(skills_dir, "mylib")
+    codex_target = install_skill.AGENT_TARGETS["codex"]
+
+    monkeypatch.setattr("sys.argv", ["install_skill.py", "--agent", "all", "mylib"])
+    install_skill.main()
+
+    assert (target_dir / "mylib").is_symlink()
+    assert (codex_target / "mylib").is_symlink()
 
 
 def test_remove_all(skill_dirs, monkeypatch):
