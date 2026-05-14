@@ -1,5 +1,5 @@
 ---
-description: Enter Broker Mode — explicit foreground read-execute-respond loop for inbox-driven agent work.
+description: Explicitly enter Broker Mode — foreground read-execute-respond loop for inbox-driven agent work.
 ---
 
 You are now operating in Broker Mode.

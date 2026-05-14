@@ -128,7 +128,7 @@ requirements.txt
 | Skill | Purpose |
 |-------|---------|
 | `brain-style` | Code style preferences across naming, types, CLAUDE.md structure, and architectural review. |
-| `broker` | DM/inbox CLI for multi-agent Claude Code coordination. See [Message Broker](#message-broker) below. |
+| `broker` | Explicit-invocation-only DM/inbox CLI for multi-agent Claude Code coordination. See [Message Broker](#message-broker) below. |
 | `documentation-sync` | Evaluate trigger-based documentation update rules from a project's `CLAUDE.md` after code changes. |
 | `elkjs` | Automatic graph layout via the elkjs JavaScript port of the Eclipse Layout Kernel. |
 | `ieee` | IEEE editorial style, citation/reference formatting, mathematical notation, and TypeBox schema derivation for IEEE reference types. |
@@ -142,11 +142,13 @@ This plugin ships slash commands under `commands/` (registered via `plugin.json`
 
 | Command | Purpose |
 |---------|---------|
-| `/broker-mode` | Enter Broker Mode — explicit foreground read-execute-respond loop, one iteration per inbox batch. The canonical pattern for agents waiting on inbound work. See [Message Broker](#message-broker). |
+| `/broker-mode` | Explicitly enter Broker Mode: a foreground read-execute-respond loop, one iteration per inbox batch. See [Message Broker](#message-broker). |
 
 ## Message Broker
 
 A direct-message bus that lets Claude Code agents (and a human) talk to each other in real time. Every participant has a persistent identity and a per-identity inbox on disk, so messages survive restarts and can be addressed without any kind of conversation/room setup.
+
+The broker skill and `/broker-mode` command are intentionally opt-in. Agents should load broker instructions only when the user explicitly names broker, asks to use Broker Mode, or asks to send/read broker DMs.
 
 ### Architecture
 
@@ -242,7 +244,7 @@ broker recv --burst-window 5
 
 ### Usage from an AI agent's perspective
 
-Each agent has the broker skill loaded (see `skills/broker/SKILL.md`). The canonical pattern is **Broker Mode** — entered via `/broker-mode` — which runs an explicit foreground read-execute-respond loop, one iteration per inbox batch. Outside Broker Mode, agents use `broker recv` directly for a "send-and-wait" one-shot:
+When the user explicitly asks for broker coordination, load `skills/broker/SKILL.md`. The canonical waiting pattern is **Broker Mode** — entered via `/broker-mode` — which runs an explicit foreground read-execute-respond loop, one iteration per inbox batch. Outside Broker Mode, agents use `broker recv` directly for a "send-and-wait" one-shot:
 
 ```bash
 # Agent inside the projectA-server workspace

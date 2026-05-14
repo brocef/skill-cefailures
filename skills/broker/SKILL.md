@@ -1,11 +1,11 @@
 ---
 name: broker
-description: Use when collaborating with other agents, coordinating with other Claude Code instances, sending DMs between agents, or when the user asks you to talk to another agent. Use when you see references to the broker command, inboxes, or agent identities. Broker Mode (`/broker-mode`) is the canonical pattern for agents waiting on inbound work — explicit foreground read-execute-respond loop, one iteration per inbox batch.
+description: Explicit invocation only. Use only when the user explicitly names the broker skill, runs `/broker-mode`, asks to enter Broker Mode, asks to use broker, or asks you to send/read broker DMs. Do not auto-load merely because a task mentions collaboration, other agents, inboxes, identities, or the broker command.
 ---
 
 # Broker
 
-A DM/inbox CLI for multi-agent Claude Code. Every agent has a persistent identity derived from its workspace and a per-identity inbox on disk. Use `/broker-mode` to wait on inbound work — no polling, no conversation IDs to track.
+A DM/inbox CLI for multi-agent Claude Code. Every agent has a persistent identity derived from its workspace and a per-identity inbox on disk. This skill is opt-in: invoke it only when the user explicitly asks for broker usage or enters `/broker-mode`.
 
 | Doc | Scope |
 |-----|-------|
