@@ -32,7 +32,7 @@ A capability that involves multiple screens (e.g., the OAuth handshake) appears 
 
 ## What is *not* in scope
 
-- **Cross-repo links from per-repo files.** A `capabilities.md` in `proposit-server` does not link to or reference a path in `proposit-mobile` (or vice versa). The orchestrator handles cross-repo coordination via the broker (see `docs/broker-protocol.md`).
+- **Cross-repo links from per-repo files.** A `capabilities.md` in `proposit-server` does not link to or reference a path in `proposit-mobile` (or vice versa). The orchestrator handles cross-repo coordination (see `docs/product-layer-coordination.md`).
 - **Pure infra files.** `loading.tsx`, `error.tsx`, leaf `not-found.tsx` defer to the parent route's `capabilities.md`. They don't get their own file.
 - **Helper components.** Mobile components that aren't screens (e.g., shared form fields, buttons, modals) don't get capability files unless they carry meaningful user-facing behavior on their own.
 - **Layouts.** A layout that adds user-facing capabilities of its own (e.g., a global search bar in `layout.tsx`) gets a `capabilities.md` next to the layout file. A layout that only renders its children does not.

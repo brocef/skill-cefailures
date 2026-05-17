@@ -25,7 +25,7 @@ Every brainstorm, spec, plan, or briefing for user-facing work opens with a `## 
 | `docs/format.md` | The skeleton, conventions, and reference style for a single capability and a single file. |
 | `docs/statuses.md` | The three-status taxonomy (`Supported`, `Missing`, `Omitted`) with body-content rules and the rejected-fourth-status note. |
 | `docs/planning-gate.md` | The `## Capability changes` requirement for plans and specs, including the bug-fix and discovery-fix exceptions. |
-| `docs/broker-protocol.md` | How per-repo agents query the orchestrator for product-layer wording, and the broker-unavailable fallback. |
+| `docs/product-layer-coordination.md` | How per-repo agents query the orchestrator for product-layer wording, and the coordination-unavailable fallback. Transport-agnostic. |
 | `docs/route-edge-cases.md` | Server route enumeration: route groups, infra files, layouts, dynamic segments, catch-alls, parallel and intercepting routes, multi-method API routes, middleware. |
 | `docs/exemplars/server-user-route.md` | Fully-written exemplar for a server user route (`/login`-style). |
 | `docs/exemplars/server-api-endpoint.md` | Fully-written exemplar for a server API endpoint (multi-method case). |
@@ -35,7 +35,7 @@ Every brainstorm, spec, plan, or briefing for user-facing work opens with a `## 
 ## Two-layer model (one-line summary)
 
 - **Per-repo layer.** `capabilities.md` co-located with code in each consuming repo. Per-repo files do not link to or reference anything outside their repo.
-- **Shared product layer.** `proposit-orchestration/docs/capabilities/<area>.md`, owned by the orchestrator. Per-repo agents do not read this layer; the orchestrator relays product-layer wording via the broker (see `docs/broker-protocol.md`).
+- **Shared product layer.** `proposit-orchestration/docs/capabilities/<area>.md`, owned by the orchestrator. Per-repo agents do not read this layer; the orchestrator relays product-layer wording on request (see `docs/product-layer-coordination.md`).
 
 ## File format (one-line summary)
 

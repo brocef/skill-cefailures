@@ -34,7 +34,7 @@ One `## <Capability>` heading per discrete user action. Use natural-language imp
 
 ## Reference style
 
-Same-repo only. A `capabilities.md` may reference another `capabilities.md` *within the same repo* using `<path>#<heading-slug>`; cross-repo references are not permitted (see `docs/broker-protocol.md` for how cross-repo coordination happens instead). The heading slug is the same one GitHub-flavored markdown renders: lowercase, words joined by hyphens, punctuation stripped.
+Same-repo only. A `capabilities.md` may reference another `capabilities.md` *within the same repo* using `<path>#<heading-slug>`; cross-repo references are not permitted (see `docs/product-layer-coordination.md` for how cross-repo coordination happens instead). The heading slug is the same one GitHub-flavored markdown renders: lowercase, words joined by hyphens, punctuation stripped.
 
 Example: `src/screens/LoginScreen/capabilities.md#sign-in-with-google` references the "Sign in with Google" capability in the LoginScreen file.
 
