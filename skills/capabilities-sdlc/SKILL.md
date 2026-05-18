@@ -17,6 +17,10 @@ Documents the conventions for the Proposit capabilities-SDLC: how user-facing ca
 
 Every brainstorm, spec, plan, or briefing for user-facing work opens with a `## Capability changes` section as its first content section. See `docs/planning-gate.md` for the full rule, including the bug-fix carve-outs (regression vs. discovery vs. capability-change-disguised-as-bug-fix).
 
+## The contradiction-detection rule (one-line summary)
+
+Before completing a code change that affects user-facing behavior, check whether the change contradicts any existing `capabilities.md` entry — by status, by described scope, or by listed conditions. If it does, **surface the contradiction to the user** and ask whether to update the `capabilities.md` to match the new behavior or revise the change to fit the existing entry. **Do not silently update the `capabilities.md`.** See `docs/contradiction-detection.md` for the full rule, contradiction shapes, and the surfacing template.
+
 ## Reference table
 
 | Doc | Scope |
@@ -25,6 +29,7 @@ Every brainstorm, spec, plan, or briefing for user-facing work opens with a `## 
 | `docs/format.md` | The skeleton, conventions, and reference style for a single capability and a single file. |
 | `docs/statuses.md` | The three-status taxonomy (`Supported`, `Missing`, `Omitted`) with body-content rules and the rejected-fourth-status note. |
 | `docs/planning-gate.md` | The `## Capability changes` requirement for plans and specs, including the bug-fix and discovery-fix exceptions. |
+| `docs/contradiction-detection.md` | The at-the-moment-of-change rule: detect contradictions between proposed code changes and existing `capabilities.md` entries, surface them, never silently reconcile. |
 | `docs/product-layer-coordination.md` | How per-repo agents query the orchestrator for product-layer wording, and the coordination-unavailable fallback. Transport-agnostic. |
 | `docs/route-edge-cases.md` | Server route enumeration: route groups, infra files, layouts, dynamic segments, catch-alls, parallel and intercepting routes, multi-method API routes, middleware. |
 | `docs/exemplars/server-user-route.md` | Fully-written exemplar for a server user route (`/login`-style). |
