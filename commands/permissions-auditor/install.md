@@ -1,3 +1,7 @@
+---
+description: Install the permission-request logging hook so future permission prompts are captured into ~/.claude/permissions-auditor/permission-requests.log for later triage.
+---
+
 # Install Permission Logging Hook
 
 ## Steps
@@ -8,7 +12,7 @@
    - If it writes to the old path, replace it with the new version
 
 2. **Copy the hook script:**
-   - Source: `scripts/log-permission-requests.sh` (relative to this repo's root — three directories up from this file)
+   - Source: `scripts/log-permission-requests.sh` (relative to the plugin's repo root — two directories up from this command file)
    - Destination: `~/.claude/hooks/log-permission-requests.sh`
    - Make it executable: `chmod +x ~/.claude/hooks/log-permission-requests.sh`
 
@@ -45,4 +49,4 @@ After installation, confirm:
 - `~/.claude/settings.json` has the hook registered under `hooks.PermissionRequest`
 - `~/.claude/permissions-auditor/` directory exists
 
-Tell the user: "Hook installed. Permission requests will now be logged to `~/.claude/permissions-auditor/permission-requests.log`. Use this skill again to analyze the log once you've accumulated some data."
+Tell the user: "Hook installed. Permission requests will now be logged to `~/.claude/permissions-auditor/permission-requests.log`. Run `/skill-cefailures:permissions-auditor:analyze` once you've accumulated some data."

@@ -5,7 +5,7 @@ description: Use when completing a coding task and deciding whether documentatio
 
 # Documentation Sync
 
-After completing code changes, check the project's `CLAUDE.md` for a `## Documentation Sync` section and evaluate each listed file's trigger before reporting the task complete. If the section is missing, ask the user if they'd like to add one (see `docs/setup.md`).
+After completing code changes, check the project's `CLAUDE.md` for a `## Documentation Sync` section and evaluate each listed file's trigger before reporting the task complete. If the section is missing, ask the user if they'd like to add one — run `/skill-cefailures:documentation-sync:setup` to walk them through it.
 
 ## The Documentation Sync Section
 
@@ -332,8 +332,3 @@ These are the slips that recur across sessions; rules already covered in prose a
 | Silently rotating `upcoming.md` during version cross-check | Tell the user what you found and confirm before renaming |
 | Acting on a migration without explicit user agreement | The migration table lists *offers* — never execute one unilaterally |
 
-## Subskills
-
-| Doc | Scope |
-|-----|-------|
-| `docs/setup.md` | Creating a Documentation Sync section from scratch when a project doesn't have one (only loaded when the user asks to set one up) |

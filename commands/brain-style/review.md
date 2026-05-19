@@ -1,6 +1,10 @@
+---
+description: Brain-style architecture review — surface decomposition, file-size, and redundancy opportunities for a file, function, class, or other code unit.
+---
+
 # Brain Review — Design Architecture
 
-When the user asks for a "brain-review" of a file, function, class, or other code unit, review the code against the guidelines below and report findings with specific, actionable suggestions.
+Review the target code unit identified by the user (file, function, class, etc.) against the guidelines below and report findings with specific, actionable suggestions. If the user named a target, use it. If they did not, ask which file/function/class they want reviewed.
 
 ## Guidelines
 

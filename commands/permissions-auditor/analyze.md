@@ -1,14 +1,18 @@
+---
+description: Analyze logged permission requests, present recurring patterns, and triage them into allow/deny/manual-review rules in ~/.claude/settings.json.
+---
+
 # Analyze & Triage Permission Requests
 
 ## Prerequisites
 
-- The permission logging hook must be installed (see `docs/install.md`)
+- The permission logging hook must be installed (run `/skill-cefailures:permissions-auditor:install` first)
 - The log file at `~/.claude/permissions-auditor/permission-requests.log` should have accumulated entries
 
 ## Steps
 
 1. **Locate the analysis script:**
-   - This file lives at `skills/permissions-auditor/docs/analyze.md` — the repo root is three directories up from this file
+   - This command file lives at `commands/permissions-auditor/analyze.md` — the plugin's repo root is two directories up from this file
    - The script is at `<repo-root>/scripts/analyze_permissions.py`
 
 2. **Run the analysis:**

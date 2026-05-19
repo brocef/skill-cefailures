@@ -86,15 +86,18 @@ Optional flags: `--model <id>` overrides the per-backend default model; `--force
   plugin.json                 # Plugin manifest (name, version, skills/commands paths)
   marketplace.json            # Marketplace listing
 commands/
-  broker-mode.md              # /broker-mode slash command
+  brain-style/                # /skill-cefailures:brain-style:* commands
+  broker/                     # /skill-cefailures:broker:* commands
+  documentation-sync/         # /skill-cefailures:documentation-sync:* commands
+  permissions-auditor/        # /skill-cefailures:permissions-auditor:* commands
 skills/                       # Eight skills, one directory each
   brain-style/
   broker/
+  capabilities-sdlc/
   documentation-sync/
   elkjs/
   ieee/
   knex/
-  permissions-auditor/
   typebox/
   <name>/
     SKILL.md                  # Routing layer (loaded on invocation)
@@ -127,28 +130,37 @@ requirements.txt
 
 | Skill | Purpose |
 |-------|---------|
-| `brain-style` | Code style preferences across naming, types, CLAUDE.md structure, and architectural review. |
-| `broker` | Explicit-invocation-only DM/inbox CLI for multi-agent Claude Code coordination. See [Message Broker](#message-broker) below. |
+| `brain-style` | Code style preferences across TypeScript naming and types. |
+| `broker` | Namespace for the broker DM/inbox CLI's shared reference docs (rules, signals, authority). All workflows are slash commands — see [Message Broker](#message-broker) below. |
+| `capabilities-sdlc` | User-capability documentation conventions, planning gate, and contradiction-detection rule for Proposit-style `capabilities.md` files. |
 | `documentation-sync` | Evaluate trigger-based documentation update rules from a project's `CLAUDE.md` after code changes. |
 | `elkjs` | Automatic graph layout via the elkjs JavaScript port of the Eclipse Layout Kernel. |
 | `ieee` | IEEE editorial style, citation/reference formatting, mathematical notation, and TypeBox schema derivation for IEEE reference types. |
 | `knex` | Knex.js setup, configuration, connection behavior, and SQL dialect handling. |
-| `permissions-auditor` | Analyze Claude Code permission request logs and triage recurring patterns into allow/deny rules. Pairs with `scripts/log-permission-requests.sh`. |
 | `typebox` | Runtime type system with JSON Schema definitions that infer to TypeScript types. |
 
 ## Slash Commands
 
-This plugin ships slash commands under `commands/` (registered via `plugin.json`):
+This plugin ships slash commands under `commands/` (registered via `plugin.json`). Commands are for workflows that are *purely* user-explicit — they replace the auto-trigger metadata of skills, which keeps skill descriptions narrow and saves session context.
 
 | Command | Purpose |
 |---------|---------|
-| `/broker-mode` | Explicitly enter Broker Mode: a foreground read-execute-respond loop, one iteration per inbox batch. See [Message Broker](#message-broker). |
+| `/skill-cefailures:brain-style:review` | Architecture review of a file/function/class against decomposition, file-size, and redundancy guidelines. |
+| `/skill-cefailures:brain-style:claude-md` | Review or author a project's `CLAUDE.md` against the minimal-routing principle and required-sections checklist. |
+| `/skill-cefailures:documentation-sync:setup` | Walk a project through adding a `## Documentation Sync` section to its `CLAUDE.md` and create any tracked files that don't yet exist. |
+| `/skill-cefailures:permissions-auditor:install` | Install the permission-logging hook so future permission prompts are captured for later triage. |
+| `/skill-cefailures:permissions-auditor:analyze` | Analyze logged permission requests, present recurring patterns, and triage them into allow/deny/manual-review rules. |
+| `/skill-cefailures:broker:setup` | First-time broker setup: symlink the CLI, start the server, confirm identity, register the `Bash(broker:*)` permission. |
+| `/skill-cefailures:broker:mode` | Enter Broker Mode — the foreground read-execute-respond loop, one iteration per inbox batch. |
+| `/skill-cefailures:broker:send` | Send a broker DM, broadcast, or reply-all. |
+| `/skill-cefailures:broker:read` | Drain the inbox (`broker recv`) or peek at history (`broker history`). |
+| `/skill-cefailures:broker:doctor` | Diagnose broker setup — a 5-point health check covering `$PATH`, CLI symlink, server reachability, permission, and version drift. |
 
 ## Message Broker
 
 A direct-message bus that lets Claude Code agents (and a human) talk to each other in real time. Every participant has a persistent identity and a per-identity inbox on disk, so messages survive restarts and can be addressed without any kind of conversation/room setup.
 
-The broker skill and `/broker-mode` command are intentionally opt-in. Agents should load broker instructions only when the user explicitly names broker, asks to use Broker Mode, or asks to send/read broker DMs.
+Broker commands are intentionally opt-in. The `broker` skill is reduced to a namespace stub — its only purpose is to host the shared reference docs under `skills/broker/docs/` that the broker commands read. Agents should load broker instructions only when the user runs one of the `/skill-cefailures:broker:*` commands.
 
 ### Architecture
 
@@ -176,19 +188,18 @@ A single broker server runs as a Unix-domain-socket hub on the host. Every parti
 The DM model has no room/membership concept. Roles are conventions on top of identities, plus a small server-enforced reservation:
 
 - **User (`user`).** The default identity inside `broker server`. The human running the server interacts with the broker through the in-process REPL — sending DMs, broadcasting, reading their inbox. No token required.
-- **Orchestrator (`@orchestrator/<scope>`).** A namespaced coordinator identity. Multiple coordinators can coexist on one host (one per scope, e.g. `@orchestrator/myorg`, `@orchestrator/team-frontend`). The name is a convention, not an authentication boundary — the broker does not verify identity claims for any non-`BROADCAST` identity. Agents that load the broker skill weight DMs by sender identity per the authority hierarchy in `skills/broker/docs/authority.md`.
+- **Orchestrator (`@orchestrator/<scope>`).** A namespaced coordinator identity. Multiple coordinators can coexist on one host (one per scope, e.g. `@orchestrator/myorg`, `@orchestrator/team-frontend`). The name is a convention, not an authentication boundary — the broker does not verify identity claims for any non-`BROADCAST` identity. Agents running broker commands weight DMs by sender identity per the authority hierarchy in `skills/broker/docs/authority.md`.
 - **Individual agents.** Each Claude Code instance derives its identity from its workspace: the nearest `package.json` `name`, falling back to `<org>/<repo>` from `git remote origin`. The agent calls `broker whoami` to see what identity it will use; senders compute the same string to address it. Agents can also pin a workspace's identity explicitly with `broker init` (writes `.broker/config.json`).
 - **`human` and `BROADCAST`.** `human` is a conventional reserved identity for direct human-as-DM-recipient flows (no longer token-gated). `BROADCAST` is permanently reserved as the fan-out pseudo-recipient and cannot be claimed.
 
-Agents loading the broker skill apply an authority hierarchy when handling conflicting DMs: `user` > `@orchestrator/<your-scope>` > peer agents. See `skills/broker/docs/authority.md` for the full rule.
+Agents running broker commands apply an authority hierarchy when handling conflicting DMs: `user` > `@orchestrator/<your-scope>` > peer agents. See `skills/broker/docs/authority.md` for the full rule.
 
 ### Quick start
 
-The fastest path is to let Claude do the setup. Once the plugin is installed, ask Claude:
+The fastest path is to let Claude do the setup. Once the plugin is installed, run either:
 
-> "check broker setup"
-
-This runs the broker health check (`skills/broker/docs/health-check.md`) — a 5-point diagnostic of `~/.local/bin` on `$PATH`, the `broker` symlink, server reachability, the `Bash(broker:*)` permission, and version drift between the running broker and the latest cached plugin. Three of the fixes (symlink, permission, version match) Claude can apply for you with your confirmation; PATH and starting the server are user actions.
+- `/skill-cefailures:broker:setup` — first-time install walkthrough.
+- `/skill-cefailures:broker:doctor` — verify an existing install via a 5-point health check covering `~/.local/bin` on `$PATH`, the `broker` symlink, server reachability, the `Bash(broker:*)` permission, and version drift between the running broker and the latest cached plugin. Three of the fixes (symlink, permission, version match) Claude can apply for you with your confirmation; PATH and starting the server are user actions.
 
 If you'd rather wire it up by hand:
 
@@ -244,7 +255,7 @@ broker recv --burst-window 5
 
 ### Usage from an AI agent's perspective
 
-When the user explicitly asks for broker coordination, load `skills/broker/SKILL.md`. The canonical waiting pattern is **Broker Mode** — entered via `/broker-mode` — which runs an explicit foreground read-execute-respond loop, one iteration per inbox batch. Outside Broker Mode, agents use `broker recv` directly for a "send-and-wait" one-shot:
+When the user explicitly asks for broker coordination, they run one of the `/skill-cefailures:broker:*` commands. The canonical waiting pattern is **Broker Mode** — entered via `/skill-cefailures:broker:mode` — which runs an explicit foreground read-execute-respond loop, one iteration per inbox batch. Outside Broker Mode, agents use `broker recv` directly for a "send-and-wait" one-shot:
 
 ```bash
 # Agent inside the projectA-server workspace
@@ -266,7 +277,7 @@ broker recv --burst-window 5
 broker reply-all --to-message "$MID" "DECISION: validate(schema) wins."
 ```
 
-An `@orchestrator/<scope>` does the same thing in reverse: it dispatches work, then watches its inbox for status updates from every agent it spawned. Run `/broker-mode` and the orchestrator picks up every reply, broadcast, and reply-all that includes it — one batch per loop iteration, no per-room follow, no fan-in bookkeeping:
+An `@orchestrator/<scope>` does the same thing in reverse: it dispatches work, then watches its inbox for status updates from every agent it spawned. Run `/skill-cefailures:broker:mode` and the orchestrator picks up every reply, broadcast, and reply-all that includes it — one batch per loop iteration, no per-room follow, no fan-in bookkeeping:
 
 ```bash
 broker server --identity "@orchestrator/<scope>"   # in an orchestrator terminal
@@ -293,9 +304,9 @@ broker> send "@myorg/projectA" "TASK: bump shared to v1.2.3"
 | `broker clients` | List identities currently connected to the broker |
 | `broker --version` | Print the broker version (also `-V`) |
 
-The canonical agent-side pattern is `/broker-mode`, which runs the read-execute-respond loop using `broker recv` under the hood. See `skills/broker/SKILL.md`'s Broker Mode section.
+The canonical agent-side pattern is `/skill-cefailures:broker:mode`, which runs the read-execute-respond loop using `broker recv` under the hood. The Broker Mode procedure lives in `skills/broker/docs/patterns.md`.
 
-For full pattern and troubleshooting docs, see `skills/broker/SKILL.md` and the files in `skills/broker/docs/`.
+For full pattern and troubleshooting reference, see the files in `skills/broker/docs/` (`patterns.md`, `critical-rules.md`, `signals.md`, `authority.md`, `troubleshooting.md`, `usage.md`).
 
 ## How Skills Work
 

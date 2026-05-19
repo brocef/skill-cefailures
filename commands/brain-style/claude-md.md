@@ -1,4 +1,10 @@
+---
+description: Brain-style CLAUDE.md review or authoring — checks for required sections, applies the minimal-routing principle, and flags common bloat.
+---
+
 # CLAUDE.md Style
+
+Review the project's `CLAUDE.md` (or help author a new one) against the conventions below. If the user has not pointed to a target file, ask which `CLAUDE.md` they want reviewed.
 
 ## Core Principle
 
@@ -33,7 +39,7 @@ Commonly used project-specific commands. Omit this section only if the project h
 
 ### Coding Conventions
 
-Naming rules, patterns, and idioms specific to the project. If the project uses a language covered by this skill's sub-styles (e.g. TypeScript — see `docs/typescript.md`), auto-populate this section with the relevant conventions from that sub-style.
+Naming rules, patterns, and idioms specific to the project. If the project uses a language covered by the `brain-style` skill (e.g. TypeScript — see `skills/brain-style/docs/typescript.md` in this plugin), auto-populate this section with the relevant conventions from that sub-style.
 
 ```markdown
 ## Coding Conventions
@@ -45,7 +51,7 @@ Naming rules, patterns, and idioms specific to the project. If the project uses 
 
 ### Documentation Sync
 
-Trigger-based documentation update rules used by the `documentation-sync` skill. See that skill's `docs/setup.md` for how to create this section from scratch.
+Trigger-based documentation update rules used by the `documentation-sync` skill. See `/skill-cefailures:documentation-sync:setup` for how to create this section from scratch.
 
 ```markdown
 ## Documentation Sync

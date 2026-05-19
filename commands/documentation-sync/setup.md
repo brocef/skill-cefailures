@@ -1,15 +1,19 @@
-# Setting Up Documentation Sync
+---
+description: Set up a Documentation Sync section in the project's CLAUDE.md, then create any tracked files (and parent directories) that don't yet exist.
+---
 
-If a project's CLAUDE.md has no `## Documentation Sync` section, ask the user: "Would you like to set up a Documentation Sync section in your CLAUDE.md?"
+# Set Up Documentation Sync
+
+If the project's `CLAUDE.md` has no `## Documentation Sync` section, ask the user: "Would you like to set up a Documentation Sync section in your CLAUDE.md?"
 
 If they agree, help them fill it out by asking:
 1. **Which files** should be kept in sync with code changes? (e.g., README.md, CHANGELOG.md, guides)
-2. **What trigger** applies to each file? Offer the pre-defined triggers from the SKILL.md "Trigger Reference" table.
+2. **What trigger** applies to each file? Offer the pre-defined triggers from the "Trigger Reference" table in the `skill-cefailures:documentation-sync` skill's SKILL.md.
 3. **What description** should guide how updates are written for each file?
 
-Then add the section to their CLAUDE.md in the format shown in the SKILL.md "The Documentation Sync Section" example. **Always include the opening directive line** that tells Claude to invoke the `skill-cefailures:documentation-sync` skill — without it, future sessions may see the file list but skip the trigger-evaluation logic.
+Then add the section to their CLAUDE.md in the format shown under "The Documentation Sync Section" in that SKILL.md. **Always include the opening directive line** that tells Claude to invoke the `skill-cefailures:documentation-sync` skill — without it, future sessions may see the file list but skip the trigger-evaluation logic.
 
-### Create Tracked Files (and Folders) That Don't Yet Exist
+## Create Tracked Files (and Folders) That Don't Yet Exist
 
 After adding the section, create any tracked files — **and their parent directories** — that don't already exist so the agent has somewhere to write on the first trigger fire. Use the conventional initial content for each:
 
