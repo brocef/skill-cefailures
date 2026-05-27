@@ -91,6 +91,7 @@ commands/
   documentation-sync/         # /skill-cefailures:documentation-sync:* commands
   permissions-auditor/        # /skill-cefailures:permissions-auditor:* commands
   process-inbox.md            # /skill-cefailures:process-inbox
+  process-inbox-initiative.md # /skill-cefailures:process-inbox-initiative (orchestrator-only)
 skills/                       # Eight skills, one directory each
   brain-style/
   broker/
@@ -151,6 +152,7 @@ This plugin ships slash commands under `commands/` (registered via `plugin.json`
 | `/skill-cefailures:documentation-sync:setup` | Walk a project through adding a `## Documentation Sync` section to its `CLAUDE.md` and create any tracked files that don't yet exist. |
 | `/skill-cefailures:documentation-sync:cut-version` | Cut a new version: choose the bump size, update every version-bearing file, rotate `upcoming.md` to `v{version}.md`, commit, and tag. |
 | `/skill-cefailures:process-inbox` | Pick a request document from `docs/inbox/` (loose file or folder bundle), read it plus any supporting artifacts, route it via superpowers if installed, then move the source into `docs/inbox/.archive/`. |
+| `/skill-cefailures:process-inbox-initiative` | Orchestrator-only. Process an org-root inbox doc as a multi-repo initiative: capabilities-first, then research → architect specs → dual review → parallel dev → per-repo integration. Builds on `process-inbox`. |
 | `/skill-cefailures:permissions-auditor:install` | Install the permission-logging hook so future permission prompts are captured for later triage. |
 | `/skill-cefailures:permissions-auditor:analyze` | Analyze logged permission requests, present recurring patterns, and triage them into allow/deny/manual-review rules. |
 | `/skill-cefailures:broker:setup` | First-time broker setup: symlink the CLI, start the server, confirm identity, register the `Bash(broker:*)` permission. |
