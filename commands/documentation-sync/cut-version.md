@@ -16,6 +16,8 @@ Use a pragmatic, size-of-change framing rather than strict SemVer — bumps are 
 | `minor` | Medium-sized change sets — substantial feature work, notable refactors, or related groups of changes shipped together. May include *some* reverse-incompatible changes when those are scoped and intentional. |
 | `major` | Extremely large change sets — sweeping rewrites, broad reverse-incompatible work, or dropping support for a previously-supported platform/version. **Only when explicitly instructed by the user.** |
 
+If the user selected "Micro version bump" from the `documentation-sync` skill's offer list, treat that as `patch` for ecosystems that use patch/minor/major terminology.
+
 A single localized breaking change inside an otherwise medium-sized set of work is fine in a `minor`; a broad pattern of breaking changes across the codebase is a `major`. If you're unsure where a change set lands, ask the user before bumping.
 
 ## Step 1: Bump the version

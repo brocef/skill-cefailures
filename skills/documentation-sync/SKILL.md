@@ -79,7 +79,15 @@ These workflows are deeper than the core trigger-evaluation loop and live as sub
 
 ## When to offer a version cut
 
-After a major set of changes has settled — a feature, a bug fix, a refactor, a docs sweep, or any combination the user clearly considers "done" — ask the user if they'd like to cut a new version. Don't offer mid-flow, and don't offer for trivial in-isolation edits. Don't bump the version yourself unless asked; phrase it as a question first ("Want me to cut v1.4.0 for this?"). When the user agrees, run `/skill-cefailures:documentation-sync:cut-version`.
+After a major set of changes has settled — a feature, a bug fix, a refactor, a docs sweep, or any combination the user clearly considers "done" — present the user with these options:
+
+1. Micro version bump
+2. Minor version bump
+3. Major version bump
+4. No version bump, but update the upcoming.md docs
+5. No version bump with no documentation updates
+
+Don't offer mid-flow, and don't offer for trivial in-isolation edits. Don't bump the version yourself unless the user selects a version-bump option. When the user selects a version-bump option, run `/skill-cefailures:documentation-sync:cut-version` with that bump size.
 
 ## Common Mistakes
 
