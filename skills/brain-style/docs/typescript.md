@@ -142,6 +142,16 @@ const id = value as unknown as string
 // where a PR or @ts-expect-error with a tracking issue is not viable
 ```
 
+### Suppression comments require justification
+
+If there is genuinely no alternative to suppressing a lint warning, you **must** add a comment explaining why the suppression is necessary immediately above the linting suppression comment.
+
+```typescript
+// Necessary because the third-party package exposes an incorrect callback type.
+// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+registerCallback(untypedCallback)
+```
+
 ### When casting is acceptable
 
 A cast is acceptable **only** when all of the following are true:
