@@ -1,15 +1,20 @@
 ---
-description: Orchestrator-only. Process an org-root inbox doc as a multi-repo initiative — capabilities-first, then research → architect specs → dual review → parallel dev → integration. Builds on process-inbox.
+description: Orchestrator-only. Process an org-root inbox doc as a multi-repo initiative — capabilities-first, then one repo agent per affected repo coordinates research, review, implementation, and integration. Builds on process-inbox.
 ---
 
 # Process Inbox — Initiative
 
 The workspace-root orchestrator drives multi-repo feature work as a single
-**initiative**: capabilities are marked first, an architect plans the ordering and
-authors per-slice specs (outsourcing research to per-repo researchers), each spec is
-dual-reviewed and human-checked, then developers implement in parallel worktrees and
-the work is integrated per repo. This command codifies that recipe so it no longer
-has to be pasted into each inbox document by hand.
+**initiative**: capabilities are marked first, then the orchestrator spawns exactly
+one durable agent per affected repository. Each repo agent owns repo-local research,
+spec feedback, implementation, code review, and integration support for that repo,
+using subagents for research and code review rather than standing top-level
+researcher or reviewer agents. This command codifies that recipe so it no longer has
+to be pasted into each inbox document by hand.
+
+Top-level agent budget: **one spawned agent per affected repo**. The orchestrator may
+coordinate those repo agents in parallel, but it must not spawn separate top-level
+researcher, reviewer, architect, or developer agents for the same repository.
 
 ## 0. Scope guard
 
@@ -48,14 +53,14 @@ implementation:
 - The orchestrator commits the **product-layer** `docs/capabilities/<area>.md` changes
   at the org root in their own commit (this is in orchestrator scope — the org-root
   `proposit-orchestration` repo).
-- **Early caps-only dispatch:** because the orchestrator does not commit into child
-  repos, dispatch a lightweight per-repo agent into each affected repo to commit that
-  repo's `capabilities.md` (**Status: Missing**, spec reference pending) as a
-  standalone commit on `main`, before the architect runs. This is a deliberately
-  briefing-less micro-dispatch — it precedes the overview spec and the per-repo
-  briefings, so there is no briefing for it to read; give it the full single-commit
-  instruction inline. It still honors the child-repo "commit-to-`main` handoff"
-  convention from the org `CLAUDE.md`.
+- **Early repo-agent dispatch:** because the orchestrator does not commit into child
+  repos, spawn the single durable repo agent for each affected repo as soon as that
+  repo is known. Its first job is to commit that repo's `capabilities.md` (**Status:
+  Missing**, spec reference pending) as a standalone commit on `main`. This precedes
+  the overview spec and the per-repo briefing, so give the agent the full single-commit
+  instruction inline and tell it to remain available for the rest of the initiative.
+  It still honors the child-repo "commit-to-`main` handoff" convention from the org
+  `CLAUDE.md`.
 
 ## 3. Overview spec + ledger, then archive
 
@@ -75,58 +80,67 @@ implementation:
 ## 4. Research + architecture
 
 - Determine the affected repos from the capabilities cross-check (step 2).
-- **The orchestrator spawns** one **code researcher per affected repo** (read-only, on
-  standby) and **the code architect**. The architect does *not* spawn agents — it only
-  queries the standing researchers via `SendMessage`.
-  - If an affected repo has no `<repo>-researcher.md` briefing yet (e.g.
-    `proposit-mobile` is not yet formalized — see the org `CLAUDE.md` "Team agents and
-    review cadence" section), author one per the standing
-    `docs/agents/<repo>-researcher.md` pattern before dispatch, or surface the gap to
-    the user.
-- The architect then:
-  - outsources all research to the researchers via `SendMessage`;
+- Ensure exactly one top-level repo agent is running for each affected repo. If step 2
+  already dispatched that repo agent for the capabilities commit, reuse it; do not
+  spawn a researcher, reviewer, architect, or developer as a separate top-level agent
+  for that repo.
+- The orchestrator acts as the cross-repo architect:
+  - sends repo-scoped research questions to the relevant repo agent via `SendMessage`;
+  - instructs each repo agent to use research subagents for read-only investigation
+    where that helps, then return a synthesized answer with file references,
+    constraints, and risks;
   - determines the implementation order and the inter-repo dependency DAG;
   - authors per-slice **implementation specs** (using `writing-plans` for
     spec-authorship guidance; `brainstorming` only if the scope is ill-defined).
-    Spec-level only — **no plans, no code**. The architect is read + spec-write only.
+    Spec-level only — **no implementation plans, no code** during this phase.
 
 ## 5. Spec review gate (per spec)
 
-- After each spec is finished, spawn the per-repo **reviewer** to **dual-review** it.
-  The reviewer briefings (`docs/agents/<repo>-reviewer.md`) define the dual-review
-  strategy (a non-Claude model pass plus a Claude subagent pass, synthesized).
+- After each spec is finished, send it to the relevant repo agent for review. Do not
+  spawn a separate top-level reviewer.
+- The repo agent performs the review using subagents: run the repo's expected
+  dual-review strategy inside the agent boundary (for example, a non-Claude model pass
+  plus a Claude subagent pass, synthesized) and report actionable findings back to the
+  orchestrator.
 - Then the **user does the final human check** on the spec before any implementation
   begins.
 
 ## 6. Implementation
 
-- After spec review is complete, spawn **developer agents** (under the superpowers
-  plugin — TDD, systematic-debugging, and verification-before-completion are baseline).
-- Each developer runs `writing-plans` for its own task (spec → plan), then implements.
-- If parallel work is possible: one developer per parallel task, each in a **distinct
-  worktree** (`using-git-worktrees` / `dispatching-parallel-agents`).
-- Each developer's **first commit** on its branch updates that repo's
+- After spec review and the human check are complete, the existing repo agent
+  implements the repo's approved slices under the superpowers plugin. TDD,
+  systematic-debugging, and verification-before-completion are baseline.
+- Each repo agent runs `writing-plans` for its own repo work (spec → plan), then
+  implements. It may coordinate internal subagents only within its own session; the
+  orchestrator still has exactly one top-level agent per repo.
+- Cross-repo parallelism is one repo agent per affected repo. If a single repo has
+  independent implementation slices, the repo agent manages that repo's local
+  worktrees and sequencing (`using-git-worktrees` / `dispatching-parallel-agents`) and
+  reports progress through the same repo-agent channel.
+- The repo agent's **first implementation-branch commit** updates that repo's
   `capabilities.md` — **reconciling against** the step-2 caps commit already present on
   the branch base (filling in the spec reference, flipping status as work lands), not
-  re-creating the entry. The dev's briefing must note that the step-2 commit already
+  re-creating the entry. Its briefing must note that the step-2 commit already
   happened.
 
 ## 7. Integration
 
-- The architect authors the **merge plan** and combines the parallel worktrees
-  *within each affected repo* into that repo's single integration branch for the
-  initiative. The orchestrator coordinates worktree lifecycle and the per-repo
-  branch/PR.
+- The orchestrator authors the cross-repo **merge plan**. Each repo agent combines any
+  local worktrees *within its repo* into that repo's single integration branch for the
+  initiative. The orchestrator coordinates the per-repo branch/PR handoff.
 - **On "a single branch":** git worktrees are per-repo, so "a single branch
   representing the totality of all work" is realized as **one integration branch per
   affected repo**. Cross-repo totality is tracked by the overview spec and the
-  initiatives ledger, not by a single cross-repo branch. (The architect briefing's
-  "one integration branch" is per-repo; this command makes that explicit for the
-  multi-repo case.)
+  initiatives ledger, not by a single cross-repo branch.
 
-## Throughout: briefings + ledger
+## Throughout: repo-agent briefings + ledger
 
 - Per-repo briefings (`<repo>/docs/superpowers/briefings/<initiative>-<repo>-agenda.md`)
-  are the entry points researchers and developers read first.
+  are the entry points repo agents read first once the overview spec exists. Early
+  caps-only work is the only briefing-less repo-agent task.
+- Briefings must name the single-agent constraint explicitly: the repo agent owns
+  research, review, implementation, and integration support for that repository, and
+  uses subagents for research and code review instead of requesting separate
+  top-level agents.
 - Update the initiatives ledger at each milestone: overview spec written, each spec
   reviewed/approved, each slice merged, blockers raised or cleared.
