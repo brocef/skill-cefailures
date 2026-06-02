@@ -17,6 +17,15 @@ In Claude Code, run:
 
 Skills are available as `/skill-cefailures:<skill-name>` (e.g. `/skill-cefailures:ieee`).
 
+In Codex, add the marketplace and install the plugin:
+
+```bash
+codex plugin marketplace add brocef/skill-cefailures --ref main
+codex plugin add skill-cefailures@skill-cefailures
+```
+
+Skills are available as `skill-cefailures:<skill-name>` in Codex sessions after starting a new thread.
+
 ### Local development
 
 If you've cloned the repo, you can load it directly:
@@ -82,9 +91,13 @@ Optional flags: `--model <id>` overrides the per-backend default model; `--force
 ## Repo Structure
 
 ```
+.agents/plugins/
+  marketplace.json            # Codex marketplace listing
 .claude-plugin/
   plugin.json                 # Plugin manifest (name, version, skills/commands paths)
   marketplace.json            # Marketplace listing
+.codex-plugin/
+  plugin.json                 # Codex plugin manifest
 commands/
   brain-style/                # /skill-cefailures:brain-style:* commands
   broker/                     # /skill-cefailures:broker:* commands
@@ -105,6 +118,8 @@ skills/                       # Eight skills, one directory each
     SKILL.md                  # Routing layer (loaded on invocation)
     docs/
       <topic>.md              # Detailed reference (read on demand)
+plugins/
+  skill-cefailures -> ..      # Codex marketplace pointer to the repo-root plugin
 scripts/
   create_skill.py             # Generate skill from URL
   install_skill.py            # Symlink skills to ~/.claude/skills/ and/or ~/.codex/skills/
