@@ -34,35 +34,6 @@ If you've cloned the repo, you can load it directly:
 claude --plugin-dir /path/to/skill-cefailures
 ```
 
-### Via symlinks (legacy)
-
-```bash
-pip install -r requirements.txt
-
-# Install a single skill
-python scripts/install_skill.py knex
-
-# Install a single skill for Codex
-python scripts/install_skill.py --agent codex knex
-
-# Install all skills for both Claude Code and Codex
-python scripts/install_skill.py --agent all --all
-
-# Install all skills
-python scripts/install_skill.py --all
-
-# List available skills
-python scripts/install_skill.py --list
-
-# Uninstall a skill
-python scripts/install_skill.py --remove knex
-
-# Uninstall all skills
-python scripts/install_skill.py --remove-all
-```
-
-By default, this creates symlinks from `~/.claude/skills/<name>` to the skills in this repo. Use `--agent codex` to target `~/.codex/skills/<name>`, or `--agent all` to install both.
-
 ## Creating a new skill
 
 ```bash
@@ -105,7 +76,7 @@ commands/
   permissions-auditor/        # /skill-cefailures:permissions-auditor:* commands
   process-inbox.md            # /skill-cefailures:process-inbox
   process-inbox-initiative.md # /skill-cefailures:process-inbox-initiative (orchestrator-only)
-skills/                       # Eight skills, one directory each
+skills/                       # Nine skills, one directory each
   brain-style/
   broker/
   capabilities-sdlc/
@@ -113,6 +84,7 @@ skills/                       # Eight skills, one directory each
   elkjs/
   ieee/
   knex/
+  openai-api/
   typebox/
   <name>/
     SKILL.md                  # Routing layer (loaded on invocation)
@@ -122,7 +94,6 @@ plugins/
   skill-cefailures -> ..      # Codex marketplace pointer to the repo-root plugin
 scripts/
   create_skill.py             # Generate skill from URL
-  install_skill.py            # Symlink skills to ~/.claude/skills/ and/or ~/.codex/skills/
   analyze_permissions.py      # Analyze permission request logs
   apply_permissions.py        # Apply curated permission lists to settings.json
   log-permission-requests.sh  # Permission logging hook script
@@ -154,6 +125,7 @@ requirements.txt
 | `elkjs` | Automatic graph layout via the elkjs JavaScript port of the Eclipse Layout Kernel. |
 | `ieee` | IEEE editorial style, citation/reference formatting, mathematical notation, and TypeBox schema derivation for IEEE reference types. |
 | `knex` | Knex.js setup, configuration, connection behavior, and SQL dialect handling. |
+| `openai-api` | OpenAI API documentation index for guides and endpoint references. |
 | `typebox` | Runtime type system with JSON Schema definitions that infer to TypeScript types. |
 
 ## Slash Commands

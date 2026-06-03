@@ -31,7 +31,6 @@ A repository of agent skills for specific libraries, plus tooling to generate ne
 ```
 scripts/
   create_skill.py           # Generate a skill from a documentation URL
-  install_skill.py          # Symlink skills into ~/.claude/skills/ and/or ~/.codex/skills/
   analyze_permissions.py    # Analyze permission request logs
   log-permission-requests.sh # Permission logging hook script
 skills/
@@ -40,7 +39,6 @@ skills/
     docs/<topic>.md         # Detailed reference (read on demand)
 tests/
   test_create_skill.py
-  test_install_skill.py
   test_analyze_permissions.py
 docs/plans/                 # Design and implementation documents
 ```
@@ -60,16 +58,6 @@ python scripts/create_skill.py --name <lib> --url "<docs-url>"
 # Create a skill with a specific backend
 python scripts/create_skill.py --name <lib> --url "<url>" --backend sdk    # Anthropic API
 python scripts/create_skill.py --name <lib> --url "<url>" --backend openai # OpenAI API
-
-# List / install / remove skills for Claude Code (default)
-python scripts/install_skill.py --list
-python scripts/install_skill.py <name>        # install one
-python scripts/install_skill.py --all         # install all
-python scripts/install_skill.py --remove <name>
-
-# Target Codex instead, or both agents
-python scripts/install_skill.py --agent codex <name>
-python scripts/install_skill.py --agent all --all
 ```
 
 ## Code Conventions
@@ -85,4 +73,3 @@ python scripts/install_skill.py --agent all --all
 
 - **Multi-backend system:** `CliBackend` (subprocess to `claude` CLI), `AnthropicBackend` (Anthropic SDK), `OpenAIBackend` (OpenAI SDK). All inherit from `Backend` ABC.
 - **Skill format:** SKILL.md is a routing layer with frontmatter, overview, triggers, a reference table pointing to `docs/*.md`, and inlined key patterns. Docs files contain full API details and examples.
-- **Symlink installation:** `install_skill.py` symlinks into `~/.claude/skills/` by default, or into `~/.codex/skills/` with `--agent codex`, so repo updates propagate automatically.
