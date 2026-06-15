@@ -118,7 +118,7 @@ requirements.txt
 
 | Skill | Purpose |
 |-------|---------|
-| `brain-style` | Code style preferences across TypeScript naming and types. |
+| `brain-style` | Code style preferences across TypeScript naming, types, and resource-oriented HTTP route design. |
 | `broker` | Namespace for the broker DM/inbox CLI's shared reference docs (rules, signals, authority). All workflows are slash commands — see [Message Broker](#message-broker) below. |
 | `capabilities-sdlc` | User-capability documentation conventions, planning gate, and contradiction-detection rule for Proposit-style `capabilities.md` files. |
 | `documentation-sync` | Evaluate trigger-based documentation update rules from a project's `CLAUDE.md` after code changes. |

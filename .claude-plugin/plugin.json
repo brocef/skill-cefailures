@@ -1,6 +1,6 @@
 {
   "name": "skill-cefailures",
-  "version": "1.12.0",
+  "version": "1.13.0",
   "description": "Claude Code skills for specific libraries and patterns",
   "author": {
     "name": "Brian Cefali"
