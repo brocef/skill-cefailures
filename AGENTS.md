@@ -17,12 +17,14 @@ Before reporting any code change complete, invoke the `skill-cefailures:document
 
 ## Project Overview
 
-A repository of agent skills for specific libraries, plus tooling to generate new skills from online documentation. Each skill provides API/pattern knowledge and troubleshooting guidance to Claude Code and Codex.
+A Claude Code / Codex plugin shipping three surfaces: **skills** (library API/pattern knowledge + troubleshooting), **slash commands** (`commands/`), and the **message broker** (a socket-based DM/inbox CLI + MCP server for cross-agent coordination). It also includes tooling to generate new skills from online documentation. The README is the authoritative human-facing catalog — route to its **Skills**, **Slash Commands**, and **Message Broker** sections rather than restating them here.
+
+Installed skills (`skills/<name>/`): `brain-style`, `broker`, `capabilities-sdlc`, `documentation-sync`, `elkjs`, `ieee`, `knex`, `openai-api`, `typebox`. Slash commands (`commands/<group>/`): `brain-style`, `broker`, `documentation-sync`, `permissions-auditor`, plus top-level `process-inbox` / `process-inbox-initiative`.
 
 ## Tech Stack
 
 - **Language:** Python 3 (type hints throughout)
-- **Dependencies:** `httpx` and `html2text` (required), `anthropic` and `openai` (optional, per backend)
+- **Dependencies:** `httpx`, `html2text`, `mcp` (required — `mcp` powers the broker server); `anthropic` and `openai` (optional, per skill-generation backend)
 - **Tests:** pytest
 - **Package manager:** pip
 
@@ -30,17 +32,19 @@ A repository of agent skills for specific libraries, plus tooling to generate ne
 
 ```
 scripts/
-  create_skill.py           # Generate a skill from a documentation URL
-  analyze_permissions.py    # Analyze permission request logs
-  log-permission-requests.sh # Permission logging hook script
-skills/
-  <library>/
-    SKILL.md                # Routing layer (loaded on invocation)
-    docs/<topic>.md         # Detailed reference (read on demand)
-tests/
-  test_create_skill.py
-  test_analyze_permissions.py
-docs/plans/                 # Design and implementation documents
+  create_skill.py            # Generate a skill from a documentation URL
+  analyze_permissions.py     # Permissions-auditor: analyze logged requests
+  apply_permissions.py       # Permissions-auditor: apply triaged rules
+  log-permission-requests.sh # Permission-logging hook script
+  broker_*.py                # Message broker: CLI, server (MCP), client, storage, identity, format
+skills/<name>/
+  SKILL.md                   # Routing layer (loaded on invocation)
+  docs/<topic>.md            # Detailed reference (read on demand)
+commands/<group>/*.md        # Slash-command definitions
+data/                        # Bundled data (e.g. recommended-permissions.json)
+.claude-plugin/ + .codex-plugin/  # Plugin metadata (version-bearing — bump together)
+tests/                       # pytest (test_create_skill, test_analyze_permissions, test_broker_*)
+docs/{plans,release-notes,changelogs,inbox}/
 ```
 
 ## Common Commands
@@ -73,3 +77,4 @@ python scripts/create_skill.py --name <lib> --url "<url>" --backend openai # Ope
 
 - **Multi-backend system:** `CliBackend` (subprocess to `claude` CLI), `AnthropicBackend` (Anthropic SDK), `OpenAIBackend` (OpenAI SDK). All inherit from `Backend` ABC.
 - **Skill format:** SKILL.md is a routing layer with frontmatter, overview, triggers, a reference table pointing to `docs/*.md`, and inlined key patterns. Docs files contain full API details and examples.
+- **Message broker:** a socket-based server (`scripts/broker_server.py`, MCP-backed) plus a CLI client for cross-agent DMs and inboxes. Architecture, roles, and the CLI reference live in the README's "Message Broker" section and the `broker` skill — don't restate them here.
