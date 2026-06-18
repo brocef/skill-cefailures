@@ -1,5 +1,7 @@
 # AGENTS.md
 
+> **Working on the Work SDLC sub-project** (the `work` CLI / work-tracking system)? Read [`WORK-SDLC.AGENTS.md`](WORK-SDLC.AGENTS.md) first — it carries the abstraction litmus test and the guidelines specific to that work.
+
 ## Generic instructions
 
 - Git commit messages should not include any co-authoring content
