@@ -3,7 +3,7 @@
 ## Generic instructions
 
 - Git commit messages should not include any co-authoring content
-- After completing a major set of changes, offer to cut a new version following the `skill-cefailures:documentation-sync` skill's "Version Management" section. Project-specific note: the plugin version is carried in **all** version-bearing plugin metadata files: `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, and `.codex-plugin/plugin.json` — bump them together. Use `minor` (not just `patch`) for new skills or significant feature work.
+- After completing a substantial set of changes, offer the four outcomes in the `skill-cefailures:documentation-sync` skill's "When to offer version and changelog options" section: `major`, `minor`, or `patch`, or keep the current version and update the applicable changelog files. Project-specific note: the plugin version is carried in **all** version-bearing plugin metadata files: `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, and `.codex-plugin/plugin.json` — bump them together. Use `minor` (not just `patch`) for new skills or significant feature work.
 - All changes should remain compatible with both Claude Code and Codex unless the user explicitly scopes the work to one agent. When adding or changing plugin metadata, skills, commands, or install instructions, update both agent surfaces or document why one surface is intentionally unaffected.
 
 ## Documentation Sync

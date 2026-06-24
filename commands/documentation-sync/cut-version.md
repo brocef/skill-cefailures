@@ -4,7 +4,9 @@ description: Cut a new version — choose the bump size, update every version-be
 
 # Cut a New Version
 
-Walk the user through the version-cut ritual: bump the version number, rotate the `upcoming.md` working files, commit, and tag.
+Run this command only after the user selects a `patch`, `minor`, or `major` version change from the `documentation-sync` skill's completion options. Walk the user through the version-cut ritual: bump the version number, rotate the `upcoming.md` working files, commit, and tag.
+
+If the user chooses to keep the current version and update the applicable changelog files, do not run this command. Leave version-bearing metadata, tags, and `upcoming.md` file names unchanged, then update the release-note and developer-changelog working files whose Documentation Sync triggers fire.
 
 ## Choosing the Bump
 
@@ -15,8 +17,6 @@ Use a pragmatic, size-of-change framing rather than strict SemVer — bumps are 
 | `patch` | The default for routine work — bug fixes, internal refactors, small features, doc updates, dependency bumps, and anything that doesn't merit a higher bump. |
 | `minor` | Medium-sized change sets — substantial feature work, notable refactors, or related groups of changes shipped together. May include *some* reverse-incompatible changes when those are scoped and intentional. |
 | `major` | Extremely large change sets — sweeping rewrites, broad reverse-incompatible work, or dropping support for a previously-supported platform/version. **Only when explicitly instructed by the user.** |
-
-If the user selected "Micro version bump" from the `documentation-sync` skill's offer list, treat that as `patch` for ecosystems that use patch/minor/major terminology.
 
 A single localized breaking change inside an otherwise medium-sized set of work is fine in a `minor`; a broad pattern of breaking changes across the codebase is a `major`. If you're unsure where a change set lands, ask the user before bumping.
 

@@ -75,19 +75,20 @@ These workflows are deeper than the core trigger-evaluation loop and live as sub
 | `docs/release-notes-and-changelogs.md` | The project uses the opt-in `docs/release-notes/` + `docs/changelogs/` structure AND you're writing entries, rotating `upcoming.md`, running the version cross-check, or migrating an existing `CHANGELOG.md`. Covers directory layout, release-notes vs. changelog distinction, hash-range entry format, recommended doc-sync entries, version cross-check, existing-project migration offers. |
 | `docs/follow-ups.md` | The project uses the opt-in `docs/FOLLOWUPS.md` standing log AND you're prepending an entry, annotating an item as complete, or scanning for items that overlap the current task. Covers entry format, what counts vs. what doesn't, lifecycle, recommended doc-sync entry. |
 | `/skill-cefailures:documentation-sync:setup` | The project's `CLAUDE.md` has no `## Documentation Sync` section and the user wants to add one. |
-| `/skill-cefailures:documentation-sync:cut-version` | The user has agreed to a version cut (see "When to offer a version cut" below). Runs the bump-rotate-commit-tag recipe end-to-end. |
+| `/skill-cefailures:documentation-sync:cut-version` | The user selected a `patch`, `minor`, or `major` version change (see "When to offer version and changelog options" below). Runs the bump-rotate-commit-tag recipe end-to-end. |
 
-## When to offer a version cut
+## When to offer version and changelog options
 
-After a major set of changes has settled — a feature, a bug fix, a refactor, a docs sweep, or any combination the user clearly considers "done" — present the user with these options:
+After a substantial set of changes has settled — a feature, a bug fix, a refactor, a docs sweep, or any combination the user clearly considers "done" — present the user with these four options:
 
-1. Micro version bump
+1. Major version bump
 2. Minor version bump
-3. Major version bump
-4. No version bump, but update the upcoming.md docs
-5. No version bump with no documentation updates
+3. Patch version bump
+4. Keep the current version and update the applicable changelog files
 
-Don't offer mid-flow, and don't offer for trivial in-isolation edits. Don't bump the version yourself unless the user selects a version-bump option. When the user selects a version-bump option, run `/skill-cefailures:documentation-sync:cut-version` with that bump size.
+"Changelog files" means the release-note and developer-changelog working files listed in the project's `## Documentation Sync` section, such as `docs/release-notes/upcoming.md` and `docs/changelogs/upcoming.md`. Update only the files whose triggers fire.
+
+Don't offer mid-flow, and don't offer for trivial in-isolation edits. Don't change the version unless the user selects `major`, `minor`, or `patch`. For those three choices, run `/skill-cefailures:documentation-sync:cut-version` with the selected bump size. For the keep-current-version choice, leave version-bearing metadata, tags, and working-file names unchanged and update the applicable changelog files in place.
 
 ## Common Mistakes
 
