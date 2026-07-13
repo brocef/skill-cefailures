@@ -120,7 +120,7 @@ requirements.txt
 |-------|---------|
 | `brain-style` | Code style preferences across TypeScript naming, types, and resource-oriented HTTP route design. |
 | `broker` | Namespace for the broker DM/inbox CLI's shared reference docs (rules, signals, authority). All workflows are slash commands — see [Message Broker](#message-broker) below. |
-| `capabilities-sdlc` | User-capability documentation conventions, planning gate, and contradiction-detection rule for Proposit-style `capabilities.md` files. |
+| `capabilities-sdlc` | Project-neutral user-capability documentation conventions for co-located or centralized files, with a planning gate, contradiction-detection rule, and optional multi-repo coordination. |
 | `documentation-sync` | Evaluate trigger-based documentation update rules from a project's `CLAUDE.md` after code changes. |
 | `elkjs` | Automatic graph layout via the elkjs JavaScript port of the Eclipse Layout Kernel. |
 | `ieee` | IEEE editorial style, citation/reference formatting, mathematical notation, and TypeBox schema derivation for IEEE reference types. |
@@ -139,7 +139,7 @@ This plugin ships slash commands under `commands/` (registered via `plugin.json`
 | `/skill-cefailures:documentation-sync:setup` | Walk a project through adding a `## Documentation Sync` section to its `CLAUDE.md` and create any tracked files that don't yet exist. |
 | `/skill-cefailures:documentation-sync:cut-version` | Cut a new version: choose the bump size, update every version-bearing file, rotate `upcoming.md` to `v{version}.md`, commit, and tag. |
 | `/skill-cefailures:process-inbox` | Pick a request document from `docs/inbox/` (loose file or folder bundle), read it plus any supporting artifacts, route it via superpowers if installed, then move the source into `docs/inbox/.archive/`. |
-| `/skill-cefailures:process-inbox-initiative` | Orchestrator-only. Process an org-root inbox doc as a multi-repo initiative: capabilities-first, then one durable agent per affected repo coordinates research subagents, spec review subagents, implementation, and per-repo integration. Builds on `process-inbox`. |
+| `/skill-cefailures:process-inbox-initiative` | Workspace-coordinator workflow for a multi-repo inbox request: discover host conventions, record capability intent when adopted, then keep one durable agent per affected repo through research, review, implementation, and integration. |
 | `/skill-cefailures:permissions-auditor:install` | Install the permission-logging hook so future permission prompts are captured for later triage. |
 | `/skill-cefailures:permissions-auditor:analyze` | Analyze logged permission requests, present recurring patterns, and triage them into allow/deny/manual-review rules. |
 | `/skill-cefailures:broker:setup` | First-time broker setup: symlink the CLI, start the server, confirm identity, register the `Bash(broker:*)` permission. |

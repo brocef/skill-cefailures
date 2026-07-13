@@ -1,48 +1,37 @@
 ---
 name: capabilities-sdlc
-description: Use when authoring or updating user-capability documentation (`capabilities.md` files) co-located with route folders, screen components, feature folders, or API endpoints. Use when planning, brainstorming, or specifying any user-facing feature change. Use when reviewing whether a `capabilities.md` is in sync with the code it describes.
+description: Use when authoring, updating, planning, or reviewing user-capability documentation in any project. Applies to capability files co-located with routes, screens, features, components, or API endpoints, and to centralized capability trees declared by the host project. Use when planning user-facing feature changes or checking whether documented capabilities match implementation.
 ---
 
 # capabilities-sdlc
 
-Documents the conventions for the Proposit capabilities-SDLC: how user-facing capabilities are described in markdown files co-located with the code they describe, what the planning gate is, and how cross-repo capability drift is avoided.
+Maintain natural-language records of intended user-facing behavior without assuming a particular repository layout, application stack, or coordination system.
 
-## When this skill applies
+## Core workflow
 
-- A `capabilities.md` file exists or is being authored for a route, screen, feature folder, or API endpoint in a Proposit repo.
-- A brainstorm, spec, plan, or briefing is being written for user-facing feature work.
-- A reviewer is checking whether documented capabilities match the implementation.
-
-## The planning gate (one-line summary)
-
-Every brainstorm, spec, plan, or briefing for user-facing work opens with a `## Capability changes` section as its first content section. See `docs/planning-gate.md` for the full rule, including the bug-fix carve-outs (regression vs. discovery vs. capability-change-disguised-as-bug-fix).
-
-## The contradiction-detection rule (one-line summary)
-
-Before completing a code change that affects user-facing behavior, check whether the change contradicts any existing `capabilities.md` entry — by status, by described scope, or by listed conditions. If it does, **surface the contradiction to the user** and ask whether to update the `capabilities.md` to match the new behavior or revise the change to fit the existing entry. **Do not silently update the `capabilities.md`.** See `docs/contradiction-detection.md` for the full rule, contradiction shapes, and the surfacing template.
+1. Read the host project's `AGENTS.md` or `CLAUDE.md` and existing capability files to discover its chosen layout and documentation-sync rules.
+2. For a plan or specification that changes intended user behavior, open with `## Capability changes`. See `docs/planning-gate.md`.
+3. Author capability entries using the three-status format in `docs/format.md` and `docs/statuses.md`.
+4. Before completing implementation, compare the change with existing capability entries and surface contradictions. See `docs/contradiction-detection.md`.
+5. Use product-layer coordination only when the host workspace declares a shared product layer. See `docs/product-layer-coordination.md`.
 
 ## Reference table
 
-| Doc | Scope |
-|-----|-------|
-| `docs/file-locations.md` | Where `capabilities.md` files live in `proposit-server` and `proposit-mobile`, and what is *not* in scope for capability documentation. |
-| `docs/format.md` | The skeleton, conventions, and reference style for a single capability and a single file. |
-| `docs/statuses.md` | The three-status taxonomy (`Supported`, `Missing`, `Omitted`) with body-content rules and the rejected-fourth-status note. |
-| `docs/planning-gate.md` | The `## Capability changes` requirement for plans and specs, including the bug-fix and discovery-fix exceptions. |
-| `docs/contradiction-detection.md` | The at-the-moment-of-change rule: detect contradictions between proposed code changes and existing `capabilities.md` entries, surface them, never silently reconcile. |
-| `docs/product-layer-coordination.md` | How per-repo agents query the orchestrator for product-layer wording, and the coordination-unavailable fallback. Transport-agnostic. |
-| `docs/route-edge-cases.md` | Server route enumeration: route groups, infra files, layouts, dynamic segments, catch-alls, parallel and intercepting routes, multi-method API routes, middleware. |
-| `docs/exemplars/server-user-route.md` | Fully-written exemplar for a server user route (`/login`-style). |
-| `docs/exemplars/server-api-endpoint.md` | Fully-written exemplar for a server API endpoint (multi-method case). |
-| `docs/exemplars/mobile-feature-folder.md` | Fully-written exemplar for a mobile feature folder (cross-screen flows). |
-| `docs/exemplars/mobile-screen.md` | Fully-written exemplar for a mobile screen component (screen-local). |
+| Doc | Read when |
+|-----|-----------|
+| `docs/file-locations.md` | Choosing or discovering co-located versus centralized capability files. |
+| `docs/format.md` | Authoring a capability file or same-repository reference. |
+| `docs/statuses.md` | Selecting `Supported`, `Missing`, or `Omitted`. |
+| `docs/planning-gate.md` | Writing a brainstorm, spec, plan, or briefing for user-facing work. |
+| `docs/contradiction-detection.md` | Changing behavior already described by a capability entry. |
+| `docs/product-layer-coordination.md` | Coordinating wording across repositories in a workspace that declares a product layer. |
+| `docs/route-edge-cases.md` | Mapping routed applications, including Next.js-style route structures, to capability files. |
+| `docs/exemplars/server-user-route.md` | Example user-facing web route. |
+| `docs/exemplars/server-api-endpoint.md` | Example multi-method API endpoint. |
+| `docs/exemplars/mobile-feature-folder.md` | Example cross-screen feature. |
+| `docs/exemplars/mobile-screen.md` | Example screen-local behavior. |
 
-## Two-layer model (one-line summary)
-
-- **Per-repo layer.** `capabilities.md` co-located with code in each consuming repo. Per-repo files do not link to or reference anything outside their repo.
-- **Shared product layer.** `proposit-orchestration/docs/capabilities/<area>.md`, owned by the orchestrator. Per-repo agents do not read this layer; the orchestrator relays product-layer wording on request (see `docs/product-layer-coordination.md`).
-
-## File format (one-line summary)
+## File format
 
 ```markdown
 # <Subject> — capabilities
@@ -50,26 +39,32 @@ Before completing a code change that affects user-facing behavior, check whether
 ## <Capability name>
 **Status:** Supported | Missing | Omitted
 
-<1–3 short paragraphs of body content; rules vary by status — see docs/statuses.md.>
+<1–3 short paragraphs; body rules vary by status.>
 ```
 
-No frontmatter. No formal IDs. No cross-repo links from per-repo files.
+Use no frontmatter or formal IDs. Keep references inside the same repository; coordinate cross-repository intent through the host workspace rather than direct links.
 
-## Documentation Sync entry (copy-paste)
+## Adoption contract
 
-Every consuming repo's `CLAUDE.md` should include this entry under its `## Documentation Sync` section so that capability files are kept in sync with code changes:
+Do not invent capability roots or globs. Follow existing files and host instructions. If a project is adopting the convention for the first time, have the user choose a layout and record it in `AGENTS.md` or `CLAUDE.md` before creating files.
 
+For a co-located layout, a typical Documentation Sync entry is:
+
+```markdown
+- `**/capabilities.md` [User-Capabilities] — User-capability docs co-located with code.
+  The trigger fires when behavior in the same directory or subtree changes.
 ```
-- `**/capabilities.md` [User-Capabilities] — Per-route/screen/feature user-capability docs.
-  The trigger fires when a code change in the same directory or its subtree alters
-  user-facing behavior. The `skill-cefailures:capabilities-sdlc` skill describes the format,
-  status taxonomy, and the planning-gate rule.
+
+For a centralized layout, use the project's declared root, for example:
+
+```markdown
+- `docs/capabilities/**/*.md` [User-Capabilities] — Central user-capability catalog.
+  The trigger fires when documented user-facing behavior changes.
 ```
 
-The `**/capabilities.md` glob is intentional and unusual — most existing doc-sync entries name a single concrete path. Reviewers evaluate this trigger against any matching file in the diff.
+## Boundaries
 
-## What this skill does *not* do
-
-- It does not define product-level capability content. The orchestrator owns `proposit-orchestration/docs/capabilities/<area>.md`; per-repo agents do not read those files.
-- It does not enforce the planning gate via lint or CI. Enforcement is convention: this skill, the orchestration `CLAUDE.md`, and per-repo `CLAUDE.md` notes.
-- It does not track bugs or regressions. Capability files describe *intended* state; bug-tracking happens elsewhere (e.g., per-repo `FOLLOWUPS.md`).
+- Do not define product intent on the user's behalf; document decisions made from code, plans, and user direction.
+- Do not require an orchestrator, broker, product layer, or multi-repository workspace.
+- Do not silently reconcile contradictions between code and capability documents.
+- Do not use capability status to track regressions; use the project's bug tracker or follow-up log.

@@ -1,64 +1,42 @@
-# Product-layer coordination protocol
+# Optional product-layer coordination
 
-## Why this protocol exists
+Use this protocol only when the host workspace declares both repo-local capability files and a shared product-layer catalog. A single repository needs no product layer.
 
-Proposit has a two-layer capability model:
+## Model
 
-- **Per-repo** capability files (`capabilities.md`) co-located with code in `proposit-server` and `proposit-mobile`.
-- **Shared product-layer** files in `proposit-orchestration/docs/capabilities/<area>.md` describing what *the product* lets users do, platform-agnostic.
+- **Repo-local layer:** capability files describe behavior implemented or intended in one repository.
+- **Product layer:** workspace-owned files describe platform-independent intent across repositories.
+- **Coordinator:** the workspace role authorized to read and update the product layer and relay wording to repo-local agents.
 
-A per-repo agent in `proposit-server` does not read `proposit-orchestration/docs/capabilities/`. The cross-repo coupling rule is strict: per-repo files do not link or reference anything outside their own repo. The product layer is the orchestrator's artifact alone.
+The host workspace defines paths, ownership, and transport. This skill does not prescribe an orchestrator repository, broker, agent tool, or directory name.
 
-Without coordination, two per-repo agents authoring the "same" capability on web and mobile could drift — same intent, different language, divergent over time. This protocol prevents drift by routing product-layer questions through the orchestrator.
+## When to coordinate
 
-This protocol describes the *contract* between per-repo agents and the orchestrator. It is agnostic to the inter-agent transport — the host project's `CLAUDE.md` names the transport in use; this skill names only the request/response shape and the fallback rules.
+Ask the coordinator for product-layer wording when a capability:
 
-## When a per-repo agent should query the orchestrator
+- exists or could exist in multiple repositories or platforms;
+- has shared product wording already maintained by the workspace; or
+- is being marked `Missing` or `Omitted` and that decision may express product-wide intent.
 
-When the agent is authoring a capability and at least one of these is true:
+A useful request names the repo-local file and capability, then asks for the canonical wording and status. The coordinator should return only the relevant paragraph, status, and known platform differences—not unrelated sibling-repository paths.
 
-- The capability is plausibly cross-platform (it exists or could exist on both web and mobile).
-- The capability has product-level wording the orchestrator might already know.
-- The capability is about to be marked `Missing` and the agent suspects this is product-wide intent, not just a repo-local gap.
+## When coordination is unavailable
 
-A typical query:
-
-> "Authoring `src/screens/LoginScreen/capabilities.md`. Has 'Sign in with Google' been documented at the product level? If yes, please share the canonical wording so I align."
-
-The orchestrator answers from `proposit-orchestration/docs/capabilities/`. If the capability is new at the product level, the orchestrator drafts the product-layer entry now or defers to reconciliation later (per the orchestrator's session-boundary reconciliation cadence).
-
-## What the orchestrator sends back
-
-The minimum useful answer:
-
-- The product-layer wording for that capability (a paragraph, not the whole product-layer file).
-- The product-layer status (`Supported`, `Missing`, `Omitted`).
-- Any platform-specific divergence flagged in product-layer commentary.
-
-The orchestrator does **not** send the per-repo agent the product-layer file's `**Realized in:**` list — those paths name sibling repos and would force the per-repo agent to acknowledge them. The agent gets the wording, not the cross-repo bookkeeping.
-
-## Coordination-unavailable fallback
-
-If the orchestrator is unreachable (the agent is running outside a coordinated session, or the orchestrator agent is not running):
-
-1. **Author the capability based on in-repo evidence alone.** Walk the code, infer the user-facing behavior, and write the capability description from that evidence.
-2. **Mark the body with a leading uncertainty line** as the *first* paragraph of the body, in italics:
+1. Author from in-repository evidence and host instructions.
+2. Add this as the first body paragraph when wording remains uncertain:
 
    ```markdown
-   ## Sign in with Google
-   **Status:** Supported
-
-   _TODO: confirm wording with orchestrator product layer._
-
-   <rest of the body as authored>
+   _TODO: confirm wording with the workspace product layer._
    ```
 
-3. **Surface the uncertainty in the human review summary** when reporting work complete. List each capability that carries the TODO marker and the reason (orchestrator unavailable).
+3. Report the uncertainty in the completion summary.
+4. Let the workspace coordinator reconcile the entry later.
 
-The orchestrator reconciles wording at its next session-boundary reconciliation, removing the TODO marker once product-layer wording is confirmed.
+Do not block indefinitely and do not attempt an unauthorized cross-repository read.
 
-## What this protocol is *not*
+## Boundaries
 
-- **Not a remote read.** The agent does not gain access to `proposit-orchestration/docs/capabilities/` files. It receives only what the orchestrator chooses to relay.
-- **Not a synchronous block.** The agent does not pause indefinitely waiting for an answer. If the coordination round-trip exceeds a reasonable wait (judgment call), proceed with the unavailable-fallback.
-- **Not a substitute for review.** Even capabilities that get clean orchestrator answers are subject to human review.
+- Repo-local capability files do not directly reference sibling repositories.
+- The coordinator owns shared product-layer content; repo-local agents own local evidence.
+- Product-layer coordination aligns intent but does not replace human review.
+- If the host workspace declares no product layer, omit this protocol entirely.

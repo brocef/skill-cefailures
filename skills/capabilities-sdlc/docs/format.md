@@ -44,7 +44,7 @@ For headings with parenthetical or punctuation-heavy names, the slug strips punc
 
 - **No frontmatter.** Capability files have no YAML frontmatter. The file's location (path) and headings are sufficient identifiers.
 - **No formal IDs.** Each capability is identified by its heading anchor, not a separately-maintained slug.
-- **No cross-repo links.** A `capabilities.md` in `proposit-server` does not link to or reference a path in `proposit-mobile` (or vice versa).
+- **No cross-repository links.** A capability file does not link directly to a sibling repository. Use the host workspace's optional product-layer coordination instead.
 - **No "broken" or "blocked" status.** Capability files describe *intended* state. Bugs and regressions are tracked separately (e.g., `FOLLOWUPS.md`, GitHub issues).
 
 ## Body content rules per status

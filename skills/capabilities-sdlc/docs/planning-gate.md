@@ -25,9 +25,9 @@ Example:
 ```markdown
 ## Capability changes
 
-- **New:** `proposit-server/src/app/(nofooter)/forgot-password/capabilities.md` — adds the page; declares "Request password reset email" as `Missing` (this PR scaffolds the route but the email-delivery integration is in a follow-up).
-- **Updated:** `proposit-mobile/src/screens/LoginScreen/capabilities.md#sign-in-with-apple` — body updated to note Android-flow visual parity (currently a known gap).
-- **Updated:** `proposit-orchestration/docs/capabilities/auth.md#magic-link-sign-in` — flips from `Missing` to `Supported` once the per-repo files land.
+- **New:** `apps/web/src/app/account-recovery/capabilities.md` — declares "Request account-recovery email" as `Missing` because this change scaffolds the route while delivery remains follow-up work.
+- **Updated:** `apps/mobile/src/screens/LoginScreen/capabilities.md#sign-in-with-an-identity-provider` — body updated to describe platform-specific behavior.
+- **Updated:** `docs/capabilities/auth.md#recover-account` — flips from `Missing` to `Supported` after the implementation lands.
 ```
 
 The section is the *first* content section of the document. It precedes architecture, design alternatives, implementation tasks, and tests. It can be brief — the point is to force the planner to articulate the intent change before getting absorbed in implementation.
@@ -51,7 +51,7 @@ Capabilities files are only as useful as their accuracy. If features ship withou
 This skill is surfaced to agents whose context matches the trigger description — including planning, brainstorming, or specifying user-facing changes. When an agent invokes the skill, the gate is stated prominently. Beyond that, enforcement is convention:
 
 1. The skill document.
-2. The orchestration repo's `CLAUDE.md` requires that briefings and overview specs open with `## Capability changes`.
-3. Each consuming repo's `CLAUDE.md` carries a one-line note: *"Plans and specs in this repo open with a `## Capability changes` section. The `capabilities-sdlc` skill defines the format."*
+2. The host workspace's `AGENTS.md` or `CLAUDE.md` requires that relevant plans open with `## Capability changes`.
+3. Each adopting repository carries a one-line note: *"Plans and specs in this repo open with a `## Capability changes` section. The `capabilities-sdlc` skill defines the format."*
 
 There is no automated lint or CI check; reviewer attention is the backstop.

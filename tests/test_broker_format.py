@@ -30,34 +30,34 @@ def test_unescape_is_inverse() -> None:
 def test_format_single_recipient_omits_arrow() -> None:
     line = format_message(
         timestamp="2026-04-22T17:30:00Z",
-        sender="@proposit/shared",
-        recipients=["proposit-server"],
+        sender="@example/shared",
+        recipients=["acme-api"],
         content="CI green",
-        viewer="proposit-server",
+        viewer="acme-api",
     )
-    assert line == "2026-04-22T17:30:00Z [@proposit/shared] CI green"
+    assert line == "2026-04-22T17:30:00Z [@example/shared] CI green"
 
 
 def test_format_multi_recipient_shows_arrow_with_you_alias() -> None:
     line = format_message(
         timestamp="2026-04-22T17:30:00Z",
-        sender="proposit-mobile",
-        recipients=["@proposit/shared", "proposit-server"],
+        sender="acme-mobile",
+        recipients=["@example/shared", "acme-api"],
         content="bumped to 0.3.0",
-        viewer="@proposit/shared",
+        viewer="@example/shared",
     )
-    assert line == "2026-04-22T17:30:00Z [proposit-mobile → you, proposit-server] bumped to 0.3.0"
+    assert line == "2026-04-22T17:30:00Z [acme-mobile → you, acme-api] bumped to 0.3.0"
 
 
 def test_format_broadcast() -> None:
     line = format_message(
         timestamp="2026-04-22T17:30:00Z",
-        sender="@proposit/shared",
+        sender="@example/shared",
         recipients=["BROADCAST"],
         content="publishing now",
-        viewer="proposit-server",
+        viewer="acme-api",
     )
-    assert line == "2026-04-22T17:30:00Z [@proposit/shared → BROADCAST] publishing now"
+    assert line == "2026-04-22T17:30:00Z [@example/shared → BROADCAST] publishing now"
 
 
 def test_format_escapes_newlines_in_content() -> None:

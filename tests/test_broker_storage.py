@@ -16,8 +16,8 @@ from broker_storage import (
 
 
 def test_encode_identity_replaces_slash() -> None:
-    assert encode_identity("@proposit/shared") == "@proposit_shared"
-    assert encode_identity("Proposit-App/proposit-mobile") == "Proposit-App_proposit-mobile"
+    assert encode_identity("@example/shared") == "@example_shared"
+    assert encode_identity("Example-Org/example-mobile") == "Example-Org_example-mobile"
     assert encode_identity("plain") == "plain"
 
 

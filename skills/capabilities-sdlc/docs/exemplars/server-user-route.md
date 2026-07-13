@@ -1,23 +1,23 @@
-# Login — capabilities
+# Sign in — capabilities
 
-> **Exemplar.** This file lives in the `capabilities-sdlc` skill, not in any production repo. It demonstrates the format for a server user route's `capabilities.md`. A real file would live at `proposit-server/src/app/(nofooter)/login/capabilities.md`.
+> **Exemplar.** This demonstrates a user-facing web route in a co-located layout. A comparable file could live at `apps/web/src/app/sign-in/capabilities.md`.
 
-## Sign in with Google
+## Sign in with an identity provider
 **Status:** Supported
 
-A returning user lands on the login page and taps the "Sign in with Google" button. The browser navigates to Google's OAuth consent screen; on success, Google redirects back to `/api/auth/google` (see that endpoint's capabilities) which establishes a Proposit session and redirects to `/home`. Failure or cancellation returns the user to `/login` with an error toast describing what went wrong.
+A returning user selects “Sign in” and is redirected to the configured identity provider. After successful authorization, the browser returns to `/api/session`, establishes a session, and redirects to `/dashboard`. Cancellation returns the user to `/sign-in` with a clear message.
 
-## Sign in with Apple
+## Continue to account registration
 **Status:** Supported
 
-Identical to "Sign in with Google" but routed through Apple's OAuth. The user taps "Sign in with Apple"; Apple's sign-in sheet appears; on success the page completes the same `/home` redirect. Apple OAuth surfaces no profile picture by default, so the post-sign-in `/home` greeting falls back to initials.
+A visitor without an account can follow the registration link. The registration route explains the required consent before starting the same external authorization flow.
 
-## Sign in with email and password
+## Sign in with a local password
 **Status:** Omitted
 
-Proposit does not store passwords. Authentication is OAuth-only (Google + Apple). New users who try to sign in with an unrecognized email are routed to the dedicated `/signup` flow, which itself uses OAuth.
+This application delegates authentication to an external identity provider and does not collect passwords. Account recovery is handled by that provider.
 
-## Magic-link sign-in
+## Sign in with an emailed link
 **Status:** Missing
 
-Required for the planned passwordless onboarding initiative — a way for users to authenticate without leaving Mail/Messages. Blocked on transactional email setup (the magic-link delivery channel) and on a `/api/auth/magic-link/{token}` endpoint that does not yet exist.
+The product intends to support emailed sign-in links for users who cannot complete the external provider flow. Delivery and token-consumption endpoints are not implemented yet.

@@ -22,7 +22,7 @@ The body explains *why* the capability is desired and *what unblocks it*. If the
 
 The capability is deliberately not supported.
 
-The body explains *why the omission* and *where the alternative lives* (if there is one). For example: "Magic-link sign-in is omitted because Proposit uses OAuth-only authentication. Users who can't access their Google or Apple account must recover access through that provider."
+The body explains *why the omission* and *where the alternative lives* (if there is one). For example: "Password sign-in is omitted because this application delegates authentication to an external identity provider. Users recover access through that provider."
 
 `Omitted` exists for clarity. It's not a backlog item; it's a documented decision so future readers don't waste time wondering if the capability is missing-but-coming or missing-on-purpose.
 

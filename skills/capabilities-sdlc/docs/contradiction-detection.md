@@ -34,7 +34,7 @@ Examples:
 
 - Entry says `**Status:** Missing` for "Reset password (email)" — the proposed change implements the email reset flow. The entry's status is now wrong.
 - Entry says `**Status:** Omitted` for "Magic-link sign-in" with a body explaining the OAuth-only decision — the proposed change adds a magic-link option. The entry's omission rationale is now wrong.
-- Entry says `**Status:** Supported` for "Edit argument title after publish" — the proposed change locks the title field once published. The entry no longer describes reality.
+- Entry says `**Status:** Supported` for "Edit article title after publish" — the proposed change locks the title field once published. The entry no longer describes reality.
 
 ### Scope contradiction
 
@@ -44,7 +44,7 @@ Examples:
 
 - Entry says the action is owner-only — the proposed change makes it editor-accessible as well. The role scope has widened.
 - Entry says the action is available to all signed-in users — the proposed change restricts it to verified-email accounts. The role scope has narrowed.
-- Entry describes a single mode (e.g., "draft arguments") — the proposed change fires the same action in a second mode (e.g., "published arguments" too). The mode scope has widened.
+- Entry describes a single mode (e.g., "draft articles") — the proposed change fires the same action in a second mode (e.g., "published articles" too). The mode scope has widened.
 
 ### Condition contradiction
 
@@ -52,7 +52,7 @@ The change alters `When …:` conditions or other body-level enumerations the en
 
 Examples:
 
-- Entry says "when the argument is published" — the proposed change makes the capability fire on drafts too.
+- Entry says "when the article is published" — the proposed change makes the capability fire on drafts too.
 - Entry enumerates three accepted input formats — the proposed change adds a fourth (or removes one).
 - Entry says the side effect (email, notification, audit log) fires only on success — the proposed change makes it fire on failure paths too.
 

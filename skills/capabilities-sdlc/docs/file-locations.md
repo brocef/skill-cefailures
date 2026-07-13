@@ -1,40 +1,52 @@
-# Where capabilities files live
+# Where capability files live
 
-Each `capabilities.md` is co-located with the code it describes. There is no central registry of capability files in any consuming repo — agents discover them via the filesystem.
+Use the layout declared by the host project. Existing capability files and `AGENTS.md` or `CLAUDE.md` are authoritative; this skill supports two common patterns.
 
-## Server (`proposit-server`)
+## Co-located layout
 
-### User-facing routes
+Place `capabilities.md` next to the code it describes. This works well when directory boundaries correspond to user-perceivable surfaces.
 
-`proposit-server/src/app/<route>/capabilities.md` next to each route folder under `src/app/`. The file describes what an end-user can do on that route.
+Examples:
 
-Route groups like `(nofooter)` and `(withfooter)` are pass-through and do **not** get their own file. The route folders *inside* the group (e.g., `(nofooter)/login/`) are what get capability files.
+```text
+apps/web/src/app/login/capabilities.md
+apps/web/src/app/api/session/capabilities.md
+apps/mobile/src/features/auth/capabilities.md
+apps/mobile/src/screens/LoginScreen/capabilities.md
+```
 
-### API routes
+Use route-level files for user-facing pages, endpoint-level files for API contract semantics, feature-level files for cross-screen flows, and screen-level files for local actions. Overlap is acceptable when the files describe different vantage points.
 
-`proposit-server/src/app/api/<endpoint>/capabilities.md` next to each `route.ts`. The file describes what an API client can do, what the endpoint enforces, and what it explicitly does not do — capturing contract *semantics* on top of the TypeBox request/response schemas (which live in `@proposit/shared`).
+## Centralized layout
 
-An API route's `capabilities.md` uses one or more `## <METHOD>: <action>` headings — at least one per HTTP method the route exports, plus additional `Omitted` headings to declare what the endpoint deliberately does not do. See `docs/exemplars/server-api-endpoint.md`.
+Place capability documents under a project-declared tree when logical product structure matters more than source layout.
 
-## Mobile (`proposit-mobile`)
+Example:
 
-### Feature folders
+```text
+docs/capabilities/
+  routes/login.md
+  api/session.md
+  features/auth.md
+  screens/login.md
+```
 
-`proposit-mobile/src/<feature>/capabilities.md` for cross-screen feature flows (`auth`, `arguments`, `reviews`, etc.). The file describes the user's journey across screens, persistence, and feature-level guarantees.
+Choose namespaces that match the project. Do not assume that routes, screens, or APIs exist in every project.
 
-### Screen components
+## Adoption rule
 
-`proposit-mobile/src/screens/<Screen>/capabilities.md` for screen-local capabilities — what the user does on this specific screen. The screen-component convention (folder layout, what counts as a "screen" vs. a helper component) is whatever `proposit-mobile/CLAUDE.md` defines; this skill mirrors that convention.
+Do not mix layouts accidentally. When adopting this convention:
 
-### Overlap is acceptable
+1. Choose co-located or centralized files.
+2. Record the roots and naming rules in `AGENTS.md` or `CLAUDE.md`.
+3. Add the matching Documentation Sync glob.
+4. Treat an intentional layout migration as separate work with an explicit cutover.
 
-A capability that involves multiple screens (e.g., the OAuth handshake) appears in both the feature-folder file and the relevant screen-component file. The screen file describes the concrete user actions on that screen; the feature file describes the cross-screen context. Both can describe the same capability — they have different vantage points. Same-repo references between them using `<path>#<heading-slug>` are allowed.
+## Scope decisions
 
-## What is *not* in scope
+- Give a file to a user-perceivable surface, flow, or contract—not every source file.
+- Skip pass-through layouts, purely presentational helpers, loading placeholders, and infrastructure with no meaningful user-facing behavior.
+- Document shared components only when they carry behavior worth maintaining independently.
+- Keep direct references inside one repository. Use the optional product-layer protocol for cross-repository alignment.
 
-- **Cross-repo links from per-repo files.** A `capabilities.md` in `proposit-server` does not link to or reference a path in `proposit-mobile` (or vice versa). The orchestrator handles cross-repo coordination (see `docs/product-layer-coordination.md`).
-- **Pure infra files.** `loading.tsx`, `error.tsx`, leaf `not-found.tsx` defer to the parent route's `capabilities.md`. They don't get their own file.
-- **Helper components.** Mobile components that aren't screens (e.g., shared form fields, buttons, modals) don't get capability files unless they carry meaningful user-facing behavior on their own.
-- **Layouts.** A layout that adds user-facing capabilities of its own (e.g., a global search bar in `layout.tsx`) gets a `capabilities.md` next to the layout file. A layout that only renders its children does not.
-
-See `docs/route-edge-cases.md` for additional server-route edge cases (dynamic segments, parallel routes, intercepting routes, catch-alls).
+See `route-edge-cases.md` for routed-application guidance.

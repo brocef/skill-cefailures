@@ -17,21 +17,21 @@ def test_package_json_name_wins(tmp_path: Path) -> None:
 
 
 def test_package_json_unscoped(tmp_path: Path) -> None:
-    (tmp_path / "package.json").write_text(json.dumps({"name": "proposit-server"}))
-    assert derive_identity(tmp_path) == "proposit-server"
+    (tmp_path / "package.json").write_text(json.dumps({"name": "acme-api"}))
+    assert derive_identity(tmp_path) == "acme-api"
 
 
 def test_package_json_missing_name_falls_through_to_git(tmp_path: Path) -> None:
     (tmp_path / "package.json").write_text(json.dumps({"version": "1.0.0"}))
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
-    subprocess.run(["git", "remote", "add", "origin", "git@github.com:Proposit-App/proposit-mobile.git"], cwd=tmp_path, check=True)
-    assert derive_identity(tmp_path) == "Proposit-App/proposit-mobile"
+    subprocess.run(["git", "remote", "add", "origin", "git@github.com:Example-Org/example-mobile.git"], cwd=tmp_path, check=True)
+    assert derive_identity(tmp_path) == "Example-Org/example-mobile"
 
 
 def test_git_remote_https_url(tmp_path: Path) -> None:
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
-    subprocess.run(["git", "remote", "add", "origin", "https://github.com/Proposit-App/proposit-core.git"], cwd=tmp_path, check=True)
-    assert derive_identity(tmp_path) == "Proposit-App/proposit-core"
+    subprocess.run(["git", "remote", "add", "origin", "https://github.com/Example-Org/example-core.git"], cwd=tmp_path, check=True)
+    assert derive_identity(tmp_path) == "Example-Org/example-core"
 
 
 def test_no_package_no_git_raises(tmp_path: Path) -> None:

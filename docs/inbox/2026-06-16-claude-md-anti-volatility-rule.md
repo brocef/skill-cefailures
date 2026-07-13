@@ -4,11 +4,11 @@
 
 ## Problem
 
-When auditing the Proposit workspace's `CLAUDE.md`/`AGENTS.md` files, several had drifted badly out of date:
+When auditing a multi-project workspace's `CLAUDE.md`/`AGENTS.md` files, several had drifted badly out of date:
 
-- `proposit-mobile` described a bare "sub-project 1A scaffold that renders 'Proposit'" while the app had actually shipped auth, navigation, a read path, reviews, and deep-links.
-- The workspace-root and `proposit-server` files carried dependency pins that were several minor/major versions stale (e.g. `@proposit/proposit-core ^0.12.3` when the real pin was `^1.11.0`).
-- `proposit-server` carried deep per-endpoint and per-env-var prose that referenced a deleted spec file and renamed routes.
+- The mobile application repo described a bare scaffold while the app had actually shipped authentication, navigation, a read path, reviews, and deep links.
+- The workspace-root and API repo files carried dependency pins that were several minor or major versions stale (e.g. `@example/core ^0.12.3` when the real pin was `^1.11.0`).
+- The API repo carried deep per-endpoint and per-environment-variable prose that referenced a deleted spec file and renamed routes.
 
 The common failure mode wasn't "nobody maintained the docs" — it was that the docs **inlined volatile facts**: things that change on an ordinary development cadence and therefore go stale almost immediately. A context file should be **stable** — it should rarely need editing, because most ordinary PRs (a dep bump, a file move, a version cut, a feature shipping) should not invalidate any line in it.
 
@@ -48,11 +48,11 @@ Under **Route when:** add:
 ## Impact on consumers
 
 - The `claude-md` command produces smaller, more durable context files and gives the reviewer a crisp test ("would a routine PR make this line wrong?") for what to cut.
-- The Proposit `AGENTS.md` files were just refactored under exactly these rules (volatile pins removed, mobile "Status" section deleted, server's release/compliance detail routed to a runbook). They should pass the new check; this CR back-fills the rule that the refactor followed so future authoring is consistent.
+- The workspace's `AGENTS.md` files were just refactored under exactly these rules (volatile pins removed, a mobile "Status" section deleted, and API release/compliance detail routed to a runbook). They should pass the new check; this request back-fills the rule that the refactor followed so future authoring is consistent.
 
 ## Test cases (review-time checks the updated command should catch)
 
-1. A `CLAUDE.md` line stating `"@proposit/shared@^0.9.0"` → flagged; replaced with a `package.json` pointer.
+1. A `CLAUDE.md` line stating `"@example/shared@^0.9.0"` → flagged; replaced with a `package.json` pointer.
 2. A `## Status` / `## Current phase` section → flagged for deletion.
 3. A 50-line App-Store / release checklist inlined in `CLAUDE.md` → flagged; routed to a runbook with a pointer left behind.
 4. A prose reference to `src/app/view/[argumentId]/[version]/contexts/arg-data-context/...` → flagged; replaced with a stable directory or symbol reference.
