@@ -110,7 +110,8 @@ docs/
   plans/                      # Design and implementation documents
 AGENTS.md                     # Project instructions for Codex and compatible agents
 CLAUDE.md                     # Symlink to AGENTS.md for Claude Code compatibility
-requirements.txt
+requirements.txt              # Runtime dependencies
+requirements-dev.txt          # Runtime + test dependencies (use this to run the suite)
 ```
 
 ## Skills

@@ -1,0 +1,9 @@
+-r requirements.txt
+
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+
+# The suite exercises both skill-generation backends, so it needs the SDKs that
+# requirements.txt leaves optional.
+anthropic>=0.42.0
+openai>=1.0.0

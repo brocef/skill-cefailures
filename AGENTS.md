@@ -50,8 +50,11 @@ docs/{plans,release-notes,changelogs,inbox}/
 ## Common Commands
 
 ```bash
-# Install dependencies
+# Install runtime dependencies
 pip install -r requirements.txt
+
+# Install everything needed to run the tests (runtime + pytest + both backend SDKs)
+pip install -r requirements-dev.txt
 
 # Run all tests
 python -m pytest tests/ -v
