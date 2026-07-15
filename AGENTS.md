@@ -19,7 +19,7 @@ Before reporting any code change complete, invoke the `skill-cefailures:document
 
 A Claude Code / Codex plugin shipping three surfaces: **skills** (library API/pattern knowledge + troubleshooting), **slash commands** (`commands/`), and the **message broker** (a socket-based DM/inbox CLI + MCP server for cross-agent coordination). It also includes tooling to generate new skills from online documentation. The README is the authoritative human-facing catalog — route to its **Skills**, **Slash Commands**, and **Message Broker** sections rather than restating them here.
 
-Installed skills (`skills/<name>/`): `brain-style`, `broker`, `capabilities-sdlc`, `documentation-sync`, `elkjs`, `ieee`, `knex`, `openai-api`, `typebox`. Slash commands (`commands/<group>/`): `brain-style`, `broker`, `documentation-sync`, `permissions-auditor`, plus top-level `process-inbox` / `process-inbox-initiative`.
+Installed skills (`skills/<name>/`): `brain-style`, `broker`, `capabilities-sdlc`, `documentation-sync`, `elkjs`, `ieee`, `knex`, `openai-api`, `report`, `typebox`. Slash commands (`commands/<group>/`): `brain-style`, `broker`, `documentation-sync`, `permissions-auditor`.
 
 ## Tech Stack
 

@@ -16,6 +16,7 @@
     "ieee",
     "knex",
     "openai-api",
+    "report",
     "typebox"
   ],
   "skills": "./skills/",

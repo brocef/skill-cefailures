@@ -83,12 +83,24 @@ Project-specific terms that appear in the codebase or prompts and what they mean
 - The information is defined in another file (README, docs, etc.)
 - It only matters for a narrow subset of tasks
 - It would duplicate content that has a canonical source
+- **It is volatile** — it changes on an ordinary development cadence (a dependency bump, a refactor, a version cut, a feature shipping). Inline only facts that survive routine PRs; route everything that a normal change would invalidate to its canonical source.
 
 Route format — include topic keywords so the agent can match the route without reading the target:
 
 ```markdown
 For information about [topic keywords] see [section name] in [file path].
 ```
+
+## Keep It Stable (Anti-Volatility)
+
+A CLAUDE.md should rarely need editing. Before inlining a fact, ask: **"Would a routine PR make this line wrong?"** If yes, route it to where it's already maintained instead of copying it in. Specifically, do **not** inline:
+
+| Volatile content | Route to / do instead |
+|---|---|
+| Exact dependency version pins (`^0.9.0`, `~54.0.34`, `next 16.2.2`) | Name the framework/major identity only if useful (e.g. "Expo SDK 54", "Next.js 16"); the exact pins live in `package.json`. |
+| A "Status" / "current phase" / "what's shipped so far" section | Delete it — the repo's current state is in git history and the code, and a status line is stale the moment the next PR merges. |
+| Deep file paths and line numbers that move on refactor (`src/app/view/[id]/[v]/contexts/...`) | Reference a stable directory or an exported symbol/function name, not a churning path. |
+| Long operational or reference blocks only some tasks need (release checklists, per-endpoint API essays, per-env-var mechanics) | Move to a dedicated doc (e.g. a runbook, an architecture doc) and leave a keyword-rich routing pointer. |
 
 ## Recommended Directives
 
@@ -103,3 +115,6 @@ Certain directives provide enough value that they should appear in every project
 | Omitting common commands | Inline these — they're needed for nearly every task |
 | Making the file a comprehensive project wiki | Keep it minimal; route to existing docs |
 | Routing to a section without topic keywords | Add keywords so the agent knows when to follow the route |
+| Inlining exact dependency versions | They go stale on the next bump — name the major identity if needed, route exact pins to `package.json` |
+| A "Status"/"current phase" section | Delete — inherently stale; state lives in git + code |
+| Deep file paths / line numbers in prose | Reference stable directories or exported symbols instead |

@@ -2,6 +2,18 @@
 
 Standing log of deferred code-related follow-up items. New entries are prepended; completed items are annotated in place (strikethrough + completion date), not deleted.
 
+# Retire the docs/inbox pattern
+Commit range: 989eed6-HEAD
+Branch name: main
+Added on: 2026-07-15
+
+## Follow-up Items
+- Implement the Markdown-preferring WebFetch hook specified in `docs/plans/2026-06-17-claude-code-markdown-web-fetch-hook.md`. A `PreToolUse` hook matching `WebFetch` that discovers a Markdown representation (Accept-header content negotiation → HTTP `Link` header → HTML head `<link rel="alternate">` → HTML-to-Markdown fallback) and returns `updatedInput` with the rewritten URL plus `additionalContext` naming the canonical original. The spec carries open design questions (same-origin vs. cross-origin policy, cache location, Python HTML-to-Markdown library choice) that need answers before implementation. Codex parity is deliberately deferred — Codex hooks have no documented `updatedInput` equivalent, so parity would come later via a shared MCP `smart_fetch` tool. Moved here from `docs/inbox/` when that folder was retired; it was never processed.
+- `docs/plans/2026-07-13-remove-proposit-dependencies.md` is now partially moot — its tasks for `commands/process-inbox-initiative.md` and for generalizing the anti-volatility inbox request both refer to files that no longer exist. Re-scope or close the plan.
+
+## Additional Notes
+- The `docs/inbox/` convention is superseded by the TCW work axis. The `process-inbox` commands were retired outright rather than scoped, per maintainer decision: no known non-TCW consumer still uses a bare `docs/inbox/` folder.
+
 # Skill-to-command migration — wave 2
 Commit range: 2b074d0-1ac5c30
 Branch name: main

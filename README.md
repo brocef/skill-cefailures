@@ -74,9 +74,7 @@ commands/
   broker/                     # /skill-cefailures:broker:* commands
   documentation-sync/         # /skill-cefailures:documentation-sync:* commands
   permissions-auditor/        # /skill-cefailures:permissions-auditor:* commands
-  process-inbox.md            # /skill-cefailures:process-inbox
-  process-inbox-initiative.md # /skill-cefailures:process-inbox-initiative (orchestrator-only)
-skills/                       # Nine skills, one directory each
+skills/                       # Ten skills, one directory each
   brain-style/
   broker/
   capabilities-sdlc/
@@ -85,6 +83,7 @@ skills/                       # Nine skills, one directory each
   ieee/
   knex/
   openai-api/
+  report/
   typebox/
   <name>/
     SKILL.md                  # Routing layer (loaded on invocation)
@@ -126,6 +125,7 @@ requirements.txt
 | `ieee` | IEEE editorial style, citation/reference formatting, mathematical notation, and TypeBox schema derivation for IEEE reference types. |
 | `knex` | Knex.js setup, configuration, connection behavior, and SQL dialect handling. |
 | `openai-api` | OpenAI API documentation index for guides and endpoint references. |
+| `report` | How to report a bug, issue, or suggestion about this plugin — files a GitHub issue on this repo, with a ready-to-fill skeleton for each kind of report. |
 | `typebox` | Runtime type system with JSON Schema definitions that infer to TypeScript types. |
 
 ## Slash Commands
@@ -138,8 +138,6 @@ This plugin ships slash commands under `commands/` (registered via `plugin.json`
 | `/skill-cefailures:brain-style:claude-md` | Review or author a project's `CLAUDE.md` against the minimal-routing principle and required-sections checklist. |
 | `/skill-cefailures:documentation-sync:setup` | Walk a project through adding a `## Documentation Sync` section to its `CLAUDE.md` and create any tracked files that don't yet exist. |
 | `/skill-cefailures:documentation-sync:cut-version` | Cut a new version: choose the bump size, update every version-bearing file, rotate `upcoming.md` to `v{version}.md`, commit, and tag. |
-| `/skill-cefailures:process-inbox` | Pick a request document from `docs/inbox/` (loose file or folder bundle), read it plus any supporting artifacts, route it via superpowers if installed, then move the source into `docs/inbox/.archive/`. |
-| `/skill-cefailures:process-inbox-initiative` | Workspace-coordinator workflow for a multi-repo inbox request: discover host conventions, record capability intent when adopted, then keep one durable agent per affected repo through research, review, implementation, and integration. |
 | `/skill-cefailures:permissions-auditor:install` | Install the permission-logging hook so future permission prompts are captured for later triage. |
 | `/skill-cefailures:permissions-auditor:analyze` | Analyze logged permission requests, present recurring patterns, and triage them into allow/deny/manual-review rules. |
 | `/skill-cefailures:broker:setup` | First-time broker setup: symlink the CLI, start the server, confirm identity, register the `Bash(broker:*)` permission. |
