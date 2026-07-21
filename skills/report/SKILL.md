@@ -1,12 +1,12 @@
 ---
 name: report
-description: Use when reporting a bug, issue, or suggestion about the skill-cefailures plugin itself — a skill giving wrong guidance, a `/skill-cefailures:*` slash command misfiring, a broker CLI failure, or a feature request. Files a GitHub issue on this repo and provides a ready-to-fill skeleton for each report kind. Not for bugs in the user's own project.
+description: Use when reporting a bug, issue, or suggestion about the skill-cefailures plugin itself — a skill giving wrong guidance, a `/skill-cefailures:*` slash command misfiring, a `create_skill.py` failure, or a feature request. Files a GitHub issue on this repo and provides a ready-to-fill skeleton for each report kind. Not for bugs in the user's own project.
 ---
 
 # Reporting an issue or suggestion to skill-cefailures
 
 Feedback about **the plugin itself** — a skill that gives wrong guidance, a slash
-command that misfires, a broker bug, a `create_skill.py` failure, a feature idea —
+command that misfires, a `create_skill.py` failure, a feature idea —
 goes to the project's issue tracker on GitHub.
 
 **File it here:** https://github.com/brocef/skill-cefailures/issues
@@ -21,13 +21,11 @@ goes to the project's issue tracker on GitHub.
    matching skeleton below.
 3. **Name the surface.** This plugin ships several, and they fail differently —
    say which one you hit:
-   - a **skill** (`skills/<name>/`, e.g. `typebox`, `knex`, `brain-style`)
+   - a **skill** (`skills/<name>/`, e.g. `brain-style`, `capabilities-sdlc`, `documentation-sync`)
    - a **slash command** (`/skill-cefailures:<group>:<action>`)
-   - the **message broker** (the `broker` CLI or its MCP server)
    - the **skill-generation tooling** (`scripts/create_skill.py`)
 4. **Grab the version.** For a bug, include the `version` field from
-   `.claude-plugin/plugin.json` in your installed copy. For a broker bug, add
-   `broker --version` and the output of `/skill-cefailures:broker:doctor`.
+   `.claude-plugin/plugin.json` in your installed copy.
 5. **Say which agent.** The plugin targets both Claude Code and Codex, and a bug
    often only reproduces on one. Note which you were running.
 
@@ -38,7 +36,7 @@ goes to the project's issue tracker on GitHub.
 
 ### Environment
 - Plugin version: <`version` in .claude-plugin/plugin.json>
-- Surface: <skill name / slash command / broker / create_skill.py>
+- Surface: <skill name / slash command / create_skill.py>
 - Agent: <Claude Code / Codex — and its version>
 - OS / platform: <e.g. macOS 14, Ubuntu 24.04>
 

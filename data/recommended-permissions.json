@@ -67,13 +67,6 @@
       ],
       "databases": [
         "Bash(pg_config *)"
-      ],
-      "mcp_broker": [
-        "mcp__broker__close_conversation",
-        "mcp__broker__create_conversation",
-        "mcp__broker__list_conversations",
-        "mcp__broker__read_new_messages",
-        "mcp__broker__send_message"
       ]
     },
     "deny": {

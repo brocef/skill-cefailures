@@ -17,4 +17,4 @@ Code style preferences across naming and types.
 These workflows are explicit-invocation-only and live as slash commands, not as auto-triggered skill content:
 
 - `/skill-cefailures:brain-style:review` — architecture review of a file/function/class against decomposition, file-size, and redundancy guidelines.
-- `/skill-cefailures:brain-style:claude-md` — review or author a project's `CLAUDE.md` against the minimal-routing principle and required-sections checklist.
+- `/skill-cefailures:brain-style:agents-md` — review or author a project's `AGENTS.md` against the minimal-routing principle and required-sections checklist, and ensure `CLAUDE.md` is a symlink to it.

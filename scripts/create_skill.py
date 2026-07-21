@@ -327,7 +327,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Generate a Claude Code skill from library documentation."
     )
-    parser.add_argument("--name", required=True, help="Skill name (e.g., knex, typebox)")
+    parser.add_argument("--name", required=True, help="Skill name (e.g., redis, stripe)")
     parser.add_argument("--url", required=True, help="URL to the library's documentation (markdown/text)")
     parser.add_argument("--model", default=None, help="Model to use (default depends on backend)")
     parser.add_argument("--force", action="store_true", help="Overwrite existing skill directory")

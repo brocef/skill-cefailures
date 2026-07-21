@@ -108,7 +108,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--exclude", nargs="+", metavar="CAT",
-        help="Skip these categories (e.g., --exclude mcp_broker pnpm)",
+        help="Skip these categories (e.g., --exclude databases pnpm)",
     )
     parser.add_argument(
         "--dry-run", action="store_true",

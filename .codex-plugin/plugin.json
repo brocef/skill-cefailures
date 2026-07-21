@@ -1,6 +1,6 @@
 {
   "name": "skill-cefailures",
-  "version": "1.15.0",
+  "version": "1.16.0",
   "description": "Agent skills for specific libraries and patterns",
   "author": {
     "name": "Brian Cefali"
@@ -9,21 +9,15 @@
   "repository": "https://github.com/brocef/skill-cefailures",
   "keywords": [
     "brain-style",
-    "broker",
     "capabilities-sdlc",
     "documentation-sync",
-    "elkjs",
-    "ieee",
-    "knex",
-    "openai-api",
-    "report",
-    "typebox"
+    "report"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "skill-cefailures",
-    "shortDescription": "Skills for libraries, documentation sync, broker workflows, and agent conventions.",
-    "longDescription": "skill-cefailures provides Codex skills for specific libraries and agent workflows, including documentation-sync, broker references, TypeBox, Knex, elkjs, IEEE style, and capability documentation conventions.",
+    "shortDescription": "Skills for code style, documentation sync, capability docs, and agent conventions.",
+    "longDescription": "skill-cefailures provides Codex skills for agent workflows, including brain-style code conventions, documentation-sync, capability documentation, and issue reporting.",
     "developerName": "Brian Cefali",
     "category": "Developer Tools",
     "capabilities": [
