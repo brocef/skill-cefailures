@@ -84,18 +84,6 @@ Trigger-based documentation update rules used by the `documentation-sync` skill.
 - `CHANGELOG.md` — update when: any user-facing change
 ```
 
-### Project Terminology
-
-Project-specific terms that appear in the codebase or prompts and what they mean. This helps the agent understand domain language without guessing.
-
-```markdown
-## Project Terminology
-
-- **EUsr** — end user
-- **pvar** — propositional variable
-- **CRD** — custom resource definition
-```
-
 ## Inline vs. Route
 
 **Inline when:**
