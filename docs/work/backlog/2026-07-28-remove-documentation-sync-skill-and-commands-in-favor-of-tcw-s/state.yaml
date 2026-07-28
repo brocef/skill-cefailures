@@ -4,3 +4,6 @@ created: '2026-07-28'
 resolution: null
 effort: medium
 complexity: medium
+blocked_by:
+- external: TCW plugin release shipping tcw-cut-version + tcw-docs-sync-setup commands
+    and references/cut-version.md
