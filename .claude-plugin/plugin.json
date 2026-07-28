@@ -5,7 +5,7 @@
   "author": {
     "name": "Brian Cefali"
   },
-  "keywords": ["brain-style", "capabilities-sdlc", "documentation-sync", "report"],
+  "keywords": ["brain-style", "capabilities-sdlc", "report"],
   "skills": "./skills/",
   "commands": "./commands/"
 }

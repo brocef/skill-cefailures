@@ -10,14 +10,13 @@
   "keywords": [
     "brain-style",
     "capabilities-sdlc",
-    "documentation-sync",
     "report"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "skill-cefailures",
-    "shortDescription": "Skills for code style, documentation sync, capability docs, and agent conventions.",
-    "longDescription": "skill-cefailures provides Codex skills for agent workflows, including brain-style code conventions, documentation-sync, capability documentation, and issue reporting.",
+    "shortDescription": "Skills for code style, capability docs, and agent conventions.",
+    "longDescription": "skill-cefailures provides Codex skills for agent workflows, including brain-style code conventions, capability documentation, and issue reporting.",
     "developerName": "Brian Cefali",
     "category": "Developer Tools",
     "capabilities": [
