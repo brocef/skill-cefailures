@@ -21,7 +21,7 @@ goes to the project's issue tracker on GitHub.
    matching skeleton below.
 3. **Name the surface.** This plugin ships several, and they fail differently —
    say which one you hit:
-   - a **skill** (`skills/<name>/`, e.g. `brain-style`, `capabilities-sdlc`, `documentation-sync`)
+   - a **skill** (`skills/<name>/`, e.g. `brain-style`, `capabilities-sdlc`, `report`)
    - a **slash command** (`/skill-cefailures:<group>:<action>`)
    - the **skill-generation tooling** (`scripts/create_skill.py`)
 4. **Grab the version.** For a bug, include the `version` field from

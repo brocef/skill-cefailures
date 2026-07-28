@@ -75,7 +75,7 @@ Naming rules, patterns, and idioms specific to the project. If the project uses 
 
 ### Documentation Sync
 
-Trigger-based documentation update rules used by the `documentation-sync` skill. See `/skill-cefailures:documentation-sync:setup` for how to create this section from scratch.
+Trigger-based documentation update rules used by the `tcw:documentation-sync` skill (shipped by the TCW plugin). See `/tcw:tcw-docs-sync-setup` for how to create this section from scratch.
 
 ```markdown
 ## Documentation Sync
