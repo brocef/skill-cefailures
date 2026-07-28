@@ -71,12 +71,10 @@ Optional flags: `--model <id>` overrides the per-backend default model; `--force
   plugin.json                 # Codex plugin manifest
 commands/
   brain-style/                # /skill-cefailures:brain-style:* commands
-  documentation-sync/         # /skill-cefailures:documentation-sync:* commands
   permissions-auditor/        # /skill-cefailures:permissions-auditor:* commands
 skills/                       # One directory per skill
   brain-style/
   capabilities-sdlc/
-  documentation-sync/
   report/
   <name>/
     SKILL.md                  # Routing layer (loaded on invocation)
@@ -106,7 +104,6 @@ requirements-dev.txt          # Runtime + test dependencies (use this to run the
 |-------|---------|
 | `brain-style` | Code style preferences across TypeScript naming, types, and resource-oriented HTTP route design. |
 | `capabilities-sdlc` | Project-neutral user-capability documentation conventions for co-located or centralized files, with a planning gate, contradiction-detection rule, and optional multi-repo coordination. |
-| `documentation-sync` | Evaluate trigger-based documentation update rules from a project's `CLAUDE.md` after code changes. |
 | `report` | How to report a bug, issue, or suggestion about this plugin — files a GitHub issue on this repo, with a ready-to-fill skeleton for each kind of report. |
 
 ## Slash Commands
@@ -117,8 +114,6 @@ This plugin ships slash commands under `commands/` (registered via `plugin.json`
 |---------|---------|
 | `/skill-cefailures:brain-style:review` | Architecture review of a file/function/class against decomposition, file-size, and redundancy guidelines. |
 | `/skill-cefailures:brain-style:agents-md` | Review or author a project's `AGENTS.md` against the minimal-routing principle and required-sections checklist, and ensure `CLAUDE.md` is a symlink to it. |
-| `/skill-cefailures:documentation-sync:setup` | Walk a project through adding a `## Documentation Sync` section to its `CLAUDE.md` and create any tracked files that don't yet exist. |
-| `/skill-cefailures:documentation-sync:cut-version` | Cut a new version: choose the bump size, update every version-bearing file, rotate `upcoming.md` to `v{version}.md`, commit, and tag. |
 | `/skill-cefailures:permissions-auditor:install` | Install the permission-logging hook so future permission prompts are captured for later triage. |
 | `/skill-cefailures:permissions-auditor:analyze` | Analyze logged permission requests, present recurring patterns, and triage them into allow/deny/manual-review rules. |
 
