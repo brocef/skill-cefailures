@@ -10,7 +10,7 @@
       "description": "Agent skills for specific libraries and patterns",
       "source": {
         "source": "local",
-        "path": "./plugins/skill-cefailures"
+        "path": "."
       },
       "policy": {
         "installation": "AVAILABLE",
