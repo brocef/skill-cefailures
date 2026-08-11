@@ -10,7 +10,7 @@
       "name": "skill-cefailures",
       "source": "./",
       "description": "Claude Code skills for specific libraries and patterns",
-      "version": "1.17.0",
+      "version": "1.17.1",
       "author": {
         "name": "Brian Cefali",
         "email": "brian.cefali@gmail.com"
