@@ -2,6 +2,19 @@
 
 Standing log of deferred code-related follow-up items. New entries are prepended; completed items are annotated in place (strikethrough + completion date), not deleted.
 
+# Marketplace web-app sync — unconfirmed, and cause unknown
+Commit range: d3c04d9-110418d
+Branch name: main
+Added on: 2026-08-11
+
+## Follow-up Items
+- **Confirm the fix.** Adding `brocef/skill-cefailures` from <https://claude.ai/code> has not been tested since the change; it needs these commits published first. This is acceptance criterion 9 of `docs/work/.../2026-08-11-make-the-plugin-marketplace-syncable-from-the-claude-ai-web-app` and the only one that did not close locally. If it still fails, the error string will be byte-identical to before — the server collapses every rejection into one message — so a re-test is the only signal.
+- **Add the web-app install path to `README.md`** once the above is confirmed. It was deliberately left out of the Installation section: documenting an install route nobody has successfully used is a promise, not a doc.
+- **The cause is deliberately unknown.** Both candidate fixes (self-symlink removal, manifest metadata) shipped in one pass, matching the combination verified on `brocef/TCW`. The maintainer chose that over bisecting. Answering it would mean reverting one, re-testing, and reverting the other — cheap, but only worth doing if the answer matters for a third repo.
+
+## Additional Notes
+- The regression guard covers only the symlink half. Nothing mechanically prevents the manifest metadata from being emptied again; `claude plugin validate .` warns on a missing marketplace description but is not run in CI, and the repo has no CI.
+
 # Retire the docs/inbox pattern
 Commit range: 989eed6-HEAD
 Branch name: main

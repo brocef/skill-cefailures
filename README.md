@@ -80,8 +80,6 @@ skills/                       # One directory per skill
     SKILL.md                  # Routing layer (loaded on invocation)
     docs/
       <topic>.md              # Detailed reference (read on demand)
-plugins/
-  skill-cefailures -> ..      # Codex marketplace pointer to the repo-root plugin
 scripts/
   create_skill.py             # Generate skill from URL
   analyze_permissions.py      # Analyze permission request logs
@@ -124,3 +122,7 @@ When an agent invokes a library skill:
 1. **SKILL.md** is loaded — gives the agent a brief overview and a routing table to reference docs in `docs/`. The frontmatter `description` field acts as the skill's invocation criteria.
 2. The agent **reads specific docs/** files based on the current task — only what's needed
 3. Reference docs contain full API details, examples, and troubleshooting
+
+## License
+
+Apache-2.0. See [LICENSE](LICENSE).
