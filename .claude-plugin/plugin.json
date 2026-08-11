@@ -5,6 +5,7 @@
   "author": {
     "name": "Brian Cefali"
   },
+  "license": "Apache-2.0",
   "keywords": ["brain-style", "capabilities-sdlc", "report"],
   "skills": "./skills/",
   "commands": "./commands/"
