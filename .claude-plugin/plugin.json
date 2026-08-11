@@ -5,6 +5,8 @@
   "author": {
     "name": "Brian Cefali"
   },
+  "homepage": "https://github.com/brocef/skill-cefailures",
+  "repository": "https://github.com/brocef/skill-cefailures",
   "license": "Apache-2.0",
   "keywords": ["brain-style", "capabilities-sdlc", "report"],
   "skills": "./skills/",

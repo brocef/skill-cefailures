@@ -1,11 +1,13 @@
 {
   "name": "skill-cefailures",
+  "description": "Agent skills for specific libraries and patterns, plus tooling to generate new skills from online documentation.",
   "interface": {
     "displayName": "skill-cefailures"
   },
   "plugins": [
     {
       "name": "skill-cefailures",
+      "description": "Agent skills for specific libraries and patterns",
       "source": {
         "source": "local",
         "path": "./plugins/skill-cefailures"
