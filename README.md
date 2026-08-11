@@ -17,6 +17,8 @@ In Claude Code, run:
 
 Skills are available as `/skill-cefailures:<skill-name>` (e.g. `/skill-cefailures:brain-style`).
 
+On [claude.ai/code](https://claude.ai/code) or in the Claude Desktop app, open the plugin directory, choose **Add marketplace**, and enter `brocef/skill-cefailures`.
+
 In Codex, add the marketplace and install the plugin:
 
 ```bash
